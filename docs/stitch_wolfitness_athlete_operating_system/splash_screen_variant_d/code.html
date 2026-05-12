@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Wolfitness - Splash</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@600;700&amp;family=Manrope:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-family: 'Material Symbols Outlined';
+            font-weight: normal;
+            font-style: normal;
+            font-size: 24px;
+            line-height: 1;
+            letter-spacing: normal;
+            text-transform: none;
+            display: inline-block;
+            white-space: nowrap;
+            word-wrap: normal;
+            direction: ltr;
+            -webkit-font-feature-settings: 'liga';
+            -webkit-font-smoothing: antialiased;
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-container-low": "#eef6ee",
+                        "on-surface": "#161d19",
+                        "on-secondary-fixed": "#1c1c1a",
+                        "on-error": "#ffffff",
+                        "tertiary-fixed": "#ffdad7",
+                        "secondary-fixed-dim": "#c8c6c3",
+                        "surface-variant": "#dde4dd",
+                        "outline": "#6c7a71",
+                        "primary-container": "#10b981",
+                        "tertiary-container": "#fc7c78",
+                        "tertiary-fixed-dim": "#ffb3af",
+                        "inverse-on-surface": "#ebf3eb",
+                        "on-primary": "#ffffff",
+                        "error": "#ba1a1a",
+                        "tertiary": "#a43a3a",
+                        "outline-variant": "#bbcabf",
+                        "surface-container-highest": "#dde4dd",
+                        "on-primary-fixed": "#002113",
+                        "on-tertiary-fixed": "#410005",
+                        "primary": "#006c49",
+                        "secondary-fixed": "#e5e2de",
+                        "surface-dim": "#d4dcd5",
+                        "secondary": "#5f5e5c",
+                        "secondary-container": "#e5e2de",
+                        "on-secondary-fixed-variant": "#474744",
+                        "on-tertiary-fixed-variant": "#842225",
+                        "surface-container-high": "#e3eae3",
+                        "surface-container": "#e8f0e9",
+                        "background": "#f4fbf4",
+                        "surface-tint": "#006c49",
+                        "on-background": "#161d19",
+                        "inverse-primary": "#4edea3",
+                        "on-primary-fixed-variant": "#005236",
+                        "on-secondary-container": "#656461",
+                        "on-error-container": "#93000a",
+                        "on-primary-container": "#00422b",
+                        "on-tertiary": "#ffffff",
+                        "primary-fixed-dim": "#4edea3",
+                        "on-surface-variant": "#3c4a42",
+                        "surface": "#f4fbf4",
+                        "inverse-surface": "#2b322d",
+                        "on-secondary": "#ffffff",
+                        "surface-container-lowest": "#ffffff",
+                        "surface-bright": "#f4fbf4",
+                        "primary-fixed": "#6ffbbe",
+                        "on-tertiary-container": "#711419",
+                        "error-container": "#ffdad6"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px",
+                        "3xl": "1.5rem",
+                        "4xl": "2rem"
+                    },
+                    "spacing": {
+                        "section-gap": "48px",
+                        "unit": "8px",
+                        "container-padding": "24px",
+                        "max-width": "1200px",
+                        "gutter": "16px"
+                    },
+                    "fontFamily": {
+                        "body-md": ["Manrope"],
+                        "label-md": ["Manrope"],
+                        "display-lg": ["Archivo Narrow"],
+                        "body-lg": ["Manrope"],
+                        "headline-lg": ["Archivo Narrow"],
+                        "label-sm": ["Manrope"],
+                        "headline-xl": ["Archivo Narrow"]
+                    },
+                    "fontSize": {
+                        "body-md": ["16px", { "lineHeight": "1.5", "letterSpacing": "0", "fontWeight": "400" }],
+                        "label-md": ["14px", { "lineHeight": "1.2", "letterSpacing": "0.05em", "fontWeight": "600" }],
+                        "display-lg": ["48px", { "lineHeight": "1.1", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "body-lg": ["18px", { "lineHeight": "1.6", "letterSpacing": "0", "fontWeight": "400" }],
+                        "headline-lg": ["24px", { "lineHeight": "1.2", "letterSpacing": "0.02em", "fontWeight": "600" }],
+                        "label-sm": ["12px", { "lineHeight": "1.2", "letterSpacing": "0.08em", "fontWeight": "500" }],
+                        "headline-xl": ["32px", { "lineHeight": "1.2", "letterSpacing": "-0.01em", "fontWeight": "700" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-background min-h-screen relative overflow-hidden flex flex-col justify-end antialiased">
+<div class="absolute inset-0 z-0 bg-cover bg-center" data-alt="A high-fashion, editorial style photograph of an abstract athletic training element. The scene is illuminated by soft, natural, high-key light that creates a bright, light-mode aesthetic. The focus is on a serene, minimalist composition featuring soft off-white tones, sleek geometric lines, and very subtle, airy shadows. The mood is exceptionally calm, disciplined, and exclusively high-end. No faces are clearly visible, projecting an aura of quiet luxury and elite performance space." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuCCFKpIISAKABKKlGoZXv3nIAexM1f0OpQfmdiMPPdSP3VghWtEU365_WqFLxdOgSAwEzd9OZKc_GxmMQaRl3-UJ27hsULXfJQtZooBGSbX4rJv8k81h9_KPiFl02wn0KmB_5Mdb-XkCnP2PdYaQBx9-6BBeiWZPmvdWbq8_XNIvlliJki0R7rEa9ZT9_99Bf0Dps-hlMLM3oZpCoKVpS8rsdzEkVrNz9n4HnxZ7ubR8htLX4mr-aCcIRZIvzQacxcluFcWrL66xAXr');">
+<div class="absolute inset-0 bg-gradient-to-b from-surface/20 via-surface/40 to-surface"></div>
+</div>
+<div class="relative z-10 w-full max-w-lg mx-auto px-container-padding pb-16 pt-12">
+<div class="bg-surface/80 backdrop-blur-xl border border-white/50 rounded-4xl p-8 sm:p-12 flex flex-col items-center text-center shadow-[0px_20px_40px_rgba(28,28,26,0.06)] transform transition-transform duration-500 ease-out translate-y-0">
+<div class="w-16 h-16 rounded-full bg-surface shadow-sm flex items-center justify-center mb-6">
+<span class="material-symbols-outlined text-primary-container" style="font-size: 32px; font-variation-settings: 'FILL' 1;">
+                    energy_savings_leaf
+                </span>
+</div>
+<h1 class="font-display-lg text-display-lg text-on-surface mb-3 tracking-tight">
+                Wolfitness
+            </h1>
+<p class="font-body-lg text-body-lg text-on-surface-variant mb-10 max-w-[280px]">
+                Quiet discipline. Pure performance. Elevate your standard.
+            </p>
+<div class="w-full flex flex-col gap-4">
+<button class="w-full py-4 rounded-full bg-on-secondary-fixed text-on-primary font-label-md text-label-md uppercase tracking-widest hover:scale-[1.02] hover:shadow-[0px_10px_20px_rgba(28,28,26,0.1)] transition-all duration-300 ease-out">
+                    Get Started
+                </button>
+<button class="w-full py-4 rounded-full bg-transparent text-primary-container font-label-md text-label-md uppercase tracking-widest hover:bg-primary-container/5 transition-colors duration-300 ease-out">
+                    Log In
+                </button>
+</div>
+</div>
+</div>
+</body></html>

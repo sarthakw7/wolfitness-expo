@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Wolfitness - Progress &amp; Analytics</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&amp;family=Manrope:wght@200..800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "surface-container-low": "#eef6ee",
+                      "on-surface": "#161d19",
+                      "on-secondary-fixed": "#1c1c1a",
+                      "on-error": "#ffffff",
+                      "tertiary-fixed": "#ffdad7",
+                      "secondary-fixed-dim": "#c8c6c3",
+                      "surface-variant": "#dde4dd",
+                      "outline": "#6c7a71",
+                      "primary-container": "#10b981",
+                      "tertiary-container": "#fc7c78",
+                      "tertiary-fixed-dim": "#ffb3af",
+                      "inverse-on-surface": "#ebf3eb",
+                      "on-primary": "#ffffff",
+                      "error": "#ba1a1a",
+                      "tertiary": "#a43a3a",
+                      "outline-variant": "#bbcabf",
+                      "surface-container-highest": "#dde4dd",
+                      "on-primary-fixed": "#002113",
+                      "on-tertiary-fixed": "#410005",
+                      "primary": "#006c49",
+                      "secondary-fixed": "#e5e2de",
+                      "surface-dim": "#d4dcd5",
+                      "secondary": "#5f5e5c",
+                      "secondary-container": "#e5e2de",
+                      "on-secondary-fixed-variant": "#474744",
+                      "on-tertiary-fixed-variant": "#842225",
+                      "surface-container-high": "#e3eae3",
+                      "surface-container": "#e8f0e9",
+                      "background": "#f4fbf4",
+                      "surface-tint": "#006c49",
+                      "on-background": "#161d19",
+                      "inverse-primary": "#4edea3",
+                      "on-primary-fixed-variant": "#005236",
+                      "on-secondary-container": "#656461",
+                      "on-error-container": "#93000a",
+                      "on-primary-container": "#00422b",
+                      "on-tertiary": "#ffffff",
+                      "primary-fixed-dim": "#4edea3",
+                      "on-surface-variant": "#3c4a42",
+                      "surface": "#f4fbf4",
+                      "inverse-surface": "#2b322d",
+                      "on-secondary": "#ffffff",
+                      "surface-container-lowest": "#ffffff",
+                      "surface-bright": "#f4fbf4",
+                      "primary-fixed": "#6ffbbe",
+                      "on-tertiary-container": "#711419",
+                      "error-container": "#ffdad6"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.25rem",
+                      "lg": "0.5rem",
+                      "xl": "0.75rem",
+                      "full": "9999px"
+              },
+              "spacing": {
+                      "section-gap": "48px",
+                      "unit": "8px",
+                      "container-padding": "24px",
+                      "max-width": "1200px",
+                      "gutter": "16px"
+              },
+              "fontFamily": {
+                      "body-md": [
+                              "Manrope"
+                      ],
+                      "label-md": [
+                              "Manrope"
+                      ],
+                      "display-lg": [
+                              "Archivo Narrow"
+                      ],
+                      "body-lg": [
+                              "Manrope"
+                      ],
+                      "headline-lg": [
+                              "Archivo Narrow"
+                      ],
+                      "label-sm": [
+                              "Manrope"
+                      ],
+                      "headline-xl": [
+                              "Archivo Narrow"
+                      ]
+              },
+              "fontSize": {
+                      "body-md": [
+                              "16px",
+                              {
+                                      "lineHeight": "1.5",
+                                      "letterSpacing": "0",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "label-md": [
+                              "14px",
+                              {
+                                      "lineHeight": "1.2",
+                                      "letterSpacing": "0.05em",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "display-lg": [
+                              "48px",
+                              {
+                                      "lineHeight": "1.1",
+                                      "letterSpacing": "-0.02em",
+                                      "fontWeight": "700"
+                              }
+                      ],
+                      "body-lg": [
+                              "18px",
+                              {
+                                      "lineHeight": "1.6",
+                                      "letterSpacing": "0",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "headline-lg": [
+                              "24px",
+                              {
+                                      "lineHeight": "1.2",
+                                      "letterSpacing": "0.02em",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "label-sm": [
+                              "12px",
+                              {
+                                      "lineHeight": "1.2",
+                                      "letterSpacing": "0.08em",
+                                      "fontWeight": "500"
+                              }
+                      ],
+                      "headline-xl": [
+                              "32px",
+                              {
+                                      "lineHeight": "1.2",
+                                      "letterSpacing": "-0.01em",
+                                      "fontWeight": "700"
+                              }
+                      ]
+              }
+      },
+          },
+        }
+      </script>
+<style>
+        .glass-card {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            box-shadow: 0px 20px 40px rgba(28, 28, 26, 0.04);
+        }
+        .luxury-shadow {
+            box-shadow: 0px 20px 40px rgba(28, 28, 26, 0.04);
+        }
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+      </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-background font-body-md min-h-screen flex flex-col pb-24 md:pb-0">
+<!-- TopAppBar -->
+<header class="fixed top-0 w-full z-50 bg-surface/80 backdrop-blur-md shadow-sm">
+<div class="flex justify-between items-center w-full px-container-padding py-unit max-w-7xl mx-auto h-16">
+<div class="flex items-center gap-4">
+<div class="w-8 h-8 rounded-full bg-secondary-container overflow-hidden">
+<img alt="Athlete Profile" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA_k84rkblohukljDRMldfnC67YUMfFr-KUTCRd12xPAP0p1WF4BYg269r5a9mkLqTH3nghwaSKuZsXU9Ovhh1PjdOt6SY0g1qbPfjAhCEI7wQKtxXZRNXKSjccuKkGfnCUCsQXuLvvBv6wpzPmbBebYJ-Hl0t5LhJ1HmRDWhwwlHu1TdhIvjMrKA3OZAV8gmrXXmfGNhJxUSFPDLhLOjadsiyRvBoX7tauoYEfEp6RosoiFVa8AbLmIvVIIAaW4fPrn-2kURSJk1e0"/>
+</div>
+<h1 class="text-headline-md font-headline-md tracking-tight text-secondary font-bold">Wolfitness</h1>
+</div>
+<!-- Desktop Nav (Hidden on mobile) -->
+<nav class="hidden md:flex gap-8 items-center">
+<a class="text-label-md font-label-md text-outline hover:bg-surface-container-low/50 px-4 py-2 rounded-lg transition-colors" href="#">dashboard</a>
+<a class="text-label-md font-label-md text-secondary font-bold opacity-80 scale-95 transition-all bg-surface-container-low/50 px-4 py-2 rounded-lg" href="#">insights</a>
+<a class="text-label-md font-label-md text-outline hover:bg-surface-container-low/50 px-4 py-2 rounded-lg transition-colors" href="#">fitness_center</a>
+<a class="text-label-md font-label-md text-outline hover:bg-surface-container-low/50 px-4 py-2 rounded-lg transition-colors" href="#">person</a>
+</nav>
+<button class="text-secondary hover:bg-surface-container-low/50 p-2 rounded-full transition-colors flex items-center justify-center">
+<span class="material-symbols-outlined">settings</span>
+</button>
+</div>
+</header>
+<!-- Main Content -->
+<main class="flex-grow pt-24 px-container-padding max-w-max-width mx-auto w-full flex flex-col gap-section-gap">
+<!-- Header Section -->
+<section class="flex flex-col gap-2 pt-8">
+<h2 class="text-display-lg font-display-lg text-on-surface">Performance Analytics</h2>
+<p class="text-body-lg font-body-lg text-secondary max-w-2xl">A comprehensive overview of your strength progression and training volume. Precision tracking for elite results.</p>
+</section>
+<!-- Bento Grid -->
+<section class="grid grid-cols-1 md:grid-cols-12 gap-gutter md:gap-6">
+<!-- Primary Chart (Spans 8 cols on desktop) -->
+<div class="col-span-1 md:col-span-8 bg-surface-container-lowest luxury-shadow rounded-xl p-6 flex flex-col gap-6 relative overflow-hidden group hover:scale-[1.01] transition-transform duration-300">
+<div class="flex justify-between items-start">
+<div>
+<h3 class="text-headline-lg font-headline-lg text-on-surface">Strength Progression</h3>
+<p class="text-body-md font-body-md text-secondary">1RM Estimates over 12 weeks</p>
+</div>
+<div class="flex gap-2">
+<span class="px-3 py-1 rounded-full border border-outline-variant text-label-sm font-label-sm text-secondary uppercase tracking-widest">Bench</span>
+<span class="px-3 py-1 rounded-full border border-primary-container bg-primary-container/10 text-label-sm font-label-sm text-primary-container uppercase tracking-widest">Squat</span>
+<span class="px-3 py-1 rounded-full border border-outline-variant text-label-sm font-label-sm text-secondary uppercase tracking-widest">Deadlift</span>
+</div>
+</div>
+<!-- Mock Chart Area -->
+<div class="relative w-full h-64 mt-4 flex items-end">
+<!-- Y-Axis -->
+<div class="absolute left-0 top-0 h-full flex flex-col justify-between text-label-sm font-label-sm text-outline pr-4 pb-6">
+<span>400</span>
+<span>300</span>
+<span>200</span>
+<span>100</span>
+</div>
+<!-- Grid Lines -->
+<div class="absolute left-10 right-0 top-0 h-full flex flex-col justify-between pb-6">
+<div class="w-full border-t border-outline-variant/30"></div>
+<div class="w-full border-t border-outline-variant/30"></div>
+<div class="w-full border-t border-outline-variant/30"></div>
+<div class="w-full border-t border-outline-variant/30"></div>
+</div>
+<!-- Line (SVG Mock) -->
+<svg class="absolute left-10 right-0 bottom-6 w-[calc(100%-40px)] h-full" preserveaspectratio="none" viewbox="0 0 100 100">
+<path class="opacity-80" d="M 0 80 Q 20 75, 40 60 T 80 30 T 100 20" fill="none" stroke="#10b981" stroke-width="2"></path>
+<circle cx="100" cy="20" fill="#10b981" r="2"></circle>
+</svg>
+<!-- X-Axis -->
+<div class="absolute left-10 right-0 bottom-0 h-6 flex justify-between text-label-sm font-label-sm text-outline">
+<span>W1</span>
+<span>W4</span>
+<span>W8</span>
+<span>W12</span>
+</div>
+</div>
+</div>
+<!-- Side Metrics (Spans 4 cols on desktop) -->
+<div class="col-span-1 md:col-span-4 flex flex-col gap-gutter md:gap-6">
+<!-- Metric 1 -->
+<div class="glass-card rounded-xl p-6 flex flex-col gap-2 group hover:scale-[1.02] transition-transform duration-300">
+<div class="flex items-center gap-2 text-secondary">
+<span class="material-symbols-outlined text-[20px]">fitness_center</span>
+<span class="text-label-sm font-label-sm uppercase tracking-widest">Total Volume</span>
+</div>
+<div class="text-headline-xl font-headline-xl text-on-surface">124,500 <span class="text-headline-lg text-secondary">lbs</span></div>
+<div class="text-label-sm font-label-sm text-primary-container flex items-center gap-1 mt-2">
+<span class="material-symbols-outlined text-[16px]">trending_up</span> +5.2% this month
+                    </div>
+</div>
+<!-- Metric 2 -->
+<div class="glass-card rounded-xl p-6 flex flex-col gap-2 group hover:scale-[1.02] transition-transform duration-300">
+<div class="flex items-center gap-2 text-secondary">
+<span class="material-symbols-outlined text-[20px]">timer</span>
+<span class="text-label-sm font-label-sm uppercase tracking-widest">Active Time</span>
+</div>
+<div class="text-headline-xl font-headline-xl text-on-surface">24h 15m</div>
+<div class="text-label-sm font-label-sm text-secondary flex items-center gap-1 mt-2">
+                        Avg 65m per session
+                    </div>
+</div>
+</div>
+</section>
+</main>
+<!-- BottomNavBar (Mobile Only) -->
+<nav class="md:hidden fixed bottom-0 left-0 w-full z-50 bg-surface-container/70 backdrop-blur-lg rounded-t-xl shadow-lg pb-safe">
+<div class="flex justify-around items-center px-gutter py-sm h-20">
+<a class="flex flex-col items-center justify-center text-secondary p-3 hover:text-primary transition-all" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="text-label-sm font-label-sm mt-1">Dashboard</span>
+</a>
+<a class="flex flex-col items-center justify-center bg-tertiary-container text-on-tertiary-container rounded-full p-3 scale-110 duration-300 ease-out" href="#">
+<span class="material-symbols-outlined">insights</span>
+<span class="text-label-sm font-label-sm mt-1 sr-only">Insights</span>
+</a>
+<a class="flex flex-col items-center justify-center text-secondary p-3 hover:text-primary transition-all" href="#">
+<span class="material-symbols-outlined">fitness_center</span>
+<span class="text-label-sm font-label-sm mt-1">Workouts</span>
+</a>
+<a class="flex flex-col items-center justify-center text-secondary p-3 hover:text-primary transition-all" href="#">
+<span class="material-symbols-outlined">person</span>
+<span class="text-label-sm font-label-sm mt-1">Profile</span>
+</a>
+</div>
+</nav>
+</body></html>

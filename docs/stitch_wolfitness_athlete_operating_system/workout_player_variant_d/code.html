@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Wolfitness - Workout Player</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@600;700&amp;family=Manrope:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "surface-container-low": "#eef6ee",
+                      "on-surface": "#161d19",
+                      "on-secondary-fixed": "#1c1c1a",
+                      "on-error": "#ffffff",
+                      "tertiary-fixed": "#ffdad7",
+                      "secondary-fixed-dim": "#c8c6c3",
+                      "surface-variant": "#dde4dd",
+                      "outline": "#6c7a71",
+                      "primary-container": "#10b981",
+                      "tertiary-container": "#fc7c78",
+                      "tertiary-fixed-dim": "#ffb3af",
+                      "inverse-on-surface": "#ebf3eb",
+                      "on-primary": "#ffffff",
+                      "error": "#ba1a1a",
+                      "tertiary": "#a43a3a",
+                      "outline-variant": "#bbcabf",
+                      "surface-container-highest": "#dde4dd",
+                      "on-primary-fixed": "#002113",
+                      "on-tertiary-fixed": "#410005",
+                      "primary": "#006c49",
+                      "secondary-fixed": "#e5e2de",
+                      "surface-dim": "#d4dcd5",
+                      "secondary": "#5f5e5c",
+                      "secondary-container": "#e5e2de",
+                      "on-secondary-fixed-variant": "#474744",
+                      "on-tertiary-fixed-variant": "#842225",
+                      "surface-container-high": "#e3eae3",
+                      "surface-container": "#e8f0e9",
+                      "background": "#f4fbf4",
+                      "surface-tint": "#006c49",
+                      "on-background": "#161d19",
+                      "inverse-primary": "#4edea3",
+                      "on-primary-fixed-variant": "#005236",
+                      "on-secondary-container": "#656461",
+                      "on-error-container": "#93000a",
+                      "on-primary-container": "#00422b",
+                      "on-tertiary": "#ffffff",
+                      "primary-fixed-dim": "#4edea3",
+                      "on-surface-variant": "#3c4a42",
+                      "surface": "#f4fbf4",
+                      "inverse-surface": "#2b322d",
+                      "on-secondary": "#ffffff",
+                      "surface-container-lowest": "#ffffff",
+                      "surface-bright": "#f4fbf4",
+                      "primary-fixed": "#6ffbbe",
+                      "on-tertiary-container": "#711419",
+                      "error-container": "#ffdad6"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.25rem",
+                      "lg": "0.5rem",
+                      "xl": "0.75rem",
+                      "full": "9999px"
+              },
+              "spacing": {
+                      "section-gap": "48px",
+                      "unit": "8px",
+                      "container-padding": "24px",
+                      "max-width": "1200px",
+                      "gutter": "16px"
+              },
+              "fontFamily": {
+                      "body-md": ["Manrope"],
+                      "label-md": ["Manrope"],
+                      "display-lg": ["Archivo Narrow"],
+                      "body-lg": ["Manrope"],
+                      "headline-lg": ["Archivo Narrow"],
+                      "label-sm": ["Manrope"],
+                      "headline-xl": ["Archivo Narrow"]
+              },
+              "fontSize": {
+                      "body-md": ["16px", {"lineHeight": "1.5", "letterSpacing": "0", "fontWeight": "400"}],
+                      "label-md": ["14px", {"lineHeight": "1.2", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                      "display-lg": ["48px", {"lineHeight": "1.1", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                      "body-lg": ["18px", {"lineHeight": "1.6", "letterSpacing": "0", "fontWeight": "400"}],
+                      "headline-lg": ["24px", {"lineHeight": "1.2", "letterSpacing": "0.02em", "fontWeight": "600"}],
+                      "label-sm": ["12px", {"lineHeight": "1.2", "letterSpacing": "0.08em", "fontWeight": "500"}],
+                      "headline-xl": ["32px", {"lineHeight": "1.2", "letterSpacing": "-0.01em", "fontWeight": "700"}]
+              }
+            }
+          }
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+        }
+        .material-symbols-outlined.filled {
+            font-variation-settings: 'FILL' 1, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+        }
+        /* Custom scrollbar for a cleaner look */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background-color: #dde4dd;
+            border-radius: 10px;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-background font-body-md antialiased min-h-screen flex flex-col relative overflow-x-hidden selection:bg-primary-container selection:text-on-primary-container">
+<!-- Task-Focused Header (Suppressed Global Nav per Rules) -->
+<header class="sticky top-0 w-full z-50 bg-background/80 backdrop-blur-xl border-b border-surface-variant/30">
+<div class="max-w-max-width mx-auto px-container-padding h-16 flex items-center justify-between">
+<button aria-label="End Workout" class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-container transition-colors group">
+<span class="material-symbols-outlined text-on-surface-variant group-hover:text-error transition-colors">close</span>
+</button>
+<div class="flex flex-col items-center">
+<span class="font-label-sm text-label-sm text-outline uppercase tracking-widest">Upper Body Power</span>
+<span class="font-label-md text-label-md text-on-surface">3 of 8 Exercises</span>
+</div>
+<button aria-label="Skip Exercise" class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-container transition-colors">
+<span class="material-symbols-outlined text-on-surface-variant">skip_next</span>
+</button>
+</div>
+</header>
+<!-- Main Content Canvas -->
+<main class="flex-1 w-full max-w-max-width mx-auto px-container-padding py-section-gap pb-[140px] grid grid-cols-1 lg:grid-cols-12 gap-x-12 gap-y-section-gap">
+<!-- Left Column: Media & Info -->
+<div class="lg:col-span-7 flex flex-col gap-6">
+<!-- Video/Image Hero Frame -->
+<div class="relative w-full aspect-[4/3] lg:aspect-video rounded-xl overflow-hidden bg-surface-container-high shadow-[0_20px_40px_rgba(28,28,26,0.04)] group cursor-pointer border border-white/50">
+<img alt="Exercise Demonstration" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" data-alt="A high-end, cinematic shot of an athletic man performing an incline dumbbell bench press in a luxury, minimalist gym environment. The lighting is bright and soft, creating a high-key light-mode aesthetic with crisp whites and subtle shadows. The focus is sharp on the lifter's form, emphasizing physical discipline and premium performance within a serene, exclusive architectural space." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDLbY-JCX4z78cFa78XsKxs2db48YFH1qCB-P6E-Z3ZXBTY5LNBQrucskcuW5Eb4fRGlHcR7l3kkJh9dsWpYxptVAKlDUXv2M5hU6T-eypbvMaN_OQ16hJXB--_ZCQI6ZhTqmU5ryTm8Py1MbNEs9uesGu1C7i9pI1cLhlV3djX6iqIqrFc4gVxUrWM4wx03XFFAznSt9UE4htIiivyk_KBlf6SW3tlxhQlJXbNCkhgnP4eR8o5NOvG-thEbWmHdfrA48B17WH1TsUQ"/>
+<!-- Play Overlay -->
+<div class="absolute inset-0 bg-on-background/10 group-hover:bg-on-background/20 transition-colors flex items-center justify-center">
+<div class="w-16 h-16 rounded-full bg-surface-container-lowest/80 backdrop-blur-md flex items-center justify-center shadow-lg border border-white/60 transform transition-transform group-hover:scale-110">
+<span class="material-symbols-outlined filled text-on-surface text-3xl ml-1">play_arrow</span>
+</div>
+</div>
+<!-- Floating Video Controls (Minimal) -->
+<div class="absolute bottom-4 left-4 right-4 flex justify-between items-center opacity-0 group-hover:opacity-100 transition-opacity">
+<span class="font-label-sm text-label-sm text-white drop-shadow-md">0:15 / 1:30</span>
+<button class="text-white hover:text-primary-fixed drop-shadow-md"><span class="material-symbols-outlined">fullscreen</span></button>
+</div>
+</div>
+<!-- Exercise Metadata -->
+<div class="flex flex-col gap-2 px-2">
+<div class="flex flex-wrap gap-2 mb-1">
+<span class="inline-flex items-center px-3 py-1 rounded-full border border-outline-variant/60 font-label-sm text-label-sm uppercase tracking-widest text-on-surface-variant">Chest</span>
+<span class="inline-flex items-center px-3 py-1 rounded-full border border-outline-variant/60 font-label-sm text-label-sm uppercase tracking-widest text-on-surface-variant">Hypertrophy</span>
+</div>
+<h1 class="font-display-lg text-display-lg text-on-surface tracking-tight">Incline Dumbbell Press</h1>
+<p class="font-body-lg text-body-lg text-outline max-w-2xl mt-2">Maintain a 30-degree incline. Keep your elbows tucked at a 45-degree angle to protect your shoulders and maximize upper chest activation. Control the eccentric phase.</p>
+</div>
+</div>
+<!-- Right Column: Tracking & Metrics (Glassmorphism Focus) -->
+<div class="lg:col-span-5 flex flex-col gap-6 relative">
+<!-- Floating Timer/Status Pill -->
+<div class="bg-surface-container-lowest/70 backdrop-blur-xl border border-white/80 rounded-2xl p-6 shadow-[0_20px_40px_rgba(28,28,26,0.06)] flex items-center justify-between sticky top-20 z-30">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 rounded-full border-2 border-primary-container flex items-center justify-center text-primary-container">
+<span class="material-symbols-outlined">timer</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-outline uppercase tracking-widest">Rest Timer</span>
+<span class="font-headline-xl text-headline-xl text-on-surface font-variant-numeric: tabular-nums">01:45</span>
+</div>
+</div>
+<button class="font-label-md text-label-md text-on-surface underline decoration-outline-variant underline-offset-4 hover:decoration-on-surface transition-colors">Skip Rest</button>
+</div>
+<!-- Set Tracking Header -->
+<div class="flex justify-between items-end px-2 mt-4 border-b border-surface-variant/50 pb-2">
+<h2 class="font-headline-lg text-headline-lg text-on-surface">Target Sets</h2>
+<div class="flex items-center gap-6">
+<span class="font-label-sm text-label-sm text-outline uppercase tracking-widest text-center w-12">Lbs</span>
+<span class="font-label-sm text-label-sm text-outline uppercase tracking-widest text-center w-12">Reps</span>
+<span class="font-label-sm text-label-sm text-outline uppercase tracking-widest text-center w-8"></span>
+</div>
+</div>
+<!-- Sets List (Glass Cards) -->
+<div class="flex flex-col gap-3">
+<!-- Completed Set (Dimmed, Emerald Toggle) -->
+<div class="bg-surface-container-lowest/40 backdrop-blur-md border border-white/30 rounded-xl p-4 flex items-center justify-between transition-all opacity-70">
+<div class="flex items-center gap-4">
+<span class="font-headline-lg text-headline-lg text-outline w-6 text-center">1</span>
+<span class="font-label-sm text-label-sm text-outline uppercase bg-surface-variant/50 px-2 py-1 rounded">Warmup</span>
+</div>
+<div class="flex items-center gap-6">
+<input class="w-14 bg-transparent border-b border-outline-variant/30 text-center font-body-lg text-body-lg text-on-surface-variant focus:ring-0 focus:border-on-surface transition-colors pb-1 px-0 mx-[-6px]" readonly="" type="text" value="45"/>
+<input class="w-14 bg-transparent border-b border-outline-variant/30 text-center font-body-lg text-body-lg text-on-surface-variant focus:ring-0 focus:border-on-surface transition-colors pb-1 px-0 mx-[-6px]" readonly="" type="text" value="12"/>
+<button aria-label="Mark Incomplete" class="w-8 h-8 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center shadow-sm">
+<span class="material-symbols-outlined text-sm font-bold">check</span>
+</button>
+</div>
+</div>
+<!-- Active Set (Pure White Glass, Elevated) -->
+<div class="bg-surface-container-lowest/90 backdrop-blur-xl border border-white rounded-xl p-4 flex items-center justify-between shadow-[0_8px_20px_rgba(28,28,26,0.05)] scale-[1.02] transform transition-transform z-10 relative">
+<!-- Subtle highlight indicator -->
+<div class="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-on-surface rounded-r-full"></div>
+<div class="flex items-center gap-4 pl-3">
+<span class="font-headline-lg text-headline-lg text-on-surface w-6 text-center">2</span>
+<span class="font-label-sm text-label-sm text-outline uppercase">Working</span>
+</div>
+<div class="flex items-center gap-6">
+<input class="w-14 bg-transparent border-b-2 border-on-surface text-center font-body-lg text-body-lg text-on-surface focus:ring-0 focus:border-primary-container transition-colors pb-1 px-0 mx-[-6px]" type="number" value="65"/>
+<input class="w-14 bg-transparent border-b-2 border-on-surface text-center font-body-lg text-body-lg text-on-surface focus:ring-0 focus:border-primary-container transition-colors pb-1 px-0 mx-[-6px]" type="number" value="10"/>
+<button aria-label="Mark Complete" class="w-8 h-8 rounded-full border-2 border-outline-variant text-outline flex items-center justify-center hover:border-primary-container hover:text-primary-container transition-colors bg-white/50">
+<span class="material-symbols-outlined text-sm">check</span>
+</button>
+</div>
+</div>
+<!-- Future Set (Standard Glass) -->
+<div class="bg-surface-container-lowest/60 backdrop-blur-md border border-white/50 rounded-xl p-4 flex items-center justify-between transition-all hover:bg-surface-container-lowest/80">
+<div class="flex items-center gap-4 pl-1">
+<span class="font-headline-lg text-headline-lg text-outline w-6 text-center">3</span>
+<span class="font-label-sm text-label-sm text-outline uppercase">Working</span>
+</div>
+<div class="flex items-center gap-6">
+<input class="w-14 bg-transparent border-b border-outline-variant/50 text-center font-body-lg text-body-lg text-on-surface focus:ring-0 focus:border-on-surface transition-colors pb-1 px-0 mx-[-6px] placeholder:text-outline-variant" placeholder="-" type="number"/>
+<input class="w-14 bg-transparent border-b border-outline-variant/50 text-center font-body-lg text-body-lg text-on-surface focus:ring-0 focus:border-on-surface transition-colors pb-1 px-0 mx-[-6px] placeholder:text-outline-variant" placeholder="-" type="number"/>
+<button aria-label="Mark Complete" class="w-8 h-8 rounded-full border-2 border-outline-variant/50 text-outline-variant flex items-center justify-center hover:border-outline hover:text-outline transition-colors bg-transparent">
+<span class="material-symbols-outlined text-sm">check</span>
+</button>
+</div>
+</div>
+<!-- Future Set (Standard Glass) -->
+<div class="bg-surface-container-lowest/60 backdrop-blur-md border border-white/50 rounded-xl p-4 flex items-center justify-between transition-all hover:bg-surface-container-lowest/80">
+<div class="flex items-center gap-4 pl-1">
+<span class="font-headline-lg text-headline-lg text-outline w-6 text-center">4</span>
+<span class="font-label-sm text-label-sm text-outline uppercase">Working</span>
+</div>
+<div class="flex items-center gap-6">
+<input class="w-14 bg-transparent border-b border-outline-variant/50 text-center font-body-lg text-body-lg text-on-surface focus:ring-0 focus:border-on-surface transition-colors pb-1 px-0 mx-[-6px] placeholder:text-outline-variant" placeholder="-" type="number"/>
+<input class="w-14 bg-transparent border-b border-outline-variant/50 text-center font-body-lg text-body-lg text-on-surface focus:ring-0 focus:border-on-surface transition-colors pb-1 px-0 mx-[-6px] placeholder:text-outline-variant" placeholder="-" type="number"/>
+<button aria-label="Mark Complete" class="w-8 h-8 rounded-full border-2 border-outline-variant/50 text-outline-variant flex items-center justify-center hover:border-outline hover:text-outline transition-colors bg-transparent">
+<span class="material-symbols-outlined text-sm">check</span>
+</button>
+</div>
+</div>
+<button class="mt-4 flex items-center justify-center gap-2 py-3 px-4 rounded-xl border border-dashed border-outline-variant/60 text-on-surface-variant font-label-md text-label-md hover:bg-surface-container-low transition-colors w-full">
+<span class="material-symbols-outlined text-sm">add</span> Add Set
+                </button>
+</div>
+</div>
+</main>
+<!-- Fixed Bottom Action Area (Graphite Primary Action) -->
+<div class="fixed bottom-0 left-0 w-full px-container-padding pb-8 pt-12 bg-gradient-to-t from-background via-background/95 to-transparent pointer-events-none z-40">
+<div class="max-w-max-width mx-auto flex justify-center lg:justify-end pointer-events-auto">
+<button class="w-full lg:w-auto min-w-[280px] bg-on-surface text-surface py-4 px-8 rounded-full font-label-md text-label-md uppercase tracking-wider flex items-center justify-center gap-3 shadow-[0_10px_20px_rgba(28,28,26,0.15)] hover:scale-[1.02] hover:bg-inverse-surface transition-all active:scale-95 group">
+                Complete Exercise
+                <span class="material-symbols-outlined group-hover:translate-x-1 transition-transform">arrow_forward</span>
+</button>
+</div>
+</div>
+</body></html>

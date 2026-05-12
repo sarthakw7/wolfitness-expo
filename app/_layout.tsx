@@ -1,24 +1,73 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { Stack } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import 'react-native-reanimated';
+import "react-native-gesture-handler";
 
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import "@/global.css";
 
-export const unstable_settings = {
-  anchor: '(tabs)',
-};
+import { Stack } from "expo-router";
+import * as SplashScreen from "expo-splash-screen";
+import * as SystemUI from "expo-system-ui";
+import { useEffect } from "react";
+
+import { StatusBar } from "expo-status-bar";
+
+import { AppProviders } from "@/src/providers/AppProviders";
+import { useAppFonts } from "@/src/hooks/useAppFonts";
+import { colors } from "@/src/theme";
+
+SplashScreen.preventAutoHideAsync().catch(() => {
+  // The splash screen may already be hidden during fast refresh.
+});
 
 export default function RootLayout() {
-  const colorScheme = useColorScheme();
+  const [fontsLoaded, fontError] = useAppFonts();
+
+  useEffect(() => {
+    SystemUI.setBackgroundColorAsync(colors.surface).catch(() => {
+      // Non-critical on platforms that do not expose system background control.
+    });
+  }, []);
+
+  useEffect(() => {
+    if (fontsLoaded || fontError) {
+      // Even if fonts fail, we want to hide the splash screen so the app doesn't stay stuck.
+      SplashScreen.hideAsync().catch(() => {
+        // The splash screen may already be hidden during fast refresh.
+      });
+    }
+  }, [fontError, fontsLoaded]);
+
+  // We allow the app to continue even if fonts fail, it will just fallback to system fonts.
+  if (!fontsLoaded && !fontError) {
+    return null;
+  }
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
+    <AppProviders>
+      <StatusBar backgroundColor={colors.surface} style="dark" translucent />
+      <Stack
+        screenOptions={{
+          animation: "fade",
+          contentStyle: { backgroundColor: colors.surface },
+          headerShown: false,
+        }}
+      >
+        <Stack.Screen name="index" />
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen
+          name="(marketplace)"
+          options={{
+            animation: "slide_from_right",
+          }}
+        />
+        <Stack.Screen name="(auth)" />
+        <Stack.Screen name="(onboarding)" />
+        <Stack.Screen
+          name="(modals)"
+          options={{
+            animation: "slide_from_bottom",
+            presentation: "modal",
+          }}
+        />
       </Stack>
-      <StatusBar style="auto" />
-    </ThemeProvider>
+    </AppProviders>
   );
 }

@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Wolfitness - Athlete Profile</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Google Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:ital,wght@0,400..700;1,400..700&amp;family=Manrope:wght@200..800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "surface-container-low": "#eef6ee",
+                      "on-surface": "#161d19",
+                      "on-secondary-fixed": "#1c1c1a",
+                      "on-error": "#ffffff",
+                      "tertiary-fixed": "#ffdad7",
+                      "secondary-fixed-dim": "#c8c6c3",
+                      "surface-variant": "#dde4dd",
+                      "outline": "#6c7a71",
+                      "primary-container": "#10b981",
+                      "tertiary-container": "#fc7c78",
+                      "tertiary-fixed-dim": "#ffb3af",
+                      "inverse-on-surface": "#ebf3eb",
+                      "on-primary": "#ffffff",
+                      "error": "#ba1a1a",
+                      "tertiary": "#a43a3a",
+                      "outline-variant": "#bbcabf",
+                      "surface-container-highest": "#dde4dd",
+                      "on-primary-fixed": "#002113",
+                      "on-tertiary-fixed": "#410005",
+                      "primary": "#006c49",
+                      "secondary-fixed": "#e5e2de",
+                      "surface-dim": "#d4dcd5",
+                      "secondary": "#5f5e5c",
+                      "secondary-container": "#e5e2de",
+                      "on-secondary-fixed-variant": "#474744",
+                      "on-tertiary-fixed-variant": "#842225",
+                      "surface-container-high": "#e3eae3",
+                      "surface-container": "#e8f0e9",
+                      "background": "#f4fbf4",
+                      "surface-tint": "#006c49",
+                      "on-background": "#161d19",
+                      "inverse-primary": "#4edea3",
+                      "on-primary-fixed-variant": "#005236",
+                      "on-secondary-container": "#656461",
+                      "on-error-container": "#93000a",
+                      "on-primary-container": "#00422b",
+                      "on-tertiary": "#ffffff",
+                      "primary-fixed-dim": "#4edea3",
+                      "on-surface-variant": "#3c4a42",
+                      "surface": "#f4fbf4",
+                      "inverse-surface": "#2b322d",
+                      "on-secondary": "#ffffff",
+                      "surface-container-lowest": "#ffffff",
+                      "surface-bright": "#f4fbf4",
+                      "primary-fixed": "#6ffbbe",
+                      "on-tertiary-container": "#711419",
+                      "error-container": "#ffdad6"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.25rem",
+                      "lg": "0.5rem",
+                      "xl": "0.75rem",
+                      "full": "9999px"
+              },
+              "spacing": {
+                      "section-gap": "48px",
+                      "unit": "8px",
+                      "container-padding": "24px",
+                      "max-width": "1200px",
+                      "gutter": "16px",
+                      "safe": "env(safe-area-inset-bottom)"
+              },
+              "fontFamily": {
+                      "body-md": ["Manrope", "sans-serif"],
+                      "label-md": ["Manrope", "sans-serif"],
+                      "display-lg": ["Archivo Narrow", "sans-serif"],
+                      "body-lg": ["Manrope", "sans-serif"],
+                      "headline-lg": ["Archivo Narrow", "sans-serif"],
+                      "label-sm": ["Manrope", "sans-serif"],
+                      "headline-xl": ["Archivo Narrow", "sans-serif"]
+              },
+              "fontSize": {
+                      "body-md": ["16px", {"lineHeight": "1.5", "letterSpacing": "0", "fontWeight": "400"}],
+                      "label-md": ["14px", {"lineHeight": "1.2", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                      "display-lg": ["48px", {"lineHeight": "1.1", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                      "body-lg": ["18px", {"lineHeight": "1.6", "letterSpacing": "0", "fontWeight": "400"}],
+                      "headline-lg": ["24px", {"lineHeight": "1.2", "letterSpacing": "0.02em", "fontWeight": "600"}],
+                      "label-sm": ["12px", {"lineHeight": "1.2", "letterSpacing": "0.08em", "fontWeight": "500"}],
+                      "headline-xl": ["32px", {"lineHeight": "1.2", "letterSpacing": "-0.01em", "fontWeight": "700"}]
+              }
+            }
+          }
+        }
+    </script>
+<style>
+        /* Hide scrollbar for horizontal scroll areas */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;  /* IE and Edge */
+            scrollbar-width: none;  /* Firefox */
+        }
+        
+        /* Glassmorphism utility */
+        .glass-card {
+            background-color: #FFFFFF;
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            box-shadow: 0px 20px 40px rgba(28, 28, 26, 0.04);
+            backdrop-filter: blur(20px);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface text-on-surface font-body-md antialiased pb-24 md:pb-0">
+<!-- TopAppBar -->
+<header class="fixed top-0 left-0 w-full z-40 bg-surface/80 backdrop-blur-md shadow-sm">
+<div class="flex justify-between items-center w-full px-container-padding py-unit max-w-[1200px] mx-auto">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full overflow-hidden bg-surface-container-highest border border-outline-variant/30 flex items-center justify-center">
+<span class="material-symbols-outlined text-secondary" style="font-variation-settings: 'FILL' 1;">person</span>
+</div>
+<h1 class="font-headline-md text-headline-md tracking-tight text-secondary font-bold">Wolfitness</h1>
+</div>
+<!-- Desktop Nav (Hidden on Mobile) -->
+<nav class="hidden md:flex items-center gap-8">
+<a class="text-label-md font-label-md text-outline hover:bg-surface-container-low/50 transition-colors px-3 py-2 rounded-lg" href="#">Dashboard</a>
+<a class="text-label-md font-label-md text-outline hover:bg-surface-container-low/50 transition-colors px-3 py-2 rounded-lg" href="#">Insights</a>
+<a class="text-label-md font-label-md text-outline hover:bg-surface-container-low/50 transition-colors px-3 py-2 rounded-lg" href="#">Workouts</a>
+<a class="text-label-md font-label-md text-secondary font-bold opacity-80 scale-95 transition-all px-3 py-2 rounded-lg bg-surface-container-low/50" href="#">Profile</a>
+</nav>
+<button class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-container-low/50 transition-colors text-secondary">
+<span class="material-symbols-outlined">settings</span>
+</button>
+</div>
+</header>
+<!-- Main Content -->
+<main class="pt-24 max-w-[1200px] mx-auto px-container-padding space-y-section-gap overflow-hidden">
+<!-- Profile Header -->
+<section class="relative pt-8 pb-4 flex flex-col items-center text-center">
+<!-- Subtle background emerald glow -->
+<div class="absolute top-0 left-1/2 -translate-x-1/2 w-64 h-64 bg-primary-container/10 rounded-full blur-3xl -z-10"></div>
+<div class="w-32 h-32 rounded-full overflow-hidden mb-6 border-4 border-surface shadow-xl relative group cursor-pointer">
+<img alt="Athlete Profile" class="w-full h-full object-cover" data-alt="A high-fashion editorial style portrait of a sleek, athletic individual in minimalist white and deep graphite workout gear. The setting is a bright, sunlit luxury fitness studio with soft, diffused light bouncing off off-white walls. The mood is calm, disciplined, and focused, embodying a quiet luxury aesthetic. The lighting creates subtle highlights on their features, emphasizing a premium, high-end visual tone." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDngi4o0_hFh10NOFsd7Rkh-me5KI-DtKS-BNgMoXMley-EhG199ZRIPCLdn85m9xymE6pnjGvsfiAj-bgb60EVkSdokCOWBSmHBMpjvt3i8Jc89uUjTfBOeH7zevC-z9KxRaIpncPERYgjCtS8GQti49CkAumJ9qAPFDIPRrZc-Nl2b6afGHvE2h6DnzP70ngQrpzYpq5PL15DatIQhkcyHX-Dj9fJODLzI8fK1PtPwlCzVDM-A-VcL_yVWGtI4tbjNoKMGNG4ong6"/>
+<div class="absolute inset-0 bg-on-secondary-fixed/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-sm">
+<span class="material-symbols-outlined text-white">photo_camera</span>
+</div>
+</div>
+<h2 class="font-display-lg text-display-lg text-on-surface mb-2">Elias Thorne</h2>
+<div class="flex items-center gap-2">
+<span class="font-label-sm text-label-sm uppercase bg-surface-container-low border border-primary-container/30 text-primary-container px-3 py-1 rounded-full">Elite Athlete</span>
+<span class="font-label-sm text-label-sm uppercase bg-surface-container-lowest border border-outline-variant/50 text-secondary px-3 py-1 rounded-full">Pro Member</span>
+</div>
+</section>
+<!-- Biometrics Bento Grid -->
+<section>
+<div class="flex items-end justify-between mb-6">
+<h3 class="font-headline-lg text-headline-lg text-on-surface">Biometrics</h3>
+<button class="text-label-sm font-label-sm text-primary uppercase tracking-wider hover:opacity-70 transition-opacity">Update</button>
+</div>
+<div class="grid grid-cols-2 md:grid-cols-4 gap-gutter">
+<!-- Card 1 -->
+<div class="glass-card rounded-xl p-6 flex flex-col justify-between aspect-square group hover:scale-[1.02] transition-transform duration-300">
+<div class="flex justify-between items-start">
+<span class="font-label-sm text-label-sm uppercase text-secondary">Weight</span>
+<span class="material-symbols-outlined text-primary-container">scale</span>
+</div>
+<div>
+<div class="font-headline-xl text-headline-xl text-on-surface flex items-baseline gap-1">
+                            172 <span class="font-body-md text-body-md text-secondary">lbs</span>
+</div>
+<p class="font-label-sm text-label-sm text-primary mt-1 flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">arrow_downward</span> 1.2 lbs
+                        </p>
+</div>
+</div>
+<!-- Card 2 -->
+<div class="glass-card rounded-xl p-6 flex flex-col justify-between aspect-square group hover:scale-[1.02] transition-transform duration-300">
+<div class="flex justify-between items-start">
+<span class="font-label-sm text-label-sm uppercase text-secondary">Body Fat</span>
+<span class="material-symbols-outlined text-primary-container">vital_signs</span>
+</div>
+<div>
+<div class="font-headline-xl text-headline-xl text-on-surface flex items-baseline gap-1">
+                            11.4 <span class="font-body-md text-body-md text-secondary">%</span>
+</div>
+<p class="font-label-sm text-label-sm text-secondary mt-1">Optimal Range</p>
+</div>
+</div>
+<!-- Card 3 -->
+<div class="glass-card rounded-xl p-6 flex flex-col justify-between aspect-square group hover:scale-[1.02] transition-transform duration-300">
+<div class="flex justify-between items-start">
+<span class="font-label-sm text-label-sm uppercase text-secondary">Resting HR</span>
+<span class="material-symbols-outlined text-primary-container">favorite</span>
+</div>
+<div>
+<div class="font-headline-xl text-headline-xl text-on-surface flex items-baseline gap-1">
+                            48 <span class="font-body-md text-body-md text-secondary">bpm</span>
+</div>
+<p class="font-label-sm text-label-sm text-secondary mt-1">Top 5%</p>
+</div>
+</div>
+<!-- Card 4 -->
+<div class="glass-card rounded-xl p-6 flex flex-col justify-between aspect-square group hover:scale-[1.02] transition-transform duration-300 bg-gradient-to-br from-surface-container-lowest to-surface-container-low">
+<div class="flex justify-between items-start">
+<span class="font-label-sm text-label-sm uppercase text-secondary">VO2 Max</span>
+<span class="material-symbols-outlined text-primary-container">pulmonology</span>
+</div>
+<div>
+<div class="font-headline-xl text-headline-xl text-on-surface flex items-baseline gap-1">
+                            56.2 <span class="font-body-md text-body-md text-secondary">ml/kg/min</span>
+</div>
+<p class="font-label-sm text-label-sm text-primary mt-1 flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">arrow_upward</span> 0.4
+                        </p>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- BottomNavBar (Mobile Only) -->
+<nav class="md:hidden fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-gutter py-sm pb-safe bg-surface-container/70 backdrop-blur-lg border-t border-outline-variant/30 shadow-lg rounded-t-xl h-[80px]">
+<a class="flex flex-col items-center justify-center text-secondary p-3 hover:text-primary transition-all" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+</a>
+<a class="flex flex-col items-center justify-center text-secondary p-3 hover:text-primary transition-all" href="#">
+<span class="material-symbols-outlined">insights</span>
+</a>
+<a class="flex flex-col items-center justify-center text-secondary p-3 hover:text-primary transition-all" href="#">
+<span class="material-symbols-outlined">fitness_center</span>
+</a>
+<a class="flex flex-col items-center justify-center bg-tertiary-container text-on-tertiary-container rounded-full p-3 scale-110 duration-300 ease-out shadow-sm" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">person</span>
+</a>
+</nav>
+</body></html>

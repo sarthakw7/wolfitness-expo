@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Wolfitness Program Marketplace</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@600;700&amp;family=Manrope:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "surface-container-low": "#eef6ee",
+                    "on-surface": "#161d19",
+                    "on-secondary-fixed": "#1c1c1a",
+                    "on-error": "#ffffff",
+                    "tertiary-fixed": "#ffdad7",
+                    "secondary-fixed-dim": "#c8c6c3",
+                    "surface-variant": "#dde4dd",
+                    "outline": "#6c7a71",
+                    "primary-container": "#10b981",
+                    "tertiary-container": "#fc7c78",
+                    "tertiary-fixed-dim": "#ffb3af",
+                    "inverse-on-surface": "#ebf3eb",
+                    "on-primary": "#ffffff",
+                    "error": "#ba1a1a",
+                    "tertiary": "#a43a3a",
+                    "outline-variant": "#bbcabf",
+                    "surface-container-highest": "#dde4dd",
+                    "on-primary-fixed": "#002113",
+                    "on-tertiary-fixed": "#410005",
+                    "primary": "#006c49",
+                    "secondary-fixed": "#e5e2de",
+                    "surface-dim": "#d4dcd5",
+                    "secondary": "#5f5e5c",
+                    "secondary-container": "#e5e2de",
+                    "on-secondary-fixed-variant": "#474744",
+                    "on-tertiary-fixed-variant": "#842225",
+                    "surface-container-high": "#e3eae3",
+                    "surface-container": "#e8f0e9",
+                    "background": "#f4fbf4",
+                    "surface-tint": "#006c49",
+                    "on-background": "#161d19",
+                    "inverse-primary": "#4edea3",
+                    "on-primary-fixed-variant": "#005236",
+                    "on-secondary-container": "#656461",
+                    "on-error-container": "#93000a",
+                    "on-primary-container": "#00422b",
+                    "on-tertiary": "#ffffff",
+                    "primary-fixed-dim": "#4edea3",
+                    "on-surface-variant": "#3c4a42",
+                    "surface": "#f4fbf4",
+                    "inverse-surface": "#2b322d",
+                    "on-secondary": "#ffffff",
+                    "surface-container-lowest": "#ffffff",
+                    "surface-bright": "#f4fbf4",
+                    "primary-fixed": "#6ffbbe",
+                    "on-tertiary-container": "#711419",
+                    "error-container": "#ffdad6"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "section-gap": "48px",
+                    "unit": "8px",
+                    "container-padding": "24px",
+                    "max-width": "1200px",
+                    "gutter": "16px"
+            },
+            "fontFamily": {
+                    "body-md": [
+                            "Manrope"
+                    ],
+                    "label-md": [
+                            "Manrope"
+                    ],
+                    "display-lg": [
+                            "Archivo Narrow"
+                    ],
+                    "body-lg": [
+                            "Manrope"
+                    ],
+                    "headline-lg": [
+                            "Archivo Narrow"
+                    ],
+                    "label-sm": [
+                            "Manrope"
+                    ],
+                    "headline-xl": [
+                            "Archivo Narrow"
+                    ]
+            },
+            "fontSize": {
+                    "body-md": [
+                            "16px",
+                            {
+                                    "lineHeight": "1.5",
+                                    "letterSpacing": "0",
+                                    "fontWeight": "400"
+                            }
+                    ],
+                    "label-md": [
+                            "14px",
+                            {
+                                    "lineHeight": "1.2",
+                                    "letterSpacing": "0.05em",
+                                    "fontWeight": "600"
+                            }
+                    ],
+                    "display-lg": [
+                            "48px",
+                            {
+                                    "lineHeight": "1.1",
+                                    "letterSpacing": "-0.02em",
+                                    "fontWeight": "700"
+                            }
+                    ],
+                    "body-lg": [
+                            "18px",
+                            {
+                                    "lineHeight": "1.6",
+                                    "letterSpacing": "0",
+                                    "fontWeight": "400"
+                            }
+                    ],
+                    "headline-lg": [
+                            "24px",
+                            {
+                                    "lineHeight": "1.2",
+                                    "letterSpacing": "0.02em",
+                                    "fontWeight": "600"
+                            }
+                    ],
+                    "label-sm": [
+                            "12px",
+                            {
+                                    "lineHeight": "1.2",
+                                    "letterSpacing": "0.08em",
+                                    "fontWeight": "500"
+                            }
+                    ],
+                    "headline-xl": [
+                            "32px",
+                            {
+                                    "lineHeight": "1.2",
+                                    "letterSpacing": "-0.01em",
+                                    "fontWeight": "700"
+                            }
+                    ]
+            }
+    },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .fill-icon {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        .soft-shadow {
+            box-shadow: 0px 20px 40px rgba(28, 28, 26, 0.04);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface text-on-surface font-body-md text-body-md antialiased md:pb-0 pb-24">
+<header class="fixed top-0 w-full z-50 bg-surface/80 backdrop-blur-md shadow-sm">
+<div class="flex justify-between items-center w-full px-container-padding py-unit max-w-max-width mx-auto">
+<div class="flex items-center">
+<img alt="Athlete Profile" class="w-10 h-10 rounded-full object-cover border border-outline-variant/30" data-alt="A close-up portrait of a determined athlete in light mode luxury editorial style. Soft, bright, high-key lighting illuminates their face, set against a clean, off-white background. The mood is focused and premium, capturing a sense of disciplined calm." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDyvQcUGQMtnvtKqRHzjApJ_lv9ZFFj22e9SsdHUdPNvF_0GkMYM7fZO2GQTRy5Z4_vJHl6T3L78A81_Z5R0y-0woR1CCWkVhdJ8vQRuLpPEY9aXpSgos1Bao-c8i1JxAhTI1t_rtGT_ssE2khh3Gyjo0_ntwZLoPKdcsFBxqczFYEYV0lQGT5o2a9Vald_eWkHJf67VgdyLLLUTVqzwdbYLHwLlEnrkvKCJjPb-CrAmIGxs_VMhy_9ZD9WgvIVoF6Djq9gAmrPwsxL"/>
+</div>
+<span class="text-headline-md font-headline-md tracking-tight text-secondary">Wolfitness</span>
+<button class="flex items-center justify-center p-2 rounded-full hover:bg-surface-container-low/50 transition-colors">
+<span class="material-symbols-outlined text-secondary">settings</span>
+</button>
+</div>
+</header>
+<main class="w-full max-w-max-width mx-auto pt-24 px-container-padding flex flex-col gap-section-gap pb-section-gap">
+<section class="relative w-full rounded-xl overflow-hidden min-h-[450px] md:min-h-[550px] flex items-end shadow-sm">
+<img class="absolute inset-0 w-full h-full object-cover" data-alt="A high-end editorial shot of a fitness coach demonstrating a complex mobility movement in a bright, minimalist studio. Generous whitespace and soft, diffused natural light create a serene, airy atmosphere. The color palette relies on crisp whites and subtle cool grays, evoking a sense of luxury and precision." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAEqtMJO-N-jWwEhrqsvhlN_Hf9v1Qgnf--9hv4g_jqiuLhlBVQyXA81TQw7B2gal-vDL-fpYlXOGJpbaWOibgi4PefFkxTC0ALDGgmbdkdvq5WRSVeIkEuhpEOpem_whiMXkJKhprIXqhwOE50USWf82aPhOLujnUUL4UeeFBw8DqfI1HVZ7_I6p08kKSqeFMQ2zJ_btsaefpjbVUPsa0ep2qwTzpfJm0ji4ZOhB3hJGHG1wgvhsGO26Ums5g8L0-Uc8BrK6GQPuzj"/>
+<div class="absolute inset-0 bg-gradient-to-t from-surface-inverse/20 to-transparent"></div>
+<div class="relative w-full md:w-2/3 lg:w-1/2 p-8 md:p-12 bg-surface-container-lowest/70 backdrop-blur-xl border border-surface-container-lowest m-4 md:m-8 rounded-xl soft-shadow transition-transform hover:scale-[1.01] duration-500">
+<span class="inline-block px-4 py-1.5 border border-outline-variant rounded-full text-label-sm font-label-sm uppercase text-on-surface tracking-wider mb-6">Featured Masterclass</span>
+<h1 class="font-display-lg text-display-lg text-on-surface mb-4">The Symmetry Protocol</h1>
+<p class="font-body-lg text-body-lg text-on-surface-variant mb-8 max-w-md">Realign your kinetic chain and unlock fluid, pain-free movement with Coach Aris. A definitive 8-week immersion into advanced structural balance.</p>
+<div class="flex items-center gap-4">
+<button class="bg-on-surface text-on-primary font-label-md text-label-md px-8 py-4 rounded-full hover:bg-on-surface-variant transition-all shadow-md">Enroll Now</button>
+<span class="font-label-md text-label-md text-secondary tracking-widest uppercase">$249 USD</span>
+</div>
+</div>
+</section>
+<section class="flex flex-col gap-6">
+<div class="flex overflow-x-auto gap-3 pb-2 hide-scrollbar items-center">
+<button class="flex-shrink-0 px-6 py-2.5 rounded-full border border-on-surface bg-on-surface text-surface font-label-sm text-label-sm uppercase tracking-wider transition-colors">All Programs</button>
+<button class="flex-shrink-0 px-6 py-2.5 rounded-full border border-outline-variant bg-surface-container-lowest text-on-surface font-label-sm text-label-sm uppercase tracking-wider hover:bg-surface-variant transition-colors">Strength &amp; Conditioning</button>
+<button class="flex-shrink-0 px-6 py-2.5 rounded-full border border-outline-variant bg-surface-container-lowest text-on-surface font-label-sm text-label-sm uppercase tracking-wider hover:bg-surface-variant transition-colors">Mobility</button>
+<button class="flex-shrink-0 px-6 py-2.5 rounded-full border border-outline-variant bg-surface-container-lowest text-on-surface font-label-sm text-label-sm uppercase tracking-wider hover:bg-surface-variant transition-colors">Endurance</button>
+<button class="flex-shrink-0 px-6 py-2.5 rounded-full border border-outline-variant bg-surface-container-lowest text-on-surface font-label-sm text-label-sm uppercase tracking-wider hover:bg-surface-variant transition-colors">Elite Tactics</button>
+</div>
+</section>
+<section class="grid grid-cols-1 md:grid-cols-12 gap-8">
+<article class="md:col-span-7 bg-surface-container-lowest rounded-xl soft-shadow overflow-hidden group border border-outline-variant/20 flex flex-col hover:scale-[1.01] transition-transform duration-500">
+<div class="h-72 relative overflow-hidden bg-surface-container">
+<img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 opacity-90 mix-blend-multiply" data-alt="A high-contrast, light-mode editorial image showing heavy kettlebells resting on a pristine, light wood gym floor. The scene is bathed in soft, bright light creating subtle drop shadows. The aesthetic is minimalist and luxurious, emphasizing the raw texture of the iron against the clean, airy environment." src="https://lh3.googleusercontent.com/aida-public/AB6AXuC3PtZvjAJmerqid8hhirlNCwsalADkMhsedcO3d7J76gEY5OJOgwQ0evy3Uuvfuoa7om9BOjo7sVCohh5XvN3H4n7z1gQAJuXB3cT3T9qgTa1TYruC-4ah6lspTXVFC3NWFfTFcnSRr0Y5eripcWr0NLBOMhPHLJJUCiOhWW6-PBNYegCRdJ-Zg3L-qUGGkdSmAeN2VX8z-VDa4Vsfb2pvmXRhnwJPnvHdVFqov2LNXMfVdLq43LZ_GeVprvm6F2it7VRQlfOQd-9i"/>
+<div class="absolute top-4 right-4 bg-surface-container-lowest/80 backdrop-blur-md px-3 py-1 rounded-full border border-surface-container-lowest">
+<span class="font-label-sm text-label-sm text-on-surface uppercase tracking-wider">Bestseller</span>
+</div>
+</div>
+<div class="p-8 flex flex-col flex-grow">
+<div class="flex justify-between items-start mb-3">
+<h2 class="font-headline-xl text-headline-xl text-on-surface">Iron Genesis</h2>
+<span class="font-headline-lg text-headline-lg text-primary-container">$129</span>
+</div>
+<p class="font-body-md text-body-md text-on-surface-variant mb-8 flex-grow">Build foundational strength through minimalist, heavy compound movements. Stripped of the unnecessary, focused on raw power.</p>
+<div class="flex items-center justify-between pt-6 border-t border-surface-variant">
+<div class="flex gap-6 text-secondary font-label-md text-label-md">
+<div class="flex items-center gap-1.5"><span class="material-symbols-outlined text-[20px]">calendar_month</span> 12 Weeks</div>
+<div class="flex items-center gap-1.5"><span class="material-symbols-outlined text-[20px]">fitness_center</span> Intermediate</div>
+</div>
+<button class="text-on-surface hover:text-primary-container transition-colors flex items-center justify-center">
+<span class="material-symbols-outlined text-[28px]">arrow_forward</span>
+</button>
+</div>
+</div>
+</article>
+<article class="md:col-span-5 bg-surface-container-lowest rounded-xl soft-shadow overflow-hidden group border border-outline-variant/20 flex flex-col hover:scale-[1.01] transition-transform duration-500">
+<div class="h-60 relative overflow-hidden bg-surface-container">
+<img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 opacity-90 mix-blend-multiply" data-alt="A serene, light-mode shot of a person performing a yoga stretch in a minimalist, sunlit studio with vast white walls. The lighting is soft and ethereal, casting gentle shadows that emphasize the layered glassmorphism aesthetic. The mood is quiet, disciplined, and deeply focused." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCrrDWXltZXNFlUguL7ngcpSTB0Zh9ZxhxQJlMFZ35MXG8q1vnLqI-kFCf4P-F87DItJWFLBoIOqZMBXBPyMvP4j7sgSNdsq0KotELw4PNp0UXrB9I4MVpDyA17qqjhwPpsWiCKIPfbFUKIjSOgnwSXTMH19AhQYpHPEoJv7CiR1rJhzYkmCIJYZxXQWo7JlvM51LM6Vb9A7PYIC43h_uFu40RtZorl_twTj1Xxsk6YugbT3IvUnjY5D4wzIAcbdpbPu-u7ESL3B3QJ"/>
+</div>
+<div class="p-8 flex flex-col flex-grow">
+<div class="flex justify-between items-start mb-3">
+<h2 class="font-headline-lg text-headline-lg text-on-surface">Zenith Breathwork</h2>
+<span class="font-headline-lg text-headline-lg text-primary-container">$89</span>
+</div>
+<p class="font-body-md text-body-md text-on-surface-variant mb-8 flex-grow">Advanced respiratory protocols to enhance recovery and autonomic control.</p>
+<div class="flex items-center justify-between pt-6 border-t border-surface-variant">
+<div class="flex gap-4 text-secondary font-label-md text-label-md">
+<div class="flex items-center gap-1.5"><span class="material-symbols-outlined text-[20px]">air</span> 4 Weeks</div>
+<div class="flex items-center gap-1.5"><span class="material-symbols-outlined text-[20px]">spa</span> All Levels</div>
+</div>
+<button class="text-on-surface hover:text-primary-container transition-colors flex items-center justify-center">
+<span class="material-symbols-outlined text-[24px]">arrow_forward</span>
+</button>
+</div>
+</div>
+</article>
+<article class="md:col-span-6 bg-surface-container-lowest rounded-xl soft-shadow overflow-hidden group border border-outline-variant/20 flex flex-col hover:scale-[1.01] transition-transform duration-500">
+<div class="p-8 flex flex-col flex-grow">
+<div class="flex justify-between items-start mb-6">
+<span class="inline-block px-3 py-1 border border-outline-variant rounded-full text-label-sm font-label-sm uppercase text-on-surface tracking-wider">New Release</span>
+<span class="font-headline-lg text-headline-lg text-primary-container">$199</span>
+</div>
+<h2 class="font-headline-xl text-headline-xl text-on-surface mb-4">Tactical Endurance</h2>
+<p class="font-body-md text-body-md text-on-surface-variant mb-8 flex-grow">Prepare for the unknown. A hybrid conditioning block mixing heavy load carries with sub-maximal aerobic base training.</p>
+<div class="flex items-center justify-between pt-6 border-t border-surface-variant">
+<div class="flex gap-6 text-secondary font-label-md text-label-md">
+<div class="flex items-center gap-1.5"><span class="material-symbols-outlined text-[20px]">timer</span> 16 Weeks</div>
+<div class="flex items-center gap-1.5"><span class="material-symbols-outlined text-[20px]">landscape</span> Elite</div>
+</div>
+<button class="bg-primary-container text-on-primary-container px-6 py-2 rounded-full font-label-md text-label-md hover:opacity-90 transition-opacity">View Details</button>
+</div>
+</div>
+</article>
+<article class="md:col-span-6 bg-surface-container-lowest rounded-xl soft-shadow overflow-hidden group border border-outline-variant/20 flex flex-col hover:scale-[1.01] transition-transform duration-500">
+<div class="p-8 flex flex-col flex-grow">
+<div class="flex justify-between items-start mb-6">
+<span class="inline-block px-3 py-1 border border-outline-variant rounded-full text-label-sm font-label-sm uppercase text-on-surface tracking-wider">Nutrition</span>
+<span class="font-headline-lg text-headline-lg text-primary-container">$79</span>
+</div>
+<h2 class="font-headline-xl text-headline-xl text-on-surface mb-4">Metabolic Engine</h2>
+<p class="font-body-md text-body-md text-on-surface-variant mb-8 flex-grow">Dial in your macros for peak performance. A comprehensive guide to fueling intense training cycles without adding mass.</p>
+<div class="flex items-center justify-between pt-6 border-t border-surface-variant">
+<div class="flex gap-6 text-secondary font-label-md text-label-md">
+<div class="flex items-center gap-1.5"><span class="material-symbols-outlined text-[20px]">menu_book</span> E-Book</div>
+<div class="flex items-center gap-1.5"><span class="material-symbols-outlined text-[20px]">restaurant</span> Diet</div>
+</div>
+<button class="bg-primary-container text-on-primary-container px-6 py-2 rounded-full font-label-md text-label-md hover:opacity-90 transition-opacity">View Details</button>
+</div>
+</div>
+</article>
+</section>
+</main>
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-gutter py-sm pb-safe bg-surface-container/70 backdrop-blur-lg rounded-t-xl shadow-lg md:hidden">
+<button class="flex flex-col items-center justify-center text-secondary p-3 hover:text-primary transition-all">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="text-[10px] font-label-sm mt-1">Home</span>
+</button>
+<button class="flex flex-col items-center justify-center text-secondary p-3 hover:text-primary transition-all">
+<span class="material-symbols-outlined">insights</span>
+<span class="text-[10px] font-label-sm mt-1">Stats</span>
+</button>
+<button class="flex flex-col items-center justify-center bg-tertiary-container text-on-tertiary-container rounded-full p-3 scale-110 duration-300 ease-out shadow-sm">
+<span class="material-symbols-outlined fill-icon">fitness_center</span>
+</button>
+<button class="flex flex-col items-center justify-center text-secondary p-3 hover:text-primary transition-all">
+<span class="material-symbols-outlined">person</span>
+<span class="text-[10px] font-label-sm mt-1">Profile</span>
+</button>
+</nav>
+</body></html>
