@@ -1,5 +1,18 @@
 import { Redirect } from "expo-router";
 
-export default function IndexRoute() {
-  return <Redirect href="/(tabs)" />;
+import { AuthLandingScreen } from "@/src/screens/auth";
+import { useAuth } from "@/src/hooks/useAuth";
+
+export default function WelcomeRoute() {
+  const { isAuthenticated, isLoading, isOnboardingComplete } = useAuth();
+
+  if (isLoading) {
+    return null;
+  }
+
+  if (isAuthenticated) {
+    return <Redirect href={isOnboardingComplete ? "/(tabs)" : "/(onboarding)"} />;
+  }
+
+  return <AuthLandingScreen />;
 }

@@ -1,15 +1,19 @@
 import { Ionicons } from "@expo/vector-icons";
+import { router } from "expo-router";
 import { memo } from "react";
 import { Image, View } from "react-native";
 
 import { AppTopBar, Chip, ScreenScaffold, StatCard } from "@/src/components/layout";
-import { Typography } from "@/src/components/primitives";
+import { AppButton, Typography } from "@/src/components/primitives";
+import { useAuth } from "@/src/hooks/useAuth";
 import { colors } from "@/src/theme";
 
 const profileImage =
   "https://lh3.googleusercontent.com/aida-public/AB6AXuDngi4o0_hFh10NOFsd7Rkh-me5KI-DtKS-BNgMoXMley-EhG199ZRIPCLdn85m9xymE6pnjGvsfiAj-bgb60EVkSdokCOWBSmHBMpjvt3i8Jc89uUjTfBOeH7zevC-z9KxRaIpncPERYgjCtS8GQti49CkAumJ9qAPFDIPRrZc-Nl2b6afGHvE2h6DnzP70ngQrpzYpq5PL15DatIQhkcyHX-Dj9fJODLzI8fK1PtPwlCzVDM-A-VcL_yVWGtI4tbjNoKMGNG4ong6";
 
 function AthleteProfileScreenComponent() {
+  const { signOut, user } = useAuth();
+
   return (
     <ScreenScaffold header={<AppTopBar />}>
       <View className="items-center gap-5 pt-4">
@@ -52,11 +56,21 @@ function AthleteProfileScreenComponent() {
           <View className="flex-1">
             <Typography variant="headlineLg">Athlete OS</Typography>
             <Typography tone="secondary" variant="bodyMd">
-              Profile architecture is ready for biometrics, settings, and membership state.
+              {user?.email ?? "Profile architecture is ready for biometrics, settings, and membership state."}
             </Typography>
           </View>
         </View>
       </View>
+
+      <AppButton
+        onPress={async () => {
+          await signOut();
+          router.replace("/(auth)/sign-in");
+        }}
+        variant="ghost"
+      >
+        Sign Out
+      </AppButton>
     </ScreenScaffold>
   );
 }

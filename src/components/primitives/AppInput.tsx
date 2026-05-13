@@ -1,4 +1,4 @@
-import { forwardRef, memo, useId } from "react";
+import { forwardRef, memo, useId, useState } from "react";
 import {
   StyleSheet,
   TextInput,
@@ -19,10 +19,24 @@ type AppInputProps = TextInputProps & {
 };
 
 const AppInputComponent = forwardRef<TextInput, AppInputProps>(
-  ({ className, containerClassName, error, label, nativeID, style, ...props }, ref) => {
+  (
+    {
+      className,
+      containerClassName,
+      error,
+      label,
+      nativeID,
+      onBlur,
+      onFocus,
+      style,
+      ...props
+    },
+    ref,
+  ) => {
     const generatedId = useId();
     const inputId = nativeID ?? generatedId;
     const hasError = Boolean(error);
+    const [isFocused, setIsFocused] = useState(false);
 
     return (
       <View className={cn("gap-1.5", containerClassName)}>
@@ -35,12 +49,20 @@ const AppInputComponent = forwardRef<TextInput, AppInputProps>(
           ref={ref}
           accessibilityLabelledBy={label ? `${inputId}-label` : undefined}
           nativeID={inputId}
+          onBlur={(event) => {
+            setIsFocused(false);
+            onBlur?.(event);
+          }}
+          onFocus={(event) => {
+            setIsFocused(true);
+            onFocus?.(event);
+          }}
           placeholderTextColor={colors.graphiteSubtle}
           selectionColor={colors.emerald}
           style={[
             styles.input,
+            isFocused ? styles.inputFocused : null,
             hasError ? styles.inputError : null,
-            { backgroundColor: colors.surfaceMuted },
             style as TextStyle,
           ]}
           {...props}
@@ -59,17 +81,20 @@ AppInputComponent.displayName = "AppInput";
 
 const styles = StyleSheet.create({
   input: {
-    borderColor: colors.border,
-    borderRadius: radius.lg,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+    borderBottomWidth: StyleSheet.hairlineWidth,
     color: colors.graphite,
     fontFamily: typography.bodyMd.fontFamily,
     fontSize: typography.bodyMd.fontSize,
-    minHeight: 52,
-    paddingHorizontal: spacing[2],
+    minHeight: 44,
+    paddingBottom: spacing[2],
+    paddingHorizontal: 0,
   },
   inputError: {
-    borderColor: colors.danger,
+    borderBottomColor: colors.danger,
+  },
+  inputFocused: {
+    borderBottomColor: colors.emerald,
   },
 });
 

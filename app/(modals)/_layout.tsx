@@ -1,8 +1,25 @@
-import { Stack } from "expo-router";
+import { Redirect, Stack, type Href } from "expo-router";
 
+import { useAuth } from "@/src/hooks/useAuth";
 import { colors } from "@/src/theme";
 
+const authLandingHref = "/(auth)" as Href;
+
 export default function ModalsLayout() {
+  const { isAuthenticated, isLoading, isOnboardingComplete } = useAuth();
+
+  if (isLoading) {
+    return null;
+  }
+
+  if (!isAuthenticated) {
+    return <Redirect href={authLandingHref} />;
+  }
+
+  if (!isOnboardingComplete) {
+    return <Redirect href="/(onboarding)" />;
+  }
+
   return (
     <Stack
       screenOptions={{

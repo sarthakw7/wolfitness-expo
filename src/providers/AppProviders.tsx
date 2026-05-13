@@ -4,12 +4,15 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { queryClient } from "@/src/lib/query-client";
+import { AuthProvider } from "@/src/providers/AuthProvider";
 
 function AppProvidersComponent({ children }: PropsWithChildren) {
   return (
     <GestureHandlerRootView className="flex-1 bg-surface">
       <SafeAreaProvider>
-        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+        <QueryClientProvider client={queryClient}>
+          <AuthProvider>{children}</AuthProvider>
+        </QueryClientProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

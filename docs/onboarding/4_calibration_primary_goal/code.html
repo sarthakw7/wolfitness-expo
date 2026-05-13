@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Athlete Calibration</title>
+<!-- Google Fonts: Hanken Grotesk -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@300;400;500;600&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Tailwind Configuration -->
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-tertiary-container": "#748174",
+                        "on-surface": "#e5e2e1",
+                        "surface-variant": "#353434",
+                        "error": "#ffb4ab",
+                        "on-secondary-fixed-variant": "#474745",
+                        "on-background": "#e5e2e1",
+                        "surface-container": "#201f1f",
+                        "secondary-container": "#474745",
+                        "inverse-on-surface": "#313030",
+                        "tertiary-fixed": "#d8e6d6",
+                        "surface-bright": "#3a3939",
+                        "outline-variant": "#444748",
+                        "on-primary": "#313030",
+                        "outline": "#8e9192",
+                        "surface-container-low": "#1c1b1b",
+                        "inverse-primary": "#5f5e5e",
+                        "on-tertiary-fixed-variant": "#3e4a3e",
+                        "on-secondary-fixed": "#1c1c1a",
+                        "on-tertiary-fixed": "#131e14",
+                        "secondary": "#c8c6c3",
+                        "on-error-container": "#ffdad6",
+                        "on-secondary-container": "#b7b5b2",
+                        "tertiary": "#bccabb",
+                        "on-surface-variant": "#c4c7c7",
+                        "tertiary-fixed-dim": "#bccabb",
+                        "on-secondary": "#31302f",
+                        "on-tertiary": "#273329",
+                        "surface-container-lowest": "#0e0e0e",
+                        "on-primary-fixed-variant": "#474646",
+                        "primary-container": "#121212",
+                        "primary": "#c8c6c5",
+                        "surface-tint": "#c8c6c5",
+                        "surface-container-highest": "#353434",
+                        "primary-fixed-dim": "#c8c6c5",
+                        "on-primary-container": "#7e7d7d",
+                        "surface": "#141313",
+                        "tertiary-container": "#0a150c",
+                        "secondary-fixed-dim": "#c8c6c3",
+                        "error-container": "#93000a",
+                        "primary-fixed": "#e5e2e1",
+                        "inverse-surface": "#e5e2e1",
+                        "background": "#141313",
+                        "on-error": "#690005",
+                        "surface-container-high": "#2b2a2a",
+                        "surface-dim": "#141313",
+                        "on-primary-fixed": "#1c1b1b",
+                        "secondary-fixed": "#e5e2df"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "unit": "4px",
+                        "stack-md": "24px",
+                        "stack-sm": "12px",
+                        "gutter-grid": "24px",
+                        "stack-lg": "48px",
+                        "margin-page": "32px"
+                    },
+                    "fontFamily": {
+                        "label-caps": ["Hanken Grotesk"],
+                        "stats-number": ["Hanken Grotesk"],
+                        "headline-md": ["Hanken Grotesk"],
+                        "display-lg": ["Hanken Grotesk"],
+                        "body-sm": ["Hanken Grotesk"],
+                        "body-lg": ["Hanken Grotesk"]
+                    },
+                    "fontSize": {
+                        "label-caps": ["11px", { "lineHeight": "1.2", "letterSpacing": "0.12em", "fontWeight": "600" }],
+                        "stats-number": ["32px", { "lineHeight": "1", "letterSpacing": "-0.03em", "fontWeight": "300" }],
+                        "headline-md": ["24px", { "lineHeight": "1.3", "letterSpacing": "-0.01em", "fontWeight": "500" }],
+                        "display-lg": ["48px", { "lineHeight": "1.1", "letterSpacing": "-0.02em", "fontWeight": "300" }],
+                        "body-sm": ["14px", { "lineHeight": "1.5", "letterSpacing": "0.01em", "fontWeight": "400" }],
+                        "body-lg": ["16px", { "lineHeight": "1.6", "letterSpacing": "0.01em", "fontWeight": "400" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        /* Hide default scrollbar for clean aesthetic */
+        ::-webkit-scrollbar {
+            width: 0px;
+            background: transparent;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-primary-container text-on-surface antialiased min-h-screen flex flex-col font-sans selection:bg-surface-container-high selection:text-on-surface">
+<!-- TopAppBar Component (from JSON) -->
+<header class="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-margin-page h-16 bg-surface dark:bg-surface border-b border-surface-variant">
+<button class="hover:opacity-70 transition-opacity duration-300 active:scale-95 transition-transform duration-200 flex items-center justify-center">
+<span class="material-symbols-outlined text-on-surface dark:text-on-surface" style="font-variation-settings: 'wght' 300;">arrow_back</span>
+</button>
+<h1 class="font-label-caps text-label-caps tracking-[0.2em] text-on-surface dark:text-on-surface">CALIBRATION</h1>
+<button class="hover:opacity-70 transition-opacity duration-300 active:scale-95 transition-transform duration-200">
+<span class="font-label-caps text-label-caps text-on-surface dark:text-on-surface">SKIP</span>
+</button>
+</header>
+<!-- Main Content Area -->
+<!-- Added pt-[88px] to account for 64px header + 24px natural spacing -->
+<main class="flex-grow pt-[88px] px-margin-page md:px-gutter-grid max-w-[800px] mx-auto w-full flex flex-col">
+<!-- Progress Indicator -->
+<div class="w-full h-[2px] bg-surface-container-high mb-stack-lg rounded-full overflow-hidden">
+<div class="h-full bg-on-surface w-[25%] rounded-full transition-all duration-500 ease-out"></div>
+</div>
+<!-- Headline Area -->
+<div class="mb-stack-lg">
+<h2 class="font-display-lg text-display-lg text-on-surface mb-stack-sm">What is your primary goal?</h2>
+<p class="font-body-lg text-body-lg text-on-surface-variant max-w-md">Select the objective that best aligns with your current training focus to calibrate your regimen.</p>
+</div>
+<!-- Options: Vertical Stack of Graphite Cards -->
+<div class="flex flex-col gap-stack-sm flex-grow">
+<!-- Option 1: Build Muscle -->
+<label class="group relative flex items-center p-stack-md bg-surface-container-low border border-surface-container-high rounded-lg cursor-pointer hover:bg-surface-container-high transition-all duration-300 ease-out">
+<input class="peer sr-only" name="primary_goal" type="radio" value="build_muscle"/>
+<div class="w-12 h-12 rounded-full bg-surface-container flex items-center justify-center mr-stack-md group-hover:bg-surface-variant transition-colors duration-300 border border-surface-container-high group-hover:border-outline-variant">
+<span class="material-symbols-outlined text-on-surface-variant group-hover:text-on-surface transition-colors" style="font-variation-settings: 'wght' 300;">fitness_center</span>
+</div>
+<div class="flex flex-col flex-grow">
+<span class="font-headline-md text-headline-md text-on-surface peer-checked:text-on-surface transition-colors">Build Muscle</span>
+</div>
+<!-- Custom Radio Indicator -->
+<div class="w-5 h-5 rounded-full border border-surface-variant peer-checked:border-on-surface peer-checked:border-[6px] transition-all duration-200 ease-out ml-stack-md"></div>
+</label>
+<!-- Option 2: Lose Fat -->
+<label class="group relative flex items-center p-stack-md bg-surface-container-low border border-surface-container-high rounded-lg cursor-pointer hover:bg-surface-container-high transition-all duration-300 ease-out">
+<input class="peer sr-only" name="primary_goal" type="radio" value="lose_fat"/>
+<div class="w-12 h-12 rounded-full bg-surface-container flex items-center justify-center mr-stack-md group-hover:bg-surface-variant transition-colors duration-300 border border-surface-container-high group-hover:border-outline-variant">
+<span class="material-symbols-outlined text-on-surface-variant group-hover:text-on-surface transition-colors" style="font-variation-settings: 'wght' 300;">local_fire_department</span>
+</div>
+<div class="flex flex-col flex-grow">
+<span class="font-headline-md text-headline-md text-on-surface peer-checked:text-on-surface transition-colors">Lose Fat</span>
+</div>
+<!-- Custom Radio Indicator -->
+<div class="w-5 h-5 rounded-full border border-surface-variant peer-checked:border-on-surface peer-checked:border-[6px] transition-all duration-200 ease-out ml-stack-md"></div>
+</label>
+<!-- Option 3: Increase Endurance -->
+<label class="group relative flex items-center p-stack-md bg-surface-container-low border border-surface-container-high rounded-lg cursor-pointer hover:bg-surface-container-high transition-all duration-300 ease-out">
+<input class="peer sr-only" name="primary_goal" type="radio" value="increase_endurance"/>
+<div class="w-12 h-12 rounded-full bg-surface-container flex items-center justify-center mr-stack-md group-hover:bg-surface-variant transition-colors duration-300 border border-surface-container-high group-hover:border-outline-variant">
+<span class="material-symbols-outlined text-on-surface-variant group-hover:text-on-surface transition-colors" style="font-variation-settings: 'wght' 300;">directions_run</span>
+</div>
+<div class="flex flex-col flex-grow">
+<span class="font-headline-md text-headline-md text-on-surface peer-checked:text-on-surface transition-colors">Increase Endurance</span>
+</div>
+<!-- Custom Radio Indicator -->
+<div class="w-5 h-5 rounded-full border border-surface-variant peer-checked:border-on-surface peer-checked:border-[6px] transition-all duration-200 ease-out ml-stack-md"></div>
+</label>
+<!-- Option 4: Improve Mobility -->
+<label class="group relative flex items-center p-stack-md bg-surface-container-low border border-surface-container-high rounded-lg cursor-pointer hover:bg-surface-container-high transition-all duration-300 ease-out">
+<input class="peer sr-only" name="primary_goal" type="radio" value="improve_mobility"/>
+<div class="w-12 h-12 rounded-full bg-surface-container flex items-center justify-center mr-stack-md group-hover:bg-surface-variant transition-colors duration-300 border border-surface-container-high group-hover:border-outline-variant">
+<span class="material-symbols-outlined text-on-surface-variant group-hover:text-on-surface transition-colors" style="font-variation-settings: 'wght' 300;">accessibility_new</span>
+</div>
+<div class="flex flex-col flex-grow">
+<span class="font-headline-md text-headline-md text-on-surface peer-checked:text-on-surface transition-colors">Improve Mobility</span>
+</div>
+<!-- Custom Radio Indicator -->
+<div class="w-5 h-5 rounded-full border border-surface-variant peer-checked:border-on-surface peer-checked:border-[6px] transition-all duration-200 ease-out ml-stack-md"></div>
+</label>
+</div>
+<!-- Action Area -->
+<div class="mt-stack-lg pb-stack-lg w-full flex justify-end">
+<button class="bg-on-surface text-surface py-4 px-8 rounded-DEFAULT font-label-caps text-label-caps tracking-widest hover:opacity-90 active:scale-95 transition-all duration-200 w-full md:w-auto">
+                CONTINUE
+            </button>
+</div>
+</main>
+</body></html>

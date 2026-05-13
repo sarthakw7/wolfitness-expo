@@ -1,5 +1,5 @@
-import { ScreenContainer } from "@/src/components/primitives";
+import { SignUpScreen } from "@/src/screens/auth";
 
 export default function SignUpRoute() {
-  return <ScreenContainer accessibilityLabel="Sign up route foundation" />;
+  return <SignUpScreen />;
 }

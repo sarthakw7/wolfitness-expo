@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Calibration - Height and Weight</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                            "on-tertiary-container": "#748174",
+                            "on-surface": "#e5e2e1",
+                            "surface-variant": "#353434",
+                            "error": "#ffb4ab",
+                            "on-secondary-fixed-variant": "#474745",
+                            "on-background": "#e5e2e1",
+                            "surface-container": "#201f1f",
+                            "secondary-container": "#474745",
+                            "inverse-on-surface": "#313030",
+                            "tertiary-fixed": "#d8e6d6",
+                            "surface-bright": "#3a3939",
+                            "outline-variant": "#444748",
+                            "on-primary": "#313030",
+                            "outline": "#8e9192",
+                            "surface-container-low": "#1c1b1b",
+                            "inverse-primary": "#5f5e5e",
+                            "on-tertiary-fixed-variant": "#3e4a3e",
+                            "on-secondary-fixed": "#1c1c1a",
+                            "on-tertiary-fixed": "#131e14",
+                            "secondary": "#c8c6c3",
+                            "on-error-container": "#ffdad6",
+                            "on-secondary-container": "#b7b5b2",
+                            "tertiary": "#bccabb",
+                            "on-surface-variant": "#c4c7c7",
+                            "tertiary-fixed-dim": "#bccabb",
+                            "on-secondary": "#31302f",
+                            "on-tertiary": "#273329",
+                            "surface-container-lowest": "#0e0e0e",
+                            "on-primary-fixed-variant": "#474646",
+                            "primary-container": "#121212",
+                            "primary": "#c8c6c5",
+                            "surface-tint": "#c8c6c5",
+                            "surface-container-highest": "#353434",
+                            "primary-fixed-dim": "#c8c6c5",
+                            "on-primary-container": "#7e7d7d",
+                            "surface": "#141313",
+                            "tertiary-container": "#0a150c",
+                            "secondary-fixed-dim": "#c8c6c3",
+                            "error-container": "#93000a",
+                            "primary-fixed": "#e5e2e1",
+                            "inverse-surface": "#e5e2e1",
+                            "background": "#141313",
+                            "on-error": "#690005",
+                            "surface-container-high": "#2b2a2a",
+                            "surface-dim": "#141313",
+                            "on-primary-fixed": "#1c1b1b",
+                            "secondary-fixed": "#e5e2df"
+                    },
+                    "borderRadius": {
+                            "DEFAULT": "0.25rem",
+                            "lg": "0.5rem",
+                            "xl": "0.75rem",
+                            "full": "9999px"
+                    },
+                    "spacing": {
+                            "unit": "4px",
+                            "stack-md": "24px",
+                            "stack-sm": "12px",
+                            "gutter-grid": "24px",
+                            "stack-lg": "48px",
+                            "margin-page": "32px"
+                    },
+                    "fontFamily": {
+                            "label-caps": ["Hanken Grotesk"],
+                            "stats-number": ["Hanken Grotesk"],
+                            "headline-md": ["Hanken Grotesk"],
+                            "display-lg": ["Hanken Grotesk"],
+                            "body-sm": ["Hanken Grotesk"],
+                            "body-lg": ["Hanken Grotesk"]
+                    },
+                    "fontSize": {
+                            "label-caps": ["11px", { "lineHeight": "1.2", "letterSpacing": "0.12em", "fontWeight": "600" }],
+                            "stats-number": ["32px", { "lineHeight": "1", "letterSpacing": "-0.03em", "fontWeight": "300" }],
+                            "headline-md": ["24px", { "lineHeight": "1.3", "letterSpacing": "-0.01em", "fontWeight": "500" }],
+                            "display-lg": ["48px", { "lineHeight": "1.1", "letterSpacing": "-0.02em", "fontWeight": "300" }],
+                            "body-sm": ["14px", { "lineHeight": "1.5", "letterSpacing": "0.01em", "fontWeight": "400" }],
+                            "body-lg": ["16px", { "lineHeight": "1.6", "letterSpacing": "0.01em", "fontWeight": "400" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        /* Hide number input arrows for clean aesthetic */
+        input[type=number]::-webkit-inner-spin-button, 
+        input[type=number]::-webkit-outer-spin-button { 
+            -webkit-appearance: none; 
+            margin: 0; 
+        }
+        input[type=number] {
+            -moz-appearance: textfield;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-background font-body-lg antialiased selection:bg-surface-variant selection:text-on-surface">
+<!-- TopAppBar -->
+<nav class="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-margin-page h-16 bg-surface dark:bg-surface border-b border-surface-variant">
+<button class="text-on-surface dark:text-on-surface hover:opacity-70 transition-opacity duration-300 active:scale-95 transition-transform duration-200 flex items-center justify-center">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">arrow_back</span>
+</button>
+<div class="font-label-caps text-label-caps tracking-[0.2em] text-on-surface dark:text-on-surface font-bold">CALIBRATION</div>
+<button class="font-label-caps text-label-caps text-on-surface dark:text-on-surface hover:opacity-70 transition-opacity duration-300 active:scale-95 transition-transform duration-200">
+            SKIP
+        </button>
+</nav>
+<!-- Main Content Canvas -->
+<main class="pt-24 pb-32 px-margin-page min-h-screen flex flex-col max-w-[1440px] mx-auto w-full">
+<!-- Progress Indicator -->
+<div class="w-full max-w-2xl mx-auto mb-stack-lg">
+<div class="w-full h-[2px] bg-surface-variant rounded-full overflow-hidden">
+<div class="h-full bg-primary w-1/4 transition-all duration-500 ease-out"></div>
+</div>
+<div class="mt-unit text-right">
+<span class="font-label-caps text-label-caps text-on-surface-variant opacity-50">STEP 1 OF 4</span>
+</div>
+</div>
+<!-- Header -->
+<header class="mb-stack-lg flex flex-col items-center text-center max-w-2xl mx-auto">
+<h1 class="font-display-lg text-display-lg text-on-surface mb-stack-sm">What are your measurements?</h1>
+<p class="font-body-lg text-body-lg text-on-surface-variant">Establishing your baseline physical metrics ensures personalized threshold calculations and accurate metabolic tracking.</p>
+</header>
+<!-- Unit Toggle -->
+<div class="flex justify-center mb-stack-lg">
+<div class="inline-flex bg-surface-container-low rounded-full p-1 border border-surface-variant/50">
+<button class="px-6 py-2 rounded-full font-label-caps text-label-caps bg-surface-variant text-on-surface transition-colors shadow-sm">METRIC</button>
+<button class="px-6 py-2 rounded-full font-label-caps text-label-caps text-on-surface-variant hover:text-on-surface transition-colors">IMPERIAL</button>
+</div>
+</div>
+<!-- Interactive Inputs (Bento Grid Style) -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-gutter-grid max-w-3xl mx-auto w-full flex-grow content-start">
+<!-- Height Input Card -->
+<div class="bg-transparent border border-surface-variant rounded-xl p-stack-lg flex flex-col items-center justify-center relative group hover:border-outline-variant transition-colors duration-300">
+<label class="font-label-caps text-label-caps text-on-surface-variant mb-stack-md opacity-50 uppercase tracking-widest group-hover:opacity-100 transition-opacity">Height</label>
+<div class="flex items-baseline justify-center relative w-full">
+<input class="bg-transparent font-stats-number text-stats-number text-on-surface w-32 text-center outline-none border-b border-surface-variant focus:border-primary transition-colors pb-unit placeholder:text-surface-variant" placeholder="0" type="number" value="180"/>
+<span class="font-body-sm text-body-sm text-on-surface-variant ml-unit absolute right-1/4 bottom-2 opacity-50">cm</span>
+</div>
+</div>
+<!-- Weight Input Card -->
+<div class="bg-transparent border border-surface-variant rounded-xl p-stack-lg flex flex-col items-center justify-center relative group hover:border-outline-variant transition-colors duration-300">
+<label class="font-label-caps text-label-caps text-on-surface-variant mb-stack-md opacity-50 uppercase tracking-widest group-hover:opacity-100 transition-opacity">Weight</label>
+<div class="flex items-baseline justify-center relative w-full">
+<input class="bg-transparent font-stats-number text-stats-number text-on-surface w-32 text-center outline-none border-b border-surface-variant focus:border-primary transition-colors pb-unit placeholder:text-surface-variant" placeholder="0" type="number" value="75"/>
+<span class="font-body-sm text-body-sm text-on-surface-variant ml-unit absolute right-1/4 bottom-2 opacity-50">kg</span>
+</div>
+</div>
+</div>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-between items-center px-margin-page pb-stack-md bg-transparent">
+<button class="text-on-surface-variant p-unit hover:text-on-surface transition-colors active:scale-90 transition-transform flex items-center justify-center">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">west</span>
+</button>
+<button class="bg-on-surface text-surface rounded-full p-unit hover:opacity-90 transition-opacity duration-300 active:scale-90 transition-transform flex items-center justify-center">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">east</span>
+</button>
+</nav>
+</body></html>

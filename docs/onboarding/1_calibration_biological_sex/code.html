@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>CALIBRATION - Biological Sex</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@300;400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-tertiary-container": "#748174",
+                        "on-surface": "#e5e2e1",
+                        "surface-variant": "#353434",
+                        "error": "#ffb4ab",
+                        "on-secondary-fixed-variant": "#474745",
+                        "on-background": "#e5e2e1",
+                        "surface-container": "#201f1f",
+                        "secondary-container": "#474745",
+                        "inverse-on-surface": "#313030",
+                        "tertiary-fixed": "#d8e6d6",
+                        "surface-bright": "#3a3939",
+                        "outline-variant": "#444748",
+                        "on-primary": "#313030",
+                        "outline": "#8e9192",
+                        "surface-container-low": "#1c1b1b",
+                        "inverse-primary": "#5f5e5e",
+                        "on-tertiary-fixed-variant": "#3e4a3e",
+                        "on-secondary-fixed": "#1c1c1a",
+                        "on-tertiary-fixed": "#131e14",
+                        "secondary": "#c8c6c3",
+                        "on-error-container": "#ffdad6",
+                        "on-secondary-container": "#b7b5b2",
+                        "tertiary": "#bccabb",
+                        "on-surface-variant": "#c4c7c7",
+                        "tertiary-fixed-dim": "#bccabb",
+                        "on-secondary": "#31302f",
+                        "on-tertiary": "#273329",
+                        "surface-container-lowest": "#0e0e0e",
+                        "on-primary-fixed-variant": "#474646",
+                        "primary-container": "#121212",
+                        "primary": "#c8c6c5",
+                        "surface-tint": "#c8c6c5",
+                        "surface-container-highest": "#353434",
+                        "primary-fixed-dim": "#c8c6c5",
+                        "on-primary-container": "#7e7d7d",
+                        "surface": "#141313",
+                        "tertiary-container": "#0a150c",
+                        "secondary-fixed-dim": "#c8c6c3",
+                        "error-container": "#93000a",
+                        "primary-fixed": "#e5e2e1",
+                        "inverse-surface": "#e5e2e1",
+                        "background": "#141313",
+                        "on-error": "#690005",
+                        "surface-container-high": "#2b2a2a",
+                        "surface-dim": "#141313",
+                        "on-primary-fixed": "#1c1b1b",
+                        "secondary-fixed": "#e5e2df"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "unit": "4px",
+                        "stack-md": "24px",
+                        "stack-sm": "12px",
+                        "gutter-grid": "24px",
+                        "stack-lg": "48px",
+                        "margin-page": "32px"
+                    },
+                    "fontFamily": {
+                        "label-caps": ["Hanken Grotesk"],
+                        "stats-number": ["Hanken Grotesk"],
+                        "headline-md": ["Hanken Grotesk"],
+                        "display-lg": ["Hanken Grotesk"],
+                        "body-sm": ["Hanken Grotesk"],
+                        "body-lg": ["Hanken Grotesk"]
+                    },
+                    "fontSize": {
+                        "label-caps": ["11px", { "lineHeight": "1.2", "letterSpacing": "0.12em", "fontWeight": "600" }],
+                        "stats-number": ["32px", { "lineHeight": "1", "letterSpacing": "-0.03em", "fontWeight": "300" }],
+                        "headline-md": ["24px", { "lineHeight": "1.3", "letterSpacing": "-0.01em", "fontWeight": "500" }],
+                        "display-lg": ["48px", { "lineHeight": "1.1", "letterSpacing": "-0.02em", "fontWeight": "300" }],
+                        "body-sm": ["14px", { "lineHeight": "1.5", "letterSpacing": "0.01em", "fontWeight": "400" }],
+                        "body-lg": ["16px", { "lineHeight": "1.6", "letterSpacing": "0.01em", "fontWeight": "400" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-background min-h-screen flex flex-col font-body-lg antialiased">
+<!-- TopAppBar Shared Component -->
+<header class="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-margin-page h-16 bg-surface dark:bg-surface border-b border-surface-variant">
+<button class="text-on-surface dark:text-on-surface hover:opacity-70 transition-opacity duration-300 flex items-center justify-center">
+<span class="material-symbols-outlined" data-icon="arrow_back">arrow_back</span>
+</button>
+<div class="font-label-caps text-label-caps tracking-[0.2em] text-on-surface dark:text-on-surface font-bold">
+            CALIBRATION
+        </div>
+<button class="text-on-surface dark:text-on-surface hover:opacity-70 transition-opacity duration-300 font-label-caps text-label-caps">
+            SKIP
+        </button>
+</header>
+<main class="flex-grow flex flex-col items-center justify-center px-margin-page pt-24 pb-stack-lg w-full max-w-[1440px] mx-auto">
+<!-- Progress Indicator -->
+<div class="w-full max-w-md mb-stack-lg flex flex-col gap-unit">
+<div class="flex justify-between items-center">
+<span class="font-label-caps text-label-caps text-on-surface-variant">STEP 02 OF 06</span>
+<span class="font-label-caps text-label-caps text-on-surface-variant">33%</span>
+</div>
+<div class="h-[2px] w-full bg-[#242424] rounded-full overflow-hidden">
+<div class="h-full bg-primary w-1/3 rounded-full"></div>
+</div>
+</div>
+<!-- Content Area -->
+<div class="w-full max-w-md flex flex-col gap-stack-lg">
+<div class="text-center">
+<h1 class="font-headline-md text-headline-md text-on-surface mb-stack-sm">What is your biological sex?</h1>
+<p class="font-body-sm text-body-sm text-on-surface-variant">This helps us calculate more accurate physiological baselines for your performance metrics.</p>
+</div>
+<!-- Options Form -->
+<div class="flex flex-col gap-stack-sm w-full">
+<!-- Option: Male (Active State Example) -->
+<label class="group relative flex items-center justify-between p-4 bg-[#242424] border border-[#242424] rounded-lg cursor-pointer transition-all duration-300 shadow-[0_20px_40px_rgba(0,0,0,0.4)]">
+<div class="flex items-center gap-4">
+<span class="material-symbols-outlined text-primary" data-icon="male">male</span>
+<span class="font-body-lg text-body-lg text-on-surface">Male</span>
+</div>
+<div class="w-4 h-4 rounded-full border-2 border-primary flex items-center justify-center">
+<div class="w-2 h-2 rounded-full bg-primary"></div>
+</div>
+<input checked="" class="hidden" name="biological_sex" type="radio" value="male"/>
+</label>
+<!-- Option: Female -->
+<label class="group relative flex items-center justify-between p-4 bg-transparent border border-[#242424] rounded-lg cursor-pointer hover:bg-[#1A1A1A] transition-all duration-300">
+<div class="flex items-center gap-4">
+<span class="material-symbols-outlined text-on-surface-variant group-hover:text-on-surface transition-colors duration-300" data-icon="female">female</span>
+<span class="font-body-lg text-body-lg text-on-surface-variant group-hover:text-on-surface transition-colors duration-300">Female</span>
+</div>
+<div class="w-4 h-4 rounded-full border-2 border-[#242424] group-hover:border-on-surface-variant transition-colors duration-300"></div>
+<input class="hidden" name="biological_sex" type="radio" value="female"/>
+</label>
+</div>
+</div>
+<!-- Action Button -->
+<div class="w-full max-w-md mt-stack-lg flex flex-col items-center">
+<button class="w-full bg-primary text-primary-container font-label-caps text-label-caps py-4 rounded-lg hover:opacity-90 transition-opacity duration-300 flex items-center justify-center gap-2">
+                CONTINUE
+                <span class="material-symbols-outlined text-[16px]" data-icon="arrow_forward">arrow_forward</span>
+</button>
+</div>
+</main>
+</body></html>

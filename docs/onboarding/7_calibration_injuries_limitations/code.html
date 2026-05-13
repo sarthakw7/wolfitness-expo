@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Athlete Calibration</title>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Google Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@300;400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-tertiary-container": "#748174",
+                        "on-surface": "#e5e2e1",
+                        "surface-variant": "#353434",
+                        "error": "#ffb4ab",
+                        "on-secondary-fixed-variant": "#474745",
+                        "on-background": "#e5e2e1",
+                        "surface-container": "#201f1f",
+                        "secondary-container": "#474745",
+                        "inverse-on-surface": "#313030",
+                        "tertiary-fixed": "#d8e6d6",
+                        "surface-bright": "#3a3939",
+                        "outline-variant": "#444748",
+                        "on-primary": "#313030",
+                        "outline": "#8e9192",
+                        "surface-container-low": "#1c1b1b",
+                        "inverse-primary": "#5f5e5e",
+                        "on-tertiary-fixed-variant": "#3e4a3e",
+                        "on-secondary-fixed": "#1c1c1a",
+                        "on-tertiary-fixed": "#131e14",
+                        "secondary": "#c8c6c3",
+                        "on-error-container": "#ffdad6",
+                        "on-secondary-container": "#b7b5b2",
+                        "tertiary": "#bccabb",
+                        "on-surface-variant": "#c4c7c7",
+                        "tertiary-fixed-dim": "#bccabb",
+                        "on-secondary": "#31302f",
+                        "on-tertiary": "#273329",
+                        "surface-container-lowest": "#0e0e0e",
+                        "on-primary-fixed-variant": "#474646",
+                        "primary-container": "#121212",
+                        "primary": "#c8c6c5",
+                        "surface-tint": "#c8c6c5",
+                        "surface-container-highest": "#353434",
+                        "primary-fixed-dim": "#c8c6c5",
+                        "on-primary-container": "#7e7d7d",
+                        "surface": "#141313",
+                        "tertiary-container": "#0a150c",
+                        "secondary-fixed-dim": "#c8c6c3",
+                        "error-container": "#93000a",
+                        "primary-fixed": "#e5e2e1",
+                        "inverse-surface": "#e5e2e1",
+                        "background": "#141313",
+                        "on-error": "#690005",
+                        "surface-container-high": "#2b2a2a",
+                        "surface-dim": "#141313",
+                        "on-primary-fixed": "#1c1b1b",
+                        "secondary-fixed": "#e5e2df"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "unit": "4px",
+                        "stack-md": "24px",
+                        "stack-sm": "12px",
+                        "gutter-grid": "24px",
+                        "stack-lg": "48px",
+                        "margin-page": "32px"
+                    },
+                    "fontFamily": {
+                        "label-caps": ["Hanken Grotesk"],
+                        "stats-number": ["Hanken Grotesk"],
+                        "headline-md": ["Hanken Grotesk"],
+                        "display-lg": ["Hanken Grotesk"],
+                        "body-sm": ["Hanken Grotesk"],
+                        "body-lg": ["Hanken Grotesk"]
+                    },
+                    "fontSize": {
+                        "label-caps": ["11px", { "lineHeight": "1.2", "letterSpacing": "0.12em", "fontWeight": "600" }],
+                        "stats-number": ["32px", { "lineHeight": "1", "letterSpacing": "-0.03em", "fontWeight": "300" }],
+                        "headline-md": ["24px", { "lineHeight": "1.3", "letterSpacing": "-0.01em", "fontWeight": "500" }],
+                        "display-lg": ["48px", { "lineHeight": "1.1", "letterSpacing": "-0.02em", "fontWeight": "300" }],
+                        "body-sm": ["14px", { "lineHeight": "1.5", "letterSpacing": "0.01em", "fontWeight": "400" }],
+                        "body-lg": ["16px", { "lineHeight": "1.6", "letterSpacing": "0.01em", "fontWeight": "400" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        /* Custom checkbox hide to rely on group states */
+        input[type="checkbox"] {
+            appearance: none;
+            -webkit-appearance: none;
+            outline: none;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-surface antialiased min-h-screen flex flex-col">
+<!-- TopAppBar -->
+<header class="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-margin-page h-16 bg-surface dark:bg-surface border-b border-surface-variant">
+<button class="text-on-surface dark:text-on-surface hover:opacity-70 transition-opacity duration-300 active:scale-95 transition-transform duration-200">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">arrow_back</span>
+</button>
+<span class="font-label-caps text-label-caps tracking-[0.2em] text-on-surface dark:text-on-surface absolute left-1/2 -translate-x-1/2">CALIBRATION</span>
+<button class="font-label-caps text-label-caps text-on-surface dark:text-on-surface hover:opacity-70 transition-opacity duration-300 active:scale-95 transition-transform duration-200">
+            SKIP
+        </button>
+</header>
+<!-- Main Canvas -->
+<main class="flex-grow pt-24 px-margin-page pb-stack-lg max-w-[1024px] mx-auto w-full flex flex-col">
+<!-- Progress Indicator -->
+<div class="w-full h-[2px] bg-surface-container-high mb-stack-lg relative overflow-hidden">
+<div class="absolute top-0 left-0 h-full bg-primary w-1/2"></div>
+</div>
+<!-- Header Section -->
+<div class="mb-stack-lg">
+<h1 class="font-display-lg text-display-lg text-on-surface mb-stack-sm">Any injuries or limitations?</h1>
+<p class="font-body-lg text-body-lg text-on-surface-variant">Select any areas that require care.</p>
+</div>
+<!-- Options Bento Grid -->
+<div class="grid grid-cols-2 md:grid-cols-3 gap-gutter-grid mb-stack-lg">
+<!-- Option: Knees -->
+<label class="group relative flex flex-col p-stack-md min-h-[140px] border border-surface-variant rounded-DEFAULT cursor-pointer transition-colors duration-300 hover:bg-surface-container-high has-[:checked]:bg-surface-container-high has-[:checked]:border-primary">
+<input class="absolute w-0 h-0 opacity-0" type="checkbox"/>
+<div class="flex justify-between items-start mb-auto">
+<span class="material-symbols-outlined text-on-surface-variant group-has-[:checked]:text-primary transition-colors" style="font-variation-settings: 'FILL' 0;">airline_seat_legroom_extra</span>
+<div class="w-4 h-4 rounded-full border border-surface-variant group-has-[:checked]:border-primary group-has-[:checked]:bg-primary flex items-center justify-center transition-all duration-300">
+<div class="w-1.5 h-1.5 rounded-full bg-primary-container opacity-0 group-has-[:checked]:opacity-100 transition-opacity duration-300 delay-100"></div>
+</div>
+</div>
+<span class="font-headline-md text-headline-md text-on-surface mt-stack-md">Knees</span>
+</label>
+<!-- Option: Lower Back -->
+<label class="group relative flex flex-col p-stack-md min-h-[140px] border border-surface-variant rounded-DEFAULT cursor-pointer transition-colors duration-300 hover:bg-surface-container-high has-[:checked]:bg-surface-container-high has-[:checked]:border-primary">
+<input class="absolute w-0 h-0 opacity-0" type="checkbox"/>
+<div class="flex justify-between items-start mb-auto">
+<span class="material-symbols-outlined text-on-surface-variant group-has-[:checked]:text-primary transition-colors" style="font-variation-settings: 'FILL' 0;">accessibility_new</span>
+<div class="w-4 h-4 rounded-full border border-surface-variant group-has-[:checked]:border-primary group-has-[:checked]:bg-primary flex items-center justify-center transition-all duration-300">
+<div class="w-1.5 h-1.5 rounded-full bg-primary-container opacity-0 group-has-[:checked]:opacity-100 transition-opacity duration-300 delay-100"></div>
+</div>
+</div>
+<span class="font-headline-md text-headline-md text-on-surface mt-stack-md">Lower Back</span>
+</label>
+<!-- Option: Wrists -->
+<label class="group relative flex flex-col p-stack-md min-h-[140px] border border-surface-variant rounded-DEFAULT cursor-pointer transition-colors duration-300 hover:bg-surface-container-high has-[:checked]:bg-surface-container-high has-[:checked]:border-primary">
+<input class="absolute w-0 h-0 opacity-0" type="checkbox"/>
+<div class="flex justify-between items-start mb-auto">
+<span class="material-symbols-outlined text-on-surface-variant group-has-[:checked]:text-primary transition-colors" style="font-variation-settings: 'FILL' 0;">front_hand</span>
+<div class="w-4 h-4 rounded-full border border-surface-variant group-has-[:checked]:border-primary group-has-[:checked]:bg-primary flex items-center justify-center transition-all duration-300">
+<div class="w-1.5 h-1.5 rounded-full bg-primary-container opacity-0 group-has-[:checked]:opacity-100 transition-opacity duration-300 delay-100"></div>
+</div>
+</div>
+<span class="font-headline-md text-headline-md text-on-surface mt-stack-md">Wrists</span>
+</label>
+<!-- Option: Shoulders -->
+<label class="group relative flex flex-col p-stack-md min-h-[140px] border border-surface-variant rounded-DEFAULT cursor-pointer transition-colors duration-300 hover:bg-surface-container-high has-[:checked]:bg-surface-container-high has-[:checked]:border-primary">
+<input class="absolute w-0 h-0 opacity-0" type="checkbox"/>
+<div class="flex justify-between items-start mb-auto">
+<span class="material-symbols-outlined text-on-surface-variant group-has-[:checked]:text-primary transition-colors" style="font-variation-settings: 'FILL' 0;">fitness_center</span>
+<div class="w-4 h-4 rounded-full border border-surface-variant group-has-[:checked]:border-primary group-has-[:checked]:bg-primary flex items-center justify-center transition-all duration-300">
+<div class="w-1.5 h-1.5 rounded-full bg-primary-container opacity-0 group-has-[:checked]:opacity-100 transition-opacity duration-300 delay-100"></div>
+</div>
+</div>
+<span class="font-headline-md text-headline-md text-on-surface mt-stack-md">Shoulders</span>
+</label>
+<!-- Option: Hips -->
+<label class="group relative flex flex-col p-stack-md min-h-[140px] border border-surface-variant rounded-DEFAULT cursor-pointer transition-colors duration-300 hover:bg-surface-container-high has-[:checked]:bg-surface-container-high has-[:checked]:border-primary">
+<input class="absolute w-0 h-0 opacity-0" type="checkbox"/>
+<div class="flex justify-between items-start mb-auto">
+<span class="material-symbols-outlined text-on-surface-variant group-has-[:checked]:text-primary transition-colors" style="font-variation-settings: 'FILL' 0;">accessibility</span>
+<div class="w-4 h-4 rounded-full border border-surface-variant group-has-[:checked]:border-primary group-has-[:checked]:bg-primary flex items-center justify-center transition-all duration-300">
+<div class="w-1.5 h-1.5 rounded-full bg-primary-container opacity-0 group-has-[:checked]:opacity-100 transition-opacity duration-300 delay-100"></div>
+</div>
+</div>
+<span class="font-headline-md text-headline-md text-on-surface mt-stack-md">Hips</span>
+</label>
+<!-- Option: Other -->
+<label class="group relative flex flex-col p-stack-md min-h-[140px] border border-surface-variant rounded-DEFAULT cursor-pointer transition-colors duration-300 hover:bg-surface-container-high has-[:checked]:bg-surface-container-high has-[:checked]:border-primary">
+<input class="absolute w-0 h-0 opacity-0" type="checkbox"/>
+<div class="flex justify-between items-start mb-auto">
+<span class="material-symbols-outlined text-on-surface-variant group-has-[:checked]:text-primary transition-colors" style="font-variation-settings: 'FILL' 0;">more_horiz</span>
+<div class="w-4 h-4 rounded-full border border-surface-variant group-has-[:checked]:border-primary group-has-[:checked]:bg-primary flex items-center justify-center transition-all duration-300">
+<div class="w-1.5 h-1.5 rounded-full bg-primary-container opacity-0 group-has-[:checked]:opacity-100 transition-opacity duration-300 delay-100"></div>
+</div>
+</div>
+<span class="font-headline-md text-headline-md text-on-surface mt-stack-md">Other</span>
+</label>
+</div>
+<!-- Action Area -->
+<div class="mt-auto pt-stack-lg flex justify-end">
+<button class="w-full md:w-auto bg-primary text-primary-container font-label-caps text-label-caps px-12 py-4 rounded-full hover:bg-primary-fixed transition-colors duration-300 tracking-widest">
+                CONTINUE
+            </button>
+</div>
+</main>
+</body></html>

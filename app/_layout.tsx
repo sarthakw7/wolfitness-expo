@@ -11,6 +11,7 @@ import { StatusBar } from "expo-status-bar";
 
 import { AppProviders } from "@/src/providers/AppProviders";
 import { useAppFonts } from "@/src/hooks/useAppFonts";
+import { useAuth } from "@/src/hooks/useAuth";
 import { colors } from "@/src/theme";
 
 SplashScreen.preventAutoHideAsync().catch(() => {
@@ -26,15 +27,6 @@ export default function RootLayout() {
     });
   }, []);
 
-  useEffect(() => {
-    if (fontsLoaded || fontError) {
-      // Even if fonts fail, we want to hide the splash screen so the app doesn't stay stuck.
-      SplashScreen.hideAsync().catch(() => {
-        // The splash screen may already be hidden during fast refresh.
-      });
-    }
-  }, [fontError, fontsLoaded]);
-
   // We allow the app to continue even if fonts fail, it will just fallback to system fonts.
   if (!fontsLoaded && !fontError) {
     return null;
@@ -43,31 +35,53 @@ export default function RootLayout() {
   return (
     <AppProviders>
       <StatusBar backgroundColor={colors.surface} style="dark" translucent />
-      <Stack
-        screenOptions={{
-          animation: "fade",
-          contentStyle: { backgroundColor: colors.surface },
-          headerShown: false,
-        }}
-      >
-        <Stack.Screen name="index" />
-        <Stack.Screen name="(tabs)" />
-        <Stack.Screen
-          name="(marketplace)"
-          options={{
-            animation: "slide_from_right",
-          }}
-        />
-        <Stack.Screen name="(auth)" />
-        <Stack.Screen name="(onboarding)" />
-        <Stack.Screen
-          name="(modals)"
-          options={{
-            animation: "slide_from_bottom",
-            presentation: "modal",
-          }}
-        />
-      </Stack>
+      <RootNavigator />
     </AppProviders>
+  );
+}
+
+function RootNavigator() {
+  const { isLoading } = useAuth();
+
+  useEffect(() => {
+    if (!isLoading) {
+      SplashScreen.hideAsync().catch(() => {
+        // The splash screen may already be hidden during fast refresh.
+      });
+    }
+  }, [isLoading]);
+
+  if (isLoading) {
+    return null;
+  }
+
+  return (
+    <Stack
+      screenOptions={{
+        animation: "fade",
+        contentStyle: { backgroundColor: colors.surface },
+        headerShown: false,
+      }}
+    >
+      <Stack.Screen name="index" />
+      <Stack.Screen name="(tabs)" />
+      <Stack.Screen
+        name="(marketplace)"
+        options={{
+          animation: "slide_from_right",
+        }}
+      />
+      <Stack.Screen name="(auth)" />
+      <Stack.Screen name="(onboarding)" />
+      <Stack.Screen name="auth/callback" />
+      <Stack.Screen name="auth/reset-password" />
+      <Stack.Screen
+        name="(modals)"
+        options={{
+          animation: "slide_from_bottom",
+          presentation: "modal",
+        }}
+      />
+    </Stack>
   );
 }
