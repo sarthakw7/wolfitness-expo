@@ -17,10 +17,10 @@ import {
   StatCard,
 } from "@/src/components/layout";
 import { MarketplaceRail, ProgramCard } from "@/src/components/marketplace";
+import type { ProgramCardModel } from "@/src/components/marketplace/types";
 import { useDashboard, useEnrollments, useProfile, usePrograms } from "@/src/hooks/queries";
 import type { Program } from "@/src/services/programs.service";
 import { colors } from "@/src/theme";
-import type { MarketplaceProgram } from "@/src/constants/marketplace";
 
 const heroImage =
   "https://lh3.googleusercontent.com/aida-public/AB6AXuD4Lt7B2pUHplBybkn77mauDPD2uknpPW3rz2oPP-1P15sQRnQvEGqUrIdVsdqLWAFEJVUL8zT_RpiKhx6kcefATW7OQddv8jMkxL2nOCh58Bchxc3-waMAp_9tCOLZXBEYxgCog2SHQ0e1X8Sxl2fSAV4JWzu7xNG9DetNYrOtRpam2-8m4Nl7zczbI_uboD2SrpHBMcO2xWB5k-K2E5qAEy3nQzXy-9hJT1jmv1STgrgro3chu6Q6ADmU6w6k943_wALFo7uVVbXX";
@@ -85,7 +85,7 @@ function AthleteDashboardScreenComponent() {
     return programMap.get(activeEnrollment.program_id) ?? null;
   }, [activeEnrollment, programMap]);
 
-  const featuredPrograms = useMemo<MarketplaceProgram[]>(() => {
+  const featuredPrograms = useMemo<ProgramCardModel[]>(() => {
     return (programsQuery.data ?? []).slice(0, 3).map((program) => ({
       category: program.difficulty ? titleCase(program.difficulty) : "Program",
       coach: "Wolfitness Coach",

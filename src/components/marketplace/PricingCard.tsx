@@ -5,10 +5,22 @@ import { EditorialCard } from "@/src/components/layout";
 import { AppButton, Typography } from "@/src/components/primitives";
 
 type PricingCardProps = {
+  ctaLabel?: string;
+  ctaLoading?: boolean;
+  ctaOnPress?: () => void;
+  ctaDisabled?: boolean;
   price: string;
+  subtitle?: string;
 };
 
-function PricingCardComponent({ price }: PricingCardProps) {
+function PricingCardComponent({
+  ctaDisabled,
+  ctaLabel = "Enroll Now",
+  ctaLoading,
+  ctaOnPress,
+  price,
+  subtitle = "Program enrollment is available now. Payment integration can be attached in a later phase.",
+}: PricingCardProps) {
   return (
     <EditorialCard className="gap-5">
       <View>
@@ -18,9 +30,16 @@ function PricingCardComponent({ price }: PricingCardProps) {
         <Typography variant="displayLg">{price}</Typography>
       </View>
       <Typography tone="secondary" variant="bodyMd">
-        Enrollment and payment logic will attach here in a later business phase.
+        {subtitle}
       </Typography>
-      <AppButton>Enrollment Contract</AppButton>
+      <AppButton
+        disabled={ctaDisabled}
+        isLoading={ctaLoading}
+        onPress={ctaOnPress}
+        variant={ctaDisabled ? "ghost" : "secondary"}
+      >
+        {ctaLabel}
+      </AppButton>
     </EditorialCard>
   );
 }

@@ -4,11 +4,11 @@ import { memo } from "react";
 import { Image, Pressable, View } from "react-native";
 
 import { GlassCard, Typography } from "@/src/components/primitives";
-import type { MarketplaceCoach } from "@/src/constants/marketplace";
+import type { CoachCardModel } from "@/src/components/marketplace/types";
 import { colors } from "@/src/theme";
 
 type CoachCardProps = {
-  coach: MarketplaceCoach;
+  coach: CoachCardModel;
   fullWidth?: boolean;
 };
 

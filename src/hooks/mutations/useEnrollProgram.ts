@@ -16,8 +16,10 @@ export function useEnrollProgram() {
     },
     onSuccess: async () => {
       if (!userId) return;
-      await queryClient.invalidateQueries({ queryKey: queryKeys.enrollments(userId) });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.enrollments(userId) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.dashboardOverview(userId) }),
+      ]);
     },
   });
 }
-

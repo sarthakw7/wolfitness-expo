@@ -3,10 +3,10 @@ import { memo } from "react";
 import { ImageBackground, View } from "react-native";
 
 import { AppButton, GlassCard, Typography } from "@/src/components/primitives";
-import type { MarketplaceProgram } from "@/src/constants/marketplace";
+import type { ProgramCardModel } from "@/src/components/marketplace/types";
 
 type MarketplaceHeroProps = {
-  program: MarketplaceProgram;
+  program: ProgramCardModel;
 };
 
 function MarketplaceHeroComponent({ program }: MarketplaceHeroProps) {

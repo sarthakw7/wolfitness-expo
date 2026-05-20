@@ -5,12 +5,12 @@ import { ImageBackground, Pressable, View } from "react-native";
 
 import { EditorialCard } from "@/src/components/layout";
 import { Typography } from "@/src/components/primitives";
-import type { MarketplaceProgram } from "@/src/constants/marketplace";
+import type { ProgramCardModel } from "@/src/components/marketplace/types";
 import { colors } from "@/src/theme";
 
 type ProgramCardProps = {
   compact?: boolean;
-  program: MarketplaceProgram;
+  program: ProgramCardModel;
 };
 
 function ProgramCardComponent({ compact, program }: ProgramCardProps) {
