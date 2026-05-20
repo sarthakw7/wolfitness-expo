@@ -18,7 +18,7 @@ export default function TabsLayout() {
   }
 
   if (!isOnboardingComplete) {
-    return <Redirect href="/(onboarding)" />;
+    return <Redirect href="/(preauth-onboarding)" />;
   }
 
   return (

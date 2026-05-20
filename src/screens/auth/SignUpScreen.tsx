@@ -14,6 +14,7 @@ import {
 
 import { ScreenContainer, Typography } from "@/src/components/primitives";
 import { cn } from "@/src/lib/cn";
+import { normalizeEmail } from "@/src/lib/normalize-email";
 import { useAuth } from "@/src/hooks/useAuth";
 import { spacing, typography } from "@/src/theme";
 
@@ -225,8 +226,9 @@ function SignUpScreenComponent() {
 
   const emailError = useMemo(() => {
     if (!emailTouched && !didSubmit) return null;
-    if (email.trim().length === 0) return "Email is required.";
-    if (!isValidEmail(email.trim())) return "Enter a valid email address.";
+    const normalized = normalizeEmail(email);
+    if (normalized.length === 0) return "Email is required.";
+    if (!isValidEmail(normalized)) return "Enter a valid email address.";
     return null;
   }, [didSubmit, email, emailTouched]);
 
@@ -243,7 +245,7 @@ function SignUpScreenComponent() {
       setError(null);
       return;
     }
-    if (!isValidEmail(email.trim())) {
+    if (!isValidEmail(normalizeEmail(email))) {
       setError(null);
       return;
     }

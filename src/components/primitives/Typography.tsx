@@ -27,15 +27,19 @@ function TypographyComponent({
   variant = "bodyMd",
   ...props
 }: TypographyProps) {
+  // If the caller provides an explicit text color via NativeWind className
+  // (e.g. `text-[#F4F1EE]`, `text-white`, etc.), don't override it with tone color.
+  const hasExplicitTextColorClass = typeof className === "string" && /\btext-(?:\[[^\]]+\]|[a-zA-Z0-9_-]+)\b/.test(className);
+
   const textStyle: TextStyle = {
     ...typography[variant],
-    color: toneColor[tone],
+    ...(hasExplicitTextColorClass ? null : { color: toneColor[tone] }),
     textAlign: align,
   };
 
   return (
     <Text
-      className={cn("text-graphite", className)}
+      className={cn(className)}
       style={[textStyle, style]}
       {...props}
     />

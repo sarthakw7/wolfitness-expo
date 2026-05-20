@@ -72,7 +72,7 @@ function RootNavigator() {
         }}
       />
       <Stack.Screen name="(auth)" />
-      <Stack.Screen name="(onboarding)" />
+      <Stack.Screen name="(preauth-onboarding)" />
       <Stack.Screen name="auth/callback" />
       <Stack.Screen name="auth/reset-password" />
       <Stack.Screen

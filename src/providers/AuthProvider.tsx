@@ -1,4 +1,3 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { AuthError, Session, User } from "@supabase/supabase-js";
 import * as AuthSession from "expo-auth-session";
 import * as Linking from "expo-linking";
@@ -19,10 +18,10 @@ import {
   isSupabaseConfigured,
   supabase,
 } from "@/src/lib/supabase";
+import { commitOnboardingDraftToSupabase } from "@/src/lib/commit-onboarding-draft";
+import { normalizeEmail } from "@/src/lib/normalize-email";
 
 WebBrowser.maybeCompleteAuthSession();
-
-const ONBOARDING_STORAGE_PREFIX = "wolfitness:onboarding-complete";
 
 type AuthCredentials = {
   email: string;
@@ -34,7 +33,7 @@ type SignUpCredentials = AuthCredentials & {
 };
 
 type AuthContextValue = {
-  completeOnboarding: () => Promise<void>;
+  refreshOnboardingStatus: () => Promise<void>;
   error: string | null;
   isAuthenticated: boolean;
   isConfigured: boolean;
@@ -51,13 +50,28 @@ type AuthContextValue = {
 
 export const AuthContext = createContext<AuthContextValue | null>(null);
 
-function onboardingStorageKey(userId: string) {
-  return `${ONBOARDING_STORAGE_PREFIX}:${userId}`;
+async function tryCommitOnboardingDraft(userId: string) {
+  const { committed } = await commitOnboardingDraftToSupabase(userId);
+  if (!committed) return;
 }
 
-async function readOnboardingComplete(userId: string) {
-  const stored = await AsyncStorage.getItem(onboardingStorageKey(userId));
-  return stored === "true";
+async function hasCompletedOnboarding(userId: string): Promise<boolean> {
+  // Single source of truth:
+  // 1) fitness_profiles row exists (structured baselines)
+  // 2) onboarding_assessments row exists (raw audit log)
+  //
+  // If the DB cannot be queried (RLS/network), fail open to avoid redirect loops
+  // that would hard-block the app for signed-in users.
+  const [fitness, assessment] = await Promise.all([
+    supabase.from("fitness_profiles").select("user_id").eq("user_id", userId).maybeSingle(),
+    supabase.from("onboarding_assessments").select("id").eq("user_id", userId).maybeSingle(),
+  ]);
+
+  if (fitness.error || assessment.error) {
+    return true;
+  }
+
+  return Boolean(fitness.data?.user_id) && Boolean((assessment.data as { id?: string } | null)?.id);
 }
 
 function createRedirectUrl(path: "auth/callback" | "auth/reset-password" = "auth/callback") {
@@ -95,7 +109,7 @@ function AuthProviderComponent({ children }: PropsWithChildren) {
       return;
     }
 
-    const complete = await readOnboardingComplete(nextSession.user.id);
+    const complete = await hasCompletedOnboarding(nextSession.user.id);
     setIsOnboardingComplete(complete);
   }, []);
 
@@ -135,6 +149,15 @@ function AuthProviderComponent({ children }: PropsWithChildren) {
       hydrateOnboarding(nextSession).catch((hydrationError: unknown) => {
         setError(hydrationError instanceof Error ? hydrationError.message : "Unable to hydrate onboarding state.");
       });
+
+      // Best-effort: if a user completed pre-auth onboarding, commit the draft immediately after auth.
+      if (nextSession?.user?.id) {
+        tryCommitOnboardingDraft(nextSession.user.id)
+          .then(() => hydrateOnboarding(nextSession))
+          .catch((commitError: unknown) => {
+            setError(commitError instanceof Error ? commitError.message : "Unable to commit onboarding draft.");
+          });
+      }
     });
 
     return () => {
@@ -166,7 +189,7 @@ function AuthProviderComponent({ children }: PropsWithChildren) {
       assertSupabaseConfigured();
       setError(null);
       const { error: authError } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
+        email: normalizeEmail(email),
         password,
       });
       if (authError) {
@@ -185,7 +208,7 @@ function AuthProviderComponent({ children }: PropsWithChildren) {
       assertSupabaseConfigured();
       setError(null);
       const { error: authError } = await supabase.auth.signUp({
-        email: email.trim(),
+        email: normalizeEmail(email),
         options: fullName?.trim()
           ? {
               data: {
@@ -210,7 +233,7 @@ function AuthProviderComponent({ children }: PropsWithChildren) {
     try {
       assertSupabaseConfigured();
       setError(null);
-      const { error: authError } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      const { error: authError } = await supabase.auth.resetPasswordForEmail(normalizeEmail(email), {
         redirectTo: createRedirectUrl("auth/reset-password"),
       });
       if (authError) {
@@ -310,18 +333,13 @@ function AuthProviderComponent({ children }: PropsWithChildren) {
     }
   }, []);
 
-  const completeOnboarding = useCallback(async () => {
-    if (!session?.user?.id) {
-      return;
-    }
-
-    await AsyncStorage.setItem(onboardingStorageKey(session.user.id), "true");
-    setIsOnboardingComplete(true);
-  }, [session?.user?.id]);
+  const refreshOnboardingStatus = useCallback(async () => {
+    await hydrateOnboarding(session);
+  }, [hydrateOnboarding, session]);
 
   const value = useMemo<AuthContextValue>(
     () => ({
-      completeOnboarding,
+      refreshOnboardingStatus,
       error,
       isAuthenticated: Boolean(session),
       isConfigured: isSupabaseConfigured,
@@ -336,10 +354,10 @@ function AuthProviderComponent({ children }: PropsWithChildren) {
       user: session?.user ?? null,
     }),
     [
-      completeOnboarding,
       error,
       isLoading,
       isOnboardingComplete,
+      refreshOnboardingStatus,
       session,
       signIn,
       signInWithGoogle,

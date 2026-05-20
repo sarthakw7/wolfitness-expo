@@ -97,8 +97,8 @@ function AuthLandingScreenComponent() {
 
         {/* Action Stack */}
         <View className="w-full items-center gap-4 pt-12">
-          <Link href="/(auth)/sign-up" asChild>
-            <LandingButton variant="primary">CREATE ACCOUNT</LandingButton>
+          <Link href="/(preauth-onboarding)" asChild>
+            <LandingButton variant="primary">GET STARTED</LandingButton>
           </Link>
           <Link href="/(auth)/sign-in" asChild>
             <LandingButton variant="outline">SIGN IN</LandingButton>

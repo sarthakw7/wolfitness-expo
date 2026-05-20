@@ -17,7 +17,7 @@ export default function ModalsLayout() {
   }
 
   if (!isOnboardingComplete) {
-    return <Redirect href="/(onboarding)" />;
+    return <Redirect href="/(preauth-onboarding)" />;
   }
 
   return (

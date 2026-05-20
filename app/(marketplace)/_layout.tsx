@@ -17,7 +17,7 @@ export default function MarketplaceLayout() {
   }
 
   if (!isOnboardingComplete) {
-    return <Redirect href="/(onboarding)" />;
+    return <Redirect href="/(preauth-onboarding)" />;
   }
 
   return (

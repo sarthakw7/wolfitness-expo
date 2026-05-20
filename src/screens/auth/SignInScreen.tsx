@@ -14,6 +14,7 @@ import {
 
 import { ScreenContainer, Typography } from "@/src/components/primitives";
 import { cn } from "@/src/lib/cn";
+import { normalizeEmail } from "@/src/lib/normalize-email";
 import { spacing, typography } from "@/src/theme";
 import { useAuth } from "@/src/hooks/useAuth";
 
@@ -220,15 +221,16 @@ function SignInScreenComponent() {
 
   const canSubmit = useMemo(() => {
     if (!isConfigured) return false;
-    if (!isValidEmail(email.trim())) return false;
+    if (!isValidEmail(normalizeEmail(email))) return false;
     if (password.length < 8) return false;
     return true;
   }, [email, isConfigured, password.length]);
 
   const emailError = useMemo(() => {
     if (!emailTouched && !didSubmit) return null;
-    if (email.trim().length === 0) return "Email is required.";
-    if (!isValidEmail(email.trim())) return "Enter a valid email address.";
+    const normalized = normalizeEmail(email);
+    if (normalized.length === 0) return "Email is required.";
+    if (!isValidEmail(normalized)) return "Enter a valid email address.";
     return null;
   }, [didSubmit, email, emailTouched]);
 
@@ -241,7 +243,7 @@ function SignInScreenComponent() {
 
   const handleSubmit = useCallback(async () => {
     setDidSubmit(true);
-    if (!isValidEmail(email.trim())) {
+    if (!isValidEmail(normalizeEmail(email))) {
       // Client-side validation is shown inline; avoid duplicating as a server error.
       setError(null);
       return;
@@ -273,7 +275,7 @@ function SignInScreenComponent() {
   }, [signInWithGoogle]);
 
   const handleForgotPassword = useCallback(async () => {
-    if (!isValidEmail(email.trim())) {
+    if (!isValidEmail(normalizeEmail(email))) {
       setError("Enter your email first, then request a reset link.");
       return;
     }

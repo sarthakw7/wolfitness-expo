@@ -11,7 +11,7 @@ export default function AuthLayout() {
   }
 
   if (isAuthenticated) {
-    return <Redirect href={isOnboardingComplete ? "/(tabs)" : "/(onboarding)"} />;
+    return <Redirect href={isOnboardingComplete ? "/(tabs)" : "/(preauth-onboarding)"} />;
   }
 
   return (

@@ -15,7 +15,7 @@ import { colors, radius, typography } from "@/src/theme";
 
 import { Typography } from "./Typography";
 
-type AppButtonVariant = "primary" | "secondary" | "ghost";
+type AppButtonVariant = "primary" | "secondary" | "ghost" | "danger";
 type AppButtonSize = "sm" | "md" | "lg";
 
 type AppButtonProps = Omit<PressableProps, "children" | "style"> & {
@@ -29,6 +29,10 @@ type AppButtonProps = Omit<PressableProps, "children" | "style"> & {
 };
 
 const variantStyles = StyleSheet.create({
+  danger: {
+    backgroundColor: colors.danger,
+    borderColor: colors.danger,
+  },
   ghost: {
     backgroundColor: colors.transparent,
     borderColor: colors.border,
