@@ -110,3 +110,25 @@ export async function updateProfile(userId: string, input: UpdateProfileInput): 
   }
 }
 
+export async function uploadProfileAvatar(userId: string, localUri: string): Promise<string> {
+  const response = await fetch(localUri);
+  const blob = await response.blob();
+  const ext = localUri.split(".").pop()?.toLowerCase() || "jpg";
+  const filePath = `${userId}/avatar-${Date.now()}.${ext}`;
+
+  const { error: uploadError } = await supabase.storage
+    .from("avatars")
+    .upload(filePath, blob, {
+      cacheControl: "3600",
+      contentType: blob.type || "image/jpeg",
+      upsert: true,
+    });
+
+  if (uploadError) throw uploadError;
+
+  const { data } = supabase.storage.from("avatars").getPublicUrl(filePath);
+  if (!data?.publicUrl) {
+    throw new Error("Unable to resolve uploaded avatar URL.");
+  }
+  return data.publicUrl;
+}

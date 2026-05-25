@@ -6,7 +6,7 @@ import { colors } from "@/src/theme";
 const authLandingHref = "/(auth)" as Href;
 
 export default function ModalsLayout() {
-  const { isAuthenticated, isLoading, isOnboardingComplete } = useAuth();
+  const { isAuthenticated, isLoading, onboardingStatus } = useAuth();
 
   if (isLoading) {
     return null;
@@ -16,7 +16,7 @@ export default function ModalsLayout() {
     return <Redirect href={authLandingHref} />;
   }
 
-  if (!isOnboardingComplete) {
+  if (onboardingStatus === "incomplete") {
     return <Redirect href="/(preauth-onboarding)" />;
   }
 

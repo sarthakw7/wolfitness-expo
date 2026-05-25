@@ -1,0 +1,32 @@
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+
+import { queryKeys } from "@/src/hooks/queries/queryKeys";
+import { useAuth } from "@/src/hooks/useAuth";
+import { workoutService } from "@/src/services";
+
+export function useFinishWorkout() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const userId = user?.id ?? null;
+
+  return useMutation({
+    mutationFn: async (sessionId: string) => {
+      await workoutService.finishWorkoutSession(sessionId);
+      return sessionId;
+    },
+    onSuccess: async (sessionId) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.workoutSession(sessionId) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.workoutSessionPlans() }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.workoutSessionStatuses() }),
+      ]);
+      if (userId) {
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: queryKeys.workout(userId) }),
+          queryClient.invalidateQueries({ queryKey: queryKeys.dashboardOverview(userId) }),
+          queryClient.invalidateQueries({ queryKey: queryKeys.enrollments(userId) }),
+        ]);
+      }
+    },
+  });
+}

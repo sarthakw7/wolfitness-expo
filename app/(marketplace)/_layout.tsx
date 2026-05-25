@@ -6,7 +6,7 @@ import { colors } from "@/src/theme";
 const authLandingHref = "/(auth)" as Href;
 
 export default function MarketplaceLayout() {
-  const { isAuthenticated, isLoading, isOnboardingComplete } = useAuth();
+  const { isAuthenticated, isLoading, onboardingStatus } = useAuth();
 
   if (isLoading) {
     return null;
@@ -16,7 +16,7 @@ export default function MarketplaceLayout() {
     return <Redirect href={authLandingHref} />;
   }
 
-  if (!isOnboardingComplete) {
+  if (onboardingStatus === "incomplete") {
     return <Redirect href="/(preauth-onboarding)" />;
   }
 

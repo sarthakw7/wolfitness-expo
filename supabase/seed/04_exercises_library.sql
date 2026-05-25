@@ -1,0 +1,42 @@
+-- 04_exercises_library.sql
+
+insert into public.exercises_library (id, name, primary_muscle, pattern, video_url)
+values
+  ('20000000-0000-0000-0000-000000000001'::uuid,'Back Squat','Quadriceps',null,null),
+  ('20000000-0000-0000-0000-000000000002'::uuid,'Front Squat','Quadriceps',null,null),
+  ('20000000-0000-0000-0000-000000000003'::uuid,'Romanian Deadlift','Hamstrings',null,null),
+  ('20000000-0000-0000-0000-000000000004'::uuid,'Conventional Deadlift','Posterior Chain',null,null),
+  ('20000000-0000-0000-0000-000000000005'::uuid,'Hip Thrust','Glutes',null,null),
+  ('20000000-0000-0000-0000-000000000006'::uuid,'Walking Lunge','Quadriceps',null,null),
+  ('20000000-0000-0000-0000-000000000007'::uuid,'Bench Press','Chest',null,null),
+  ('20000000-0000-0000-0000-000000000008'::uuid,'Incline Dumbbell Press','Chest',null,null),
+  ('20000000-0000-0000-0000-000000000009'::uuid,'Overhead Press','Shoulders',null,null),
+  ('20000000-0000-0000-0000-000000000010'::uuid,'Push Press','Shoulders',null,null),
+  ('20000000-0000-0000-0000-000000000011'::uuid,'Pull-Up','Lats',null,null),
+  ('20000000-0000-0000-0000-000000000012'::uuid,'Lat Pulldown','Lats',null,null),
+  ('20000000-0000-0000-0000-000000000013'::uuid,'Barbell Row','Upper Back',null,null),
+  ('20000000-0000-0000-0000-000000000014'::uuid,'Chest Supported Row','Upper Back',null,null),
+  ('20000000-0000-0000-0000-000000000015'::uuid,'Cable Row','Upper Back',null,null),
+  ('20000000-0000-0000-0000-000000000016'::uuid,'Dumbbell Curl','Biceps',null,null),
+  ('20000000-0000-0000-0000-000000000017'::uuid,'Triceps Pressdown','Triceps',null,null),
+  ('20000000-0000-0000-0000-000000000018'::uuid,'Lateral Raise','Shoulders',null,null),
+  ('20000000-0000-0000-0000-000000000019'::uuid,'Face Pull','Rear Delts',null,null),
+  ('20000000-0000-0000-0000-000000000020'::uuid,'Plank','Core',null,null),
+  ('20000000-0000-0000-0000-000000000021'::uuid,'Hanging Knee Raise','Core',null,null),
+  ('20000000-0000-0000-0000-000000000022'::uuid,'Russian Twist','Core',null,null),
+  ('20000000-0000-0000-0000-000000000023'::uuid,'Kettlebell Swing','Posterior Chain',null,null),
+  ('20000000-0000-0000-0000-000000000024'::uuid,'Goblet Squat','Quadriceps',null,null),
+  ('20000000-0000-0000-0000-000000000025'::uuid,'Step-Up','Glutes',null,null),
+  ('20000000-0000-0000-0000-000000000026'::uuid,'Farmer Carry','Grip/Core',null,null),
+  ('20000000-0000-0000-0000-000000000027'::uuid,'Sled Push','Legs',null,null),
+  ('20000000-0000-0000-0000-000000000028'::uuid,'Battle Rope Waves','Conditioning',null,null),
+  ('20000000-0000-0000-0000-000000000029'::uuid,'Air Bike Sprint','Conditioning',null,null),
+  ('20000000-0000-0000-0000-000000000030'::uuid,'Row Erg Sprint','Conditioning',null,null),
+  ('20000000-0000-0000-0000-000000000031'::uuid,'Hamstring Curl','Hamstrings',null,null),
+  ('20000000-0000-0000-0000-000000000032'::uuid,'Leg Extension','Quadriceps',null,null),
+  ('20000000-0000-0000-0000-000000000033'::uuid,'Calf Raise','Calves',null,null),
+  ('20000000-0000-0000-0000-000000000034'::uuid,'Thoracic Rotation','Mobility',null,null),
+  ('20000000-0000-0000-0000-000000000035'::uuid,'Couch Stretch','Mobility',null,null),
+  ('20000000-0000-0000-0000-000000000036'::uuid,'Hip 90/90 Flow','Mobility',null,null)
+on conflict (id) do nothing;
+

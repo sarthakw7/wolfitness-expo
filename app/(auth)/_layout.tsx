@@ -4,14 +4,14 @@ import { useAuth } from "@/src/hooks/useAuth";
 import { colors } from "@/src/theme";
 
 export default function AuthLayout() {
-  const { isAuthenticated, isLoading, isOnboardingComplete } = useAuth();
+  const { isAuthenticated, isLoading, onboardingStatus } = useAuth();
 
   if (isLoading) {
     return null;
   }
 
   if (isAuthenticated) {
-    return <Redirect href={isOnboardingComplete ? "/(tabs)" : "/(preauth-onboarding)"} />;
+    return <Redirect href={onboardingStatus === "incomplete" ? "/(preauth-onboarding)" : "/(tabs)"} />;
   }
 
   return (

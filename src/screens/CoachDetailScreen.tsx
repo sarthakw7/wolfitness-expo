@@ -23,7 +23,7 @@ function CoachDetailScreenComponent() {
   const displayPrograms = useMemo<ProgramCardModel[]>(() => {
     return programs.map((item) => ({
       category: item.difficulty ? item.difficulty.replace(/[_-]+/g, " ").toUpperCase() : "PROGRAM",
-      coach: `Coach ${item.creator_id.slice(0, 8)}`,
+      coach: item.coach_name ?? "Wolfitness Coach",
       description: item.description ?? "No description provided yet.",
       duration: item.duration_weeks ? `${item.duration_weeks} Weeks` : "Flexible",
       id: item.id,
@@ -36,16 +36,19 @@ function CoachDetailScreenComponent() {
     }));
   }, [programs]);
 
-  const coachName = coachId ? `Coach ${coachId.slice(0, 8)}` : "Coach";
+  const coachName = programs[0]?.coach_name ?? (coachId ? `Coach ${coachId.slice(0, 8)}` : "Coach");
+  const coachImage =
+    programs[0]?.coach_avatar_url ??
+    "https://images.unsplash.com/photo-1594381898411-846e7d193883?q=80&w=600&auto=format&fit=crop";
 
   return (
     <ScreenScaffold bottomChrome="none" header={<AppTopBar back title="Coach" />}>
       {programsQuery.isLoading ? (
-        <View className="min-h-[260px] rounded-3xl bg-surface-muted" />
+        <View className="mx-1 min-h-[260px] rounded-3xl bg-surface-muted" />
       ) : null}
 
       {programsQuery.error ? (
-        <View className="rounded-2xl border border-border bg-surface-raised p-5">
+        <View className="mx-1 rounded-2xl border border-border bg-surface-raised p-5">
           <Typography variant="headlineLg">Unable to load coach</Typography>
           <Typography className="mt-1" tone="secondary" variant="bodyMd">
             Please try again in a moment.
@@ -54,12 +57,12 @@ function CoachDetailScreenComponent() {
       ) : null}
 
       {!programsQuery.isLoading && !programsQuery.error ? (
-        <>
-          <View className="items-center gap-5">
+        <View className="mx-1 gap-gutter">
+          <View className="items-center gap-5 rounded-3xl border border-border bg-surface-raised p-6">
             <View className="h-36 w-36 overflow-hidden rounded-full border-4 border-white bg-surface-muted">
               <Image
                 source={{
-                  uri: "https://images.unsplash.com/photo-1594381898411-846e7d193883?q=80&w=600&auto=format&fit=crop",
+                  uri: coachImage,
                 }}
                 style={{ height: "100%", width: "100%" }}
               />
@@ -109,11 +112,10 @@ function CoachDetailScreenComponent() {
               <ProgramCard key={program.id} program={program} />
             ))}
           </View>
-        </>
+        </View>
       ) : null}
     </ScreenScaffold>
   );
 }
 
 export const CoachDetailScreen = memo(CoachDetailScreenComponent);
-

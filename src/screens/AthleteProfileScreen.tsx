@@ -1,29 +1,13 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { memo, useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useMemo } from "react";
 import { Image, type ImageSourcePropType, View } from "react-native";
 
 import { AppTopBar, Chip, EditorialCard, ScreenScaffold } from "@/src/components/layout";
-import { AppButton, GlassCard, Typography } from "@/src/components/primitives";
+import { AppButton, Typography } from "@/src/components/primitives";
+import { useProfile } from "@/src/hooks/queries";
 import { useAuth } from "@/src/hooks/useAuth";
-import { supabase } from "@/src/lib/supabase";
 import { colors } from "@/src/theme";
-
-type PublicUserRow = {
-  avatar_url: string | null;
-  email: string | null;
-  full_name: string | null;
-  role: string | null;
-  username: string | null;
-};
-
-type FitnessProfileRow = {
-  experience_level: string | null;
-  height_cm: number | null;
-  primary_goal: string | null;
-  vibe_type: string | null;
-  weight_kg: number | null;
-};
 
 const fallbackAvatar = require("@/assets/images/landing.png");
 
@@ -42,11 +26,6 @@ function formatLbs(weightKg: number) {
   return Math.round(lbs).toString();
 }
 
-function formatCm(value: number) {
-  if (!Number.isFinite(value)) return "--";
-  return Math.round(value).toString();
-}
-
 function fallbackDisplayName(email?: string | null) {
   if (!email) return "Athlete";
   const local = email.split("@")[0];
@@ -56,65 +35,21 @@ function fallbackDisplayName(email?: string | null) {
 
 function AthleteProfileScreenComponent() {
   const { signOut, user } = useAuth();
-  const [publicProfile, setPublicProfile] = useState<PublicUserRow | null>(null);
-  const [fitnessProfile, setFitnessProfile] = useState<FitnessProfileRow | null>(null);
-  const [isFetching, setIsFetching] = useState(false);
-  const [fetchError, setFetchError] = useState<string | null>(null);
+  const profileQuery = useProfile();
 
   useEffect(() => {
-    let cancelled = false;
-
-    async function fetchProfile() {
-      if (!user?.id) {
-        setPublicProfile(null);
-        setFitnessProfile(null);
-        return;
-      }
-
-      setIsFetching(true);
-      setFetchError(null);
-
-      try {
-        const [publicResult, fitnessResult] = await Promise.all([
-          supabase
-            .from("users")
-            .select("avatar_url,email,full_name,role,username")
-            .eq("id", user.id)
-            .maybeSingle(),
-          supabase
-            .from("fitness_profiles")
-            .select("weight_kg,height_cm,primary_goal,experience_level,vibe_type")
-            .eq("user_id", user.id)
-            .maybeSingle(),
-        ]);
-
-        if (cancelled) return;
-
-        if (publicResult.error) {
-          // Some projects do not expose `public.users` via RLS for the anon client. We'll fall back to auth metadata.
-          setPublicProfile(null);
-        } else {
-          setPublicProfile((publicResult.data as PublicUserRow | null) ?? null);
-        }
-
-        if (fitnessResult.error) {
-          setFitnessProfile(null);
-        } else {
-          setFitnessProfile((fitnessResult.data as FitnessProfileRow | null) ?? null);
-        }
-      } catch (e) {
-        if (cancelled) return;
-        setFetchError(e instanceof Error ? e.message : "Unable to load profile.");
-      } finally {
-        if (!cancelled) setIsFetching(false);
-      }
+    if (profileQuery.error) {
+      console.warn("[athlete-flow]", {
+        error: profileQuery.error instanceof Error ? profileQuery.error.message : String(profileQuery.error),
+        screen: "AthleteProfile",
+        type: "profile",
+      });
     }
+  }, [profileQuery.error]);
 
-    fetchProfile();
-    return () => {
-      cancelled = true;
-    };
-  }, [user?.id]);
+  const publicProfile = profileQuery.data?.publicProfile ?? null;
+  const fitnessProfile = profileQuery.data?.fitnessProfile ?? null;
+  const isProfileBundleMissing = !profileQuery.isLoading && !profileQuery.error && !publicProfile && !fitnessProfile;
 
   const displayName = useMemo(() => {
     const name =
@@ -209,6 +144,38 @@ function AthleteProfileScreenComponent() {
           ) : null}
         </View>
       </EditorialCard>
+    );
+  }
+
+  if (profileQuery.error) {
+    return (
+      <ScreenScaffold contentClassName="gap-10" header={<AppTopBar centered title="Wolfitness" />}>
+        <EditorialCard className="gap-3">
+          <Typography variant="headlineLg">Unable to load profile</Typography>
+          <Typography tone="secondary" variant="bodyMd">
+            Please try again in a moment.
+          </Typography>
+          <AppButton onPress={() => profileQuery.refetch()} variant="secondary">
+            Retry
+          </AppButton>
+        </EditorialCard>
+      </ScreenScaffold>
+    );
+  }
+
+  if (isProfileBundleMissing) {
+    return (
+      <ScreenScaffold contentClassName="gap-10" header={<AppTopBar centered title="Wolfitness" />}>
+        <EditorialCard className="gap-3">
+          <Typography variant="headlineLg">Complete Athlete Setup</Typography>
+          <Typography tone="secondary" variant="bodyMd">
+            Your athlete profile is incomplete. Add baseline details so the app can personalize your training flow.
+          </Typography>
+          <AppButton onPress={() => router.push("/(modals)/edit-profile")} variant="secondary">
+            Go To Profile Setup
+          </AppButton>
+        </EditorialCard>
+      </ScreenScaffold>
     );
   }
 

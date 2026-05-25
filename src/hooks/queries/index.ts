@@ -1,6 +1,9 @@
 export * from "./useDashboard";
 export * from "./useEnrollments";
 export * from "./useProfile";
+export * from "./useProgramStructure";
 export * from "./usePrograms";
+export * from "./useWorkout";
+export * from "./useWorkoutSession";
+export * from "./useWorkoutSessionStatus";
 export * from "./queryKeys";
-

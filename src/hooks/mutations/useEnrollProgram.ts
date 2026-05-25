@@ -18,6 +18,7 @@ export function useEnrollProgram() {
       if (!userId) return;
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.enrollments(userId) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.workout(userId) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.dashboardOverview(userId) }),
       ]);
     },

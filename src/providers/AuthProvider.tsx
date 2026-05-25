@@ -32,6 +32,8 @@ type SignUpCredentials = AuthCredentials & {
   fullName?: string;
 };
 
+type OnboardingStatus = "complete" | "incomplete" | "unknown";
+
 type AuthContextValue = {
   refreshOnboardingStatus: () => Promise<void>;
   error: string | null;
@@ -39,6 +41,7 @@ type AuthContextValue = {
   isConfigured: boolean;
   isLoading: boolean;
   isOnboardingComplete: boolean;
+  onboardingStatus: OnboardingStatus;
   session: Session | null;
   signIn: (credentials: AuthCredentials) => Promise<{ error: AuthError | Error | null }>;
   signInWithGoogle: () => Promise<{ error: AuthError | Error | null }>;
@@ -55,23 +58,28 @@ async function tryCommitOnboardingDraft(userId: string) {
   if (!committed) return;
 }
 
-async function hasCompletedOnboarding(userId: string): Promise<boolean> {
+async function getOnboardingStatus(userId: string): Promise<OnboardingStatus> {
   // Single source of truth:
   // 1) fitness_profiles row exists (structured baselines)
   // 2) onboarding_assessments row exists (raw audit log)
   //
-  // If the DB cannot be queried (RLS/network), fail open to avoid redirect loops
-  // that would hard-block the app for signed-in users.
   const [fitness, assessment] = await Promise.all([
     supabase.from("fitness_profiles").select("user_id").eq("user_id", userId).maybeSingle(),
     supabase.from("onboarding_assessments").select("id").eq("user_id", userId).maybeSingle(),
   ]);
 
   if (fitness.error || assessment.error) {
-    return true;
+    console.warn("Unable to verify onboarding completion. Preserving authenticated route state.", {
+      assessmentError: assessment.error?.message,
+      fitnessError: fitness.error?.message,
+      userId,
+    });
+    return "unknown";
   }
 
-  return Boolean(fitness.data?.user_id) && Boolean((assessment.data as { id?: string } | null)?.id);
+  return Boolean(fitness.data?.user_id) && Boolean((assessment.data as { id?: string } | null)?.id)
+    ? "complete"
+    : "incomplete";
 }
 
 function createRedirectUrl(path: "auth/callback" | "auth/reset-password" = "auth/callback") {
@@ -98,19 +106,19 @@ function getHashParam(url: string, key: string) {
 function AuthProviderComponent({ children }: PropsWithChildren) {
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isOnboardingComplete, setIsOnboardingComplete] = useState(false);
+  const [onboardingStatus, setOnboardingStatus] = useState<OnboardingStatus>("unknown");
   const [error, setError] = useState<string | null>(
     isSupabaseConfigured ? null : "Supabase environment variables are not configured.",
   );
 
   const hydrateOnboarding = useCallback(async (nextSession: Session | null) => {
     if (!nextSession?.user?.id) {
-      setIsOnboardingComplete(false);
+      setOnboardingStatus("incomplete");
       return;
     }
 
-    const complete = await hasCompletedOnboarding(nextSession.user.id);
-    setIsOnboardingComplete(complete);
+    const nextStatus = await getOnboardingStatus(nextSession.user.id);
+    setOnboardingStatus(nextStatus);
   }, []);
 
   useEffect(() => {
@@ -130,6 +138,9 @@ function AuthProviderComponent({ children }: PropsWithChildren) {
 
       if (sessionError) {
         setError(sessionError.message);
+        console.warn("Unable to restore auth session during startup.", {
+          error: sessionError.message,
+        });
       }
 
       setSession(data.session);
@@ -148,6 +159,10 @@ function AuthProviderComponent({ children }: PropsWithChildren) {
       setSession(nextSession);
       hydrateOnboarding(nextSession).catch((hydrationError: unknown) => {
         setError(hydrationError instanceof Error ? hydrationError.message : "Unable to hydrate onboarding state.");
+        console.warn("Unable to hydrate onboarding state.", {
+          error: hydrationError instanceof Error ? hydrationError.message : String(hydrationError),
+          userId: nextSession?.user?.id ?? null,
+        });
       });
 
       // Best-effort: if a user completed pre-auth onboarding, commit the draft immediately after auth.
@@ -156,6 +171,10 @@ function AuthProviderComponent({ children }: PropsWithChildren) {
           .then(() => hydrateOnboarding(nextSession))
           .catch((commitError: unknown) => {
             setError(commitError instanceof Error ? commitError.message : "Unable to commit onboarding draft.");
+            console.warn("Unable to commit onboarding draft.", {
+              error: commitError instanceof Error ? commitError.message : String(commitError),
+              userId: nextSession.user.id,
+            });
           });
       }
     });
@@ -324,7 +343,7 @@ function AuthProviderComponent({ children }: PropsWithChildren) {
         setError(authError.message);
       }
       setSession(null);
-      setIsOnboardingComplete(false);
+      setOnboardingStatus("incomplete");
       return { error: authError };
     } catch (authError) {
       const normalized = authError instanceof Error ? authError : new Error("Unable to sign out.");
@@ -344,7 +363,8 @@ function AuthProviderComponent({ children }: PropsWithChildren) {
       isAuthenticated: Boolean(session),
       isConfigured: isSupabaseConfigured,
       isLoading,
-      isOnboardingComplete,
+      isOnboardingComplete: onboardingStatus === "complete",
+      onboardingStatus,
       session,
       signIn,
       signInWithGoogle,
@@ -356,7 +376,7 @@ function AuthProviderComponent({ children }: PropsWithChildren) {
     [
       error,
       isLoading,
-      isOnboardingComplete,
+      onboardingStatus,
       refreshOnboardingStatus,
       session,
       signIn,

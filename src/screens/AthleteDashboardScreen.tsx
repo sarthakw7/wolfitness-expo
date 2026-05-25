@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Link } from "expo-router";
-import { memo, useMemo } from "react";
-import { ImageBackground, View } from "react-native";
+import { memo, useEffect, useMemo } from "react";
+import { ImageBackground, ScrollView, View } from "react-native";
 
 import {
   AppButton,
@@ -14,11 +14,17 @@ import {
   EditorialCard,
   ScreenScaffold,
   SectionTitle,
-  StatCard,
 } from "@/src/components/layout";
-import { MarketplaceRail, ProgramCard } from "@/src/components/marketplace";
+import { ProgramCard } from "@/src/components/marketplace";
 import type { ProgramCardModel } from "@/src/components/marketplace/types";
-import { useDashboard, useEnrollments, useProfile, usePrograms } from "@/src/hooks/queries";
+import {
+  useDashboard,
+  useEnrollments,
+  useProfile,
+  usePrograms,
+  useWorkout,
+  useWorkoutSessionStatus,
+} from "@/src/hooks/queries";
 import type { Program } from "@/src/services/programs.service";
 import { colors } from "@/src/theme";
 
@@ -34,13 +40,6 @@ function percent(value: number, total: number) {
   return Math.max(0, Math.min(1, value / total));
 }
 
-function greeting() {
-  const h = new Date().getHours();
-  if (h < 12) return "Good morning";
-  if (h < 18) return "Good afternoon";
-  return "Good evening";
-}
-
 function titleCase(value: string) {
   return value
     .replace(/[_-]+/g, " ")
@@ -49,6 +48,27 @@ function titleCase(value: string) {
     .split(" ")
     .map((word) => (word ? word[0].toUpperCase() + word.slice(1).toLowerCase() : word))
     .join(" ");
+}
+
+function prettyGoal(raw: string | null | undefined) {
+  if (!raw) return "Precision Training.";
+  switch (raw) {
+    case "build_muscle":
+      return "Precision Training.";
+    case "lose_fat":
+      return "Conditioning Focus.";
+    case "increase_endurance":
+      return "Endurance Build.";
+    case "improve_mobility":
+      return "Mobility Progress.";
+    default:
+      return `${titleCase(raw)}.`;
+  }
+}
+
+function estimateSessionMinutes(exerciseCount: number) {
+  if (exerciseCount <= 0) return 45;
+  return Math.max(35, Math.min(85, exerciseCount * 9));
 }
 
 function DashboardSkeleton() {
@@ -66,8 +86,42 @@ function AthleteDashboardScreenComponent() {
   const enrollmentsQuery = useEnrollments();
   const dashboardQuery = useDashboard();
   const programsQuery = usePrograms({ publishedOnly: true });
+  const workoutQuery = useWorkout();
+  const workoutSessionStatusQuery = useWorkoutSessionStatus(workoutQuery.data ?? null);
 
-  const hasBlockingError = profileQuery.error || enrollmentsQuery.error || dashboardQuery.error || programsQuery.error;
+  const hasBlockingError =
+    profileQuery.error ||
+    enrollmentsQuery.error ||
+    dashboardQuery.error ||
+    programsQuery.error ||
+    workoutQuery.error ||
+    workoutSessionStatusQuery.error;
+
+  useEffect(() => {
+    const failures = [
+      ["profile", profileQuery.error],
+      ["enrollments", enrollmentsQuery.error],
+      ["dashboard", dashboardQuery.error],
+      ["programs", programsQuery.error],
+      ["workout", workoutQuery.error],
+      ["workout-session-status", workoutSessionStatusQuery.error],
+    ].filter(([, error]) => Boolean(error));
+
+    failures.forEach(([type, error]) => {
+      console.warn("[athlete-flow]", {
+        error: error instanceof Error ? error.message : String(error),
+        screen: "AthleteDashboard",
+        type,
+      });
+    });
+  }, [
+    dashboardQuery.error,
+    enrollmentsQuery.error,
+    profileQuery.error,
+    programsQuery.error,
+    workoutQuery.error,
+    workoutSessionStatusQuery.error,
+  ]);
 
   const programMap = useMemo(() => {
     const map = new Map<string, Program>();
@@ -80,6 +134,8 @@ function AthleteDashboardScreenComponent() {
     return list.find((e) => e.status === "active") ?? null;
   }, [enrollmentsQuery.data]);
 
+  const hasAnyEnrollment = (enrollmentsQuery.data ?? []).length > 0;
+
   const activeProgram = useMemo(() => {
     if (!activeEnrollment) return null;
     return programMap.get(activeEnrollment.program_id) ?? null;
@@ -88,7 +144,7 @@ function AthleteDashboardScreenComponent() {
   const featuredPrograms = useMemo<ProgramCardModel[]>(() => {
     return (programsQuery.data ?? []).slice(0, 3).map((program) => ({
       category: program.difficulty ? titleCase(program.difficulty) : "Program",
-      coach: "Wolfitness Coach",
+      coach: program.coach_name ?? "Wolfitness Coach",
       description: program.description ?? "Structured performance protocol.",
       duration: program.duration_weeks ? `${program.duration_weeks} Weeks` : "Flexible",
       id: program.id,
@@ -101,20 +157,14 @@ function AthleteDashboardScreenComponent() {
     }));
   }, [programsQuery.data]);
 
-  const profileName = useMemo(() => {
-    const fromPublic = profileQuery.data?.publicProfile?.full_name;
-    const fromEmail = profileQuery.data?.publicProfile?.email ?? null;
-    if (fromPublic) return fromPublic;
-    if (fromEmail) return fromEmail.split("@")[0];
-    return "Athlete";
-  }, [profileQuery.data?.publicProfile?.email, profileQuery.data?.publicProfile?.full_name]);
-
-  const primaryGoalLabel = useMemo(() => {
-    const raw = profileQuery.data?.fitnessProfile?.primary_goal ?? null;
-    return raw ? titleCase(raw) : "Stay Consistent";
-  }, [profileQuery.data?.fitnessProfile?.primary_goal]);
-
   const nutrition = dashboardQuery.data;
+  const workoutPlan = workoutQuery.data;
+  const sessionMinutes = estimateSessionMinutes(workoutPlan?.exercises.length ?? 0);
+  const todaySessionTitle = workoutPlan?.program.title ?? activeProgram?.title ?? "No Active Program";
+  const todayFocus = workoutPlan?.day.title ?? "Start with today’s assigned session";
+  const todayLoad = activeProgram?.difficulty ? titleCase(activeProgram.difficulty) : "Moderate";
+  const headlineTitle = prettyGoal(profileQuery.data?.fitnessProfile?.primary_goal);
+  const hasNutritionData = Boolean(nutrition?.todayNutritionSummary || nutrition?.macroTargets);
 
   const macroProgress = useMemo(() => {
     const summary = nutrition?.todayNutritionSummary;
@@ -142,57 +192,62 @@ function AthleteDashboardScreenComponent() {
     };
   }, [nutrition?.macroTargets, nutrition?.todayNutritionSummary]);
 
-  const weekly = useMemo(() => {
-    const weeklyDates = nutrition?.weeklyCompletedSessionDates ?? [];
-    const uniqueWeekDays = new Set(weeklyDates.map(dayKey));
-    const completedDays = uniqueWeekDays.size;
-    const weeklyPercent = Math.round((completedDays / 7) * 100);
-
-    const recent = nutrition?.recentCompletedSessionDates ?? [];
-    const daySet = new Set(recent.map(dayKey));
-    let streak = 0;
-    const today = new Date();
-    for (let i = 0; i < 120; i += 1) {
-      const d = new Date(today);
-      d.setDate(today.getDate() - i);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-      if (daySet.has(key)) {
-        streak += 1;
-      } else if (i > 0 || !daySet.has(key)) {
-        break;
-      }
-    }
-
-    const bars = (() => {
-      const out: Array<{ day: string; value: number }> = [];
-      const now = new Date();
-      const day = now.getDay();
-      const mondayOffset = day === 0 ? -6 : 1 - day;
-      const monday = new Date(now);
-      monday.setDate(now.getDate() + mondayOffset);
-      const labels = ["M", "T", "W", "T", "F", "S", "S"];
-      for (let i = 0; i < 7; i += 1) {
-        const d = new Date(monday);
-        d.setDate(monday.getDate() + i);
-        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-        out.push({ day: labels[i], value: daySet.has(key) ? 1 : 0.14 });
-      }
-      return out;
-    })();
-
-    return { bars, streak, weeklyPercent };
-  }, [nutrition?.recentCompletedSessionDates, nutrition?.weeklyCompletedSessionDates]);
-
   const isLoading =
-    profileQuery.isLoading || enrollmentsQuery.isLoading || dashboardQuery.isLoading || programsQuery.isLoading;
+    profileQuery.isLoading ||
+    enrollmentsQuery.isLoading ||
+    dashboardQuery.isLoading ||
+    programsQuery.isLoading ||
+    workoutQuery.isLoading ||
+    workoutSessionStatusQuery.isLoading;
+
+  const workoutCta = useMemo(() => {
+    if (!activeProgram) {
+      return {
+        href: "/(marketplace)" as const,
+        icon: "compass-outline" as const,
+        label: "Explore Programs",
+      };
+    }
+    if (workoutSessionStatusQuery.data) {
+      return {
+        href: "/(tabs)/workouts" as const,
+        icon: "play-circle-outline" as const,
+        label: "Resume Workout",
+      };
+    }
+    return {
+      href: "/(tabs)/workouts" as const,
+      icon: "barbell-outline" as const,
+      label: "Start Today's Workout",
+    };
+  }, [activeProgram, workoutSessionStatusQuery.data]);
+
+  const weeklyDots = useMemo(() => {
+    const now = new Date();
+    const day = now.getDay();
+    const mondayOffset = day === 0 ? -6 : 1 - day;
+    const monday = new Date(now);
+    monday.setDate(now.getDate() + mondayOffset);
+    const labels = ["M", "T", "W", "T", "F", "S", "S"];
+
+    return labels.map((label, idx) => {
+      const d = new Date(monday);
+      d.setDate(monday.getDate() + idx);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      const completed = (nutrition?.weeklyCompletedSessionDates ?? []).some((iso) => dayKey(iso) === key);
+      const isFuture = d.getTime() > now.getTime();
+      const isToday = dayKey(d.toISOString()) === dayKey(new Date().toISOString());
+      return { completed, isFuture, isToday, label };
+    });
+  }, [nutrition?.weeklyCompletedSessionDates]);
 
   return (
     <ScreenScaffold header={<AppTopBar />}>
-      <View className="gap-2">
+      <View className="gap-2 px-1">
         <Typography tone="secondary" variant="labelSm">
-          {greeting()}, {profileName}
+          PERFORMANCE PROTOCOL
         </Typography>
-        <Typography variant="displayLg">{primaryGoalLabel}</Typography>
+        <Typography variant="displayLg">{headlineTitle}</Typography>
       </View>
 
       {hasBlockingError ? (
@@ -201,13 +256,26 @@ function AthleteDashboardScreenComponent() {
           <Typography tone="secondary" variant="bodyMd">
             Please pull to refresh or try again in a moment.
           </Typography>
+          <AppButton
+            onPress={() => {
+              profileQuery.refetch();
+              enrollmentsQuery.refetch();
+              dashboardQuery.refetch();
+              programsQuery.refetch();
+              workoutQuery.refetch();
+              workoutSessionStatusQuery.refetch();
+            }}
+            variant="secondary"
+          >
+            Retry
+          </AppButton>
         </EditorialCard>
       ) : null}
 
       {isLoading ? <DashboardSkeleton /> : null}
 
       {!isLoading && !hasBlockingError ? (
-      <View className="gap-gutter">
+      <View className="gap-gutter px-1">
         <View className="min-h-[420px] overflow-hidden rounded-3xl bg-surface-muted">
           <ImageBackground
             accessibilityLabel="Daily workout editorial image"
@@ -218,113 +286,155 @@ function AthleteDashboardScreenComponent() {
               <View className="flex-row items-start justify-between gap-4">
                 <View className="flex-1 gap-1">
                   <Typography tone="secondary" variant="labelSm">
-                    {activeProgram ? "Current Program" : "Today’s Focus"}
+                    {"TODAY'S SESSION"}
                   </Typography>
                   <Typography variant="headlineXl">
-                    {activeProgram?.title ?? "Complete onboarding calibration"}
+                    {todaySessionTitle}
                   </Typography>
                 </View>
-                <Chip label={activeProgram?.duration_weeks ? `${activeProgram.duration_weeks} Weeks` : "No Active Block"} />
+                <Chip label={`${sessionMinutes} MIN`} />
               </View>
               <View className="flex-row gap-8">
                 <View>
                   <Typography tone="secondary" variant="labelSm">
                     Focus
                   </Typography>
-                  <Typography variant="bodyMd">{activeProgram?.vibe_type ? titleCase(activeProgram.vibe_type) : primaryGoalLabel}</Typography>
+                  <Typography variant="bodyMd">{todayFocus}</Typography>
                 </View>
                 <View>
                   <Typography tone="secondary" variant="labelSm">
                     Status
                   </Typography>
-                  <Typography variant="bodyMd">{activeEnrollment ? titleCase(activeEnrollment.status) : "Not Enrolled"}</Typography>
+                  <Typography variant="bodyMd">{todayLoad}</Typography>
                 </View>
               </View>
-              {activeProgram ? (
-                <Link
-                  asChild
-                  href={{
-                    pathname: "/(marketplace)/program/[programId]",
-                    params: { programId: activeProgram.id },
-                  }}
-                >
-                  <AppButton iconLeft={<Ionicons color={colors.white} name="arrow-forward" size={16} />}>
-                    Continue Program
-                  </AppButton>
-                </Link>
-              ) : (
-                <Link href="/(marketplace)" asChild>
-                  <AppButton iconLeft={<Ionicons color={colors.white} name="compass-outline" size={16} />}>
-                    Explore Programs
-                  </AppButton>
-                </Link>
-              )}
+              <Link href={workoutCta.href} asChild>
+                <AppButton iconLeft={<Ionicons color={colors.white} name={workoutCta.icon} size={16} />}>
+                  {workoutCta.label === "Start Today's Workout" ? "Begin Protocol" : workoutCta.label}
+                </AppButton>
+              </Link>
             </GlassCard>
           </ImageBackground>
         </View>
 
+        {!hasAnyEnrollment ? (
+          <EditorialCard className="gap-3">
+            <Typography variant="headlineLg">No protocol started</Typography>
+            <Typography tone="secondary" variant="bodyMd">
+              You have not started a training protocol yet. Explore coach-led programs to begin your athlete flow.
+            </Typography>
+            <Link href="/(marketplace)" asChild>
+              <AppButton variant="secondary">Explore Programs</AppButton>
+            </Link>
+          </EditorialCard>
+        ) : null}
+
+        {hasAnyEnrollment && !workoutPlan ? (
+          <EditorialCard className="gap-3">
+            <Typography variant="headlineLg">No workout today</Typography>
+            <Typography tone="secondary" variant="bodyMd">
+              Your active protocol does not have a recoverable workout for today.
+            </Typography>
+            <Link href="/(marketplace)" asChild>
+              <AppButton variant="secondary">Browse Training</AppButton>
+            </Link>
+          </EditorialCard>
+        ) : null}
+
         <View className="gap-gutter">
-          <StatCard
-            icon="flame-outline"
-            label="Nutrition Energy"
-            progress={macroProgress.calories.progress}
-            trend={macroProgress.calories.trend}
-            unit="kcal"
-            value={macroProgress.calories.value}
-          />
-          <StatCard
-            icon="nutrition-outline"
-            label="Protein Progress"
-            progress={macroProgress.protein.progress}
-            trend={macroProgress.protein.trend}
-            value={macroProgress.protein.value}
-          />
-          <EditorialCard className="gap-6">
-            <SectionTitle title={`Weekly Consistency ${weekly.weeklyPercent}%`} />
+          <EditorialCard className="gap-5">
+            <View className="flex-row items-center justify-between">
+              <Typography tone="secondary" variant="labelSm">ENERGY EXPENDITURE</Typography>
+              <Ionicons color={colors.graphiteMuted} name="flame-outline" size={20} />
+            </View>
+            <View className="flex-row items-end gap-2">
+              <Typography variant="displayLg">{macroProgress.calories.value}</Typography>
+              <Typography tone="secondary" variant="bodyLg">kcal</Typography>
+            </View>
+            <View className="gap-2">
+              <View className="flex-row items-center justify-between">
+                <Typography tone="secondary" variant="labelSm">Daily Goal</Typography>
+                <Typography tone="secondary" variant="bodyMd">
+                  {nutrition?.macroTargets?.daily_calorie_target?.toLocaleString() ?? "--"} kcal
+                </Typography>
+              </View>
+              <View className="h-1.5 overflow-hidden rounded-full bg-surface-muted">
+                <View className="h-full rounded-full bg-emerald" style={{ width: `${macroProgress.calories.progress * 100}%` }} />
+              </View>
+            </View>
+            {!hasNutritionData ? (
+              <View className="gap-3">
+                <Typography tone="secondary" variant="bodyMd">
+                  No nutrition data has been logged yet.
+                </Typography>
+                <Link href="/(tabs)/nutrition" asChild>
+                  <AppButton variant="secondary">Log First Meal</AppButton>
+                </Link>
+              </View>
+            ) : null}
+          </EditorialCard>
+
+          <EditorialCard className="gap-5">
+            <View className="flex-row items-center justify-between">
+              <Typography tone="secondary" variant="labelSm">WEEKLY CONSISTENCY</Typography>
+              <Ionicons color={colors.graphiteMuted} name="calendar-outline" size={20} />
+            </View>
             <View className="flex-row items-end justify-between">
-              {weekly.bars.map((bar, index) => (
-                <View className="items-center gap-2" key={index}>
-                  <View className="h-14 w-8 justify-end rounded-full bg-surface-muted p-1">
-                    <View
-                      className="w-full rounded-full bg-emerald"
-                      style={{ height: `${bar.value * 100}%` }}
-                    />
+              {weeklyDots.map((dot, idx) => (
+                <View className="items-center gap-2" key={idx}>
+                  <View
+                    className={
+                      dot.completed
+                        ? "h-12 w-8 rounded-full bg-emerald"
+                        : dot.isFuture
+                          ? "h-12 w-8 rounded-full border border-dashed border-border bg-transparent"
+                          : "h-12 w-8 rounded-full bg-surface-muted"
+                    }
+                  >
+                    {!dot.completed && !dot.isFuture ? (
+                      <View className="absolute bottom-1 left-1 right-1 h-2 rounded-full bg-border" />
+                    ) : null}
                   </View>
                   <Typography tone="secondary" variant="labelSm">
-                    {bar.day}
+                    {dot.label}
                   </Typography>
                 </View>
               ))}
             </View>
-            <Typography tone="secondary" variant="labelSm">
-              Current streak: {weekly.streak} day{weekly.streak === 1 ? "" : "s"}
-            </Typography>
           </EditorialCard>
         </View>
       </View>
       ) : null}
 
-      <View className="gap-section">
-        <MarketplaceRail
+      <View className="mt-4 gap-3 px-1">
+        <SectionTitle
           action={
             <Link href="/(marketplace)" asChild>
-              <AppButton size="sm" variant="ghost">Explore</AppButton>
+              <AppButton size="sm" variant="ghost">View All</AppButton>
             </Link>
           }
-          subtitle="Coach-led blocks selected for your current training rhythm."
-          title="Featured Programs"
-        >
-          {featuredPrograms.length === 0 ? (
-            <EditorialCard className="w-72 items-center justify-center p-5">
-              <Typography tone="secondary" variant="bodyMd">
-                No published programs yet.
-              </Typography>
-            </EditorialCard>
-          ) : null}
-          {featuredPrograms.map((program) => (
-            <ProgramCard compact key={program.id} program={program} />
-          ))}
-        </MarketplaceRail>
+          title="Active Programs"
+        />
+          <ScrollView
+            alwaysBounceHorizontal={false}
+            contentContainerClassName=""
+            contentContainerStyle={{ paddingBottom: 10, paddingLeft: 2, paddingRight: 10, paddingTop: 10 }}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+          >
+            {featuredPrograms.length === 0 ? (
+              <EditorialCard className="w-72 items-center justify-center p-5">
+                <Typography tone="secondary" variant="bodyMd">
+                  No published programs yet.
+                </Typography>
+              </EditorialCard>
+            ) : null}
+            {featuredPrograms.map((program, index) => (
+              <View key={program.id} style={{ marginRight: index === featuredPrograms.length - 1 ? 0 : 18 }}>
+                <ProgramCard compact program={program} />
+              </View>
+            ))}
+          </ScrollView>
       </View>
     </ScreenScaffold>
   );

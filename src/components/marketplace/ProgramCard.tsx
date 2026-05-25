@@ -22,22 +22,22 @@ function ProgramCardComponent({ compact, program }: ProgramCardProps) {
         params: { programId: program.id },
       }}
     >
-      <Pressable accessibilityRole="button" className={compact ? "w-72" : "w-full"}>
+      <Pressable accessibilityRole="button" className={compact ? "w-64" : "w-full"}>
         <EditorialCard className="overflow-hidden p-0">
-          <View className={compact ? "h-44 bg-surface-muted" : "h-64 bg-surface-muted"}>
+          <View className={compact ? "h-36 bg-surface-muted" : "h-56 bg-surface-muted"}>
             <ImageBackground
               source={{ uri: program.image }}
-              style={{ flex: 1, justifyContent: "flex-start", padding: 16 }}
+              style={{ flex: 1, justifyContent: "flex-start", padding: 12 }}
             >
               <View className="self-end rounded-full border border-white/60 bg-white/80 px-3 py-1">
                 <Typography variant="labelSm">{program.category}</Typography>
               </View>
             </ImageBackground>
           </View>
-          <View className="gap-4 p-5">
+          <View className="gap-3 p-4">
             <View className="flex-row items-start justify-between gap-3">
               <View className="flex-1">
-                <Typography variant={compact ? "headlineLg" : "headlineXl"}>
+                <Typography numberOfLines={2} variant={compact ? "headlineLg" : "headlineXl"}>
                   {program.title}
                 </Typography>
                 <Typography tone="secondary" variant="labelSm">
@@ -48,10 +48,10 @@ function ProgramCardComponent({ compact, program }: ProgramCardProps) {
                 {program.price}
               </Typography>
             </View>
-            <Typography tone="secondary" variant="bodyMd">
+            <Typography numberOfLines={2} tone="secondary" variant="bodyMd">
               {program.description}
             </Typography>
-            <View className="flex-row items-center justify-between border-t border-border pt-4">
+            <View className="flex-row items-center justify-between border-t border-border pt-3">
               <View className="flex-1 flex-row flex-wrap gap-x-4 gap-y-2">
                 <View className="flex-row items-center gap-1.5">
                   <Ionicons color={colors.graphiteMuted} name="calendar-outline" size={16} />
