@@ -1,72 +1,102 @@
-# Welcome to your Expo app 👋
+# wolfitness-expo (Mobile)
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Wolfitness mobile app built with Expo + Expo Router + Supabase. This repo focuses on athlete experience (auth/onboarding, training, nutrition, marketplace consumption) while delegating purchases, AI nutrition chat, and ledger operations to the Wolfitness web backend.
 
-## Get started
+## What’s In This App Today
 
-1. Install dependencies
+- Auth: email/password + Google OAuth (Supabase PKCE) with deep-link safe callbacks.
+- Onboarding: pre-auth athlete onboarding flow persisted to Supabase and committed post-auth.
+- Athlete dashboard: overview + navigation into core areas.
+- Workout engine: workout player with session restore and execution flow.
+- Nutrition tracking: daily logs + macro targets editing + quick log/add meal modal.
+- AI nutrition assistant: calls Wolfitness web backend using `EXPO_PUBLIC_API_URL`.
+- Progress analytics: athlete progress/consistency surfaces.
+- Marketplace: browse programs, program detail, coach detail.
+- Purchases: starts Stripe checkout via web backend and returns to mobile success route.
 
-   ```bash
-   npm install
-   ```
+## Routing Map (Expo Router)
 
-2. Start the app
+Top-level routes live in `app/`:
 
-   ```bash
-   npx expo start
-   ```
+- `app/index.tsx`: entry redirector (auth/onboarding/workout session restore).
+- `app/(auth)/*`: auth landing + sign-in + sign-up.
+- `app/auth/callback.tsx`: OAuth callback handler (deep link).
+- `app/auth/reset-password.tsx`: password reset handler (deep link).
+- `app/(preauth-onboarding)/*`: onboarding screens (goal/sex/DOB/equipment/etc).
+- `app/(tabs)/*`: main athlete tabs (home, workouts, nutrition, progress, profile).
+- `app/(marketplace)/*`: marketplace and program/coach detail.
+- `app/(modals)/*`: modal flows (add meal, nutrition goals, AI assistant, edit profile, workout detail, quick log).
+- `app/purchase/success.tsx`: purchase return surface after web checkout.
 
-## Wolfitness Web API
+Core UI/business logic lives in `src/`:
 
-Mobile AI nutrition requests call the Wolfitness web backend through `EXPO_PUBLIC_API_URL`.
+- `src/providers/*`: app providers (auth, react-query, theme).
+- `src/lib/*`: supabase client, onboarding draft commit, query client, utilities.
+- `src/services/*`: API + persistence services (nutrition, purchase, etc).
+- `src/screens/*`: screen implementations used by routes.
 
-For local development, do not use `localhost` because physical devices resolve it to the phone itself. Use your Mac local network IP:
+## Local Development
+
+1. Install deps:
 
 ```bash
-EXPO_PUBLIC_API_URL=http://192.168.1.16:3000
+npm install
 ```
 
-For production, point it at the deployed web app:
+2. Set environment:
+
+Create/update `.env` with:
 
 ```bash
-EXPO_PUBLIC_API_URL=https://wolfitness.vercel.app
+EXPO_PUBLIC_SUPABASE_URL=...
+EXPO_PUBLIC_SUPABASE_ANON_KEY=...
+EXPO_PUBLIC_API_URL=http://<YOUR_MAC_LAN_IP>:3000
 ```
 
-After changing `.env`, restart Expo with a cleared cache:
+Notes:
+- Do not use `localhost` for `EXPO_PUBLIC_API_URL` on physical devices.
+- `EXPO_PUBLIC_API_URL` should point at the `wolfitness` web app (used for AI nutrition + purchase init).
+
+3. Start:
+
+```bash
+npx expo start
+```
+
+After changing `.env`, restart with a cleared cache:
 
 ```bash
 npx expo start -c
 ```
 
-In the output, you'll find options to open the app in a
+## Deep Linking (Auth + Recovery)
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+Configured scheme is `wolfitnessexpo` (see `app.json`). Auth uses `expo-auth-session` + Supabase PKCE, and callbacks are handled by:
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+- `app/auth/callback.tsx`
+- `app/auth/reset-password.tsx`
 
-## Get a fresh project
+If OAuth redirects break, confirm:
+- the scheme matches (`wolfitnessexpo`)
+- Supabase Auth redirect URLs include the expected callback URIs for your environment
 
-When you're ready, run:
+## EAS Builds
+
+EAS config is in `eas.json` with profiles:
+- `development` (dev client, internal distribution)
+- `preview` (internal, Android APK)
+- `production` (auto-increment)
+
+Common commands:
 
 ```bash
-npm run reset-project
+eas build --profile development --platform ios
+eas build --profile preview --platform android
+eas build --profile production --platform ios
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+## Troubleshooting
 
-## Learn more
-
-To learn more about developing your project with Expo, look at the following resources:
-
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+- Supabase not configured: check `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY` (`src/lib/supabase.ts`).
+- AI nutrition calls failing: confirm `EXPO_PUBLIC_API_URL` points to the running/deployed web app (`src/services/nutrition.service.ts`).
+- Purchases not starting: same `EXPO_PUBLIC_API_URL` requirement (`src/services/purchase.service.ts`).
