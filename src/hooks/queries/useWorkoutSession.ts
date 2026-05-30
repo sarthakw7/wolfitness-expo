@@ -63,6 +63,9 @@ export function useWorkoutSession(workoutPlan: WorkoutPlanForToday | null | unde
     onSuccess: async (bundle) => {
       queryClient.setQueryData(planKey, bundle);
       queryClient.setQueryData(queryKeys.workoutSession(bundle.session.id), bundle);
+      if (userId) {
+        queryClient.setQueryData(queryKeys.workoutActiveSession(userId), bundle.session);
+      }
       if (userId && workoutPlan) {
         await queryClient.invalidateQueries({
           queryKey: queryKeys.workoutSessionStatus(userId, workoutPlan.program.id, workoutPlan.day.id),

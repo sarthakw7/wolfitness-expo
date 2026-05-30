@@ -14,10 +14,20 @@ export default function TabsLayout() {
   }
 
   if (!isAuthenticated) {
+    console.info("[auth-debug] route redirect", {
+      from: "/(tabs)",
+      navigationTarget: authLandingHref,
+      reason: "unauthenticated",
+    });
     return <Redirect href={authLandingHref} />;
   }
 
   if (onboardingStatus === "incomplete") {
+    console.info("[auth-debug] route redirect", {
+      from: "/(tabs)",
+      navigationTarget: "/(preauth-onboarding)",
+      reason: "onboarding-incomplete",
+    });
     return <Redirect href="/(preauth-onboarding)" />;
   }
 

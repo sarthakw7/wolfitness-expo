@@ -81,112 +81,136 @@ function MarketplaceScreenComponent() {
     });
     return Array.from(map.values());
   }, [filteredPrograms]);
+  const hasCoachCatalog = coachCards.length > 0;
 
   return (
-    <ScreenScaffold bottomChrome="none" header={<AppTopBar back title="Marketplace" />}>
-      <View className="mx-2 gap-2">
-        <Typography tone="secondary" variant="labelSm">
-          Curated Protocols
-        </Typography>
-        <Typography variant="displayLg">Program Marketplace</Typography>
-        <Typography tone="secondary" variant="bodyLg">
-          Coach-led training blocks selected for strength, movement quality, and long-range athletic durability.
-        </Typography>
-      </View>
-
-      {programsQuery.isLoading ? (
-        <View className="mx-2 min-h-[420px] rounded-3xl bg-surface-muted" />
-      ) : null}
-      {programsQuery.error ? (
-        <View className="mx-2 rounded-2xl border border-border bg-surface-raised p-5">
-          <Typography variant="headlineLg">Unable to load programs</Typography>
-          <Typography className="mt-1" tone="secondary" variant="bodyMd">
-            Please try again in a moment.
+    <ScreenScaffold bottomChrome="none" contentClassName="gap-6" header={<AppTopBar back title="Marketplace" />}>
+      <View className="gap-6 px-2">
+        <View className="gap-2">
+          <Typography tone="secondary" variant="labelSm">
+            Curated Protocols
           </Typography>
-          <View className="mt-4">
-            <AppButton onPress={() => programsQuery.refetch()} variant="secondary">
-              Retry
-            </AppButton>
-          </View>
-        </View>
-      ) : null}
-      {!programsQuery.isLoading && !programsQuery.error && featuredProgram ? (
-        <View className="mx-2">
-          <MarketplaceHero program={featuredProgram} />
-        </View>
-      ) : null}
-      {!programsQuery.isLoading && !programsQuery.error && !featuredProgram ? (
-        <View className="mx-2 rounded-2xl border border-border bg-surface-raised p-5">
-          <Typography variant="headlineLg">No Programs Found</Typography>
-          <Typography className="mt-1" tone="secondary" variant="bodyMd">
-            Try a different category filter.
+          <Typography variant="displayLg">Program Marketplace</Typography>
+          <Typography tone="secondary" variant="bodyLg">
+            Coach-led training blocks selected for strength, movement quality, and long-range athletic durability.
           </Typography>
         </View>
-      ) : null}
 
-      <ScrollView
-        alwaysBounceHorizontal={false}
-        contentContainerClassName="gap-3"
-        contentContainerStyle={{ paddingBottom: 2, paddingLeft: 4, paddingRight: 10, paddingTop: 2 }}
-        horizontal
-        showsHorizontalScrollIndicator={false}
-      >
-        {categories.map((category) => (
-          <CategoryPill
-            active={selectedCategory === category}
-            key={category}
-            label={category}
-            onPress={() => setSelectedCategory(category)}
-          />
-        ))}
-      </ScrollView>
-
-      <View className="mx-2 gap-4">
-        <SectionTitle
-          subtitle="Sparse, high-signal programming instead of a noisy catalog."
-          title="Featured Programs"
-        />
-        {catalogPrograms.length === 0 && !programsQuery.isLoading && !programsQuery.error ? (
+        {programsQuery.isLoading ? (
+          <View className="min-h-[420px] rounded-3xl bg-surface-muted" />
+        ) : null}
+        {programsQuery.error ? (
           <View className="rounded-2xl border border-border bg-surface-raised p-5">
-            <Typography tone="secondary" variant="bodyMd">
-              Additional programs will appear once more blocks are published.
+            <Typography variant="headlineLg">Unable to load programs</Typography>
+            <Typography className="mt-1" tone="secondary" variant="bodyMd">
+              Please try again in a moment.
+            </Typography>
+            <View className="mt-4">
+              <AppButton onPress={() => programsQuery.refetch()} variant="secondary">
+                Retry
+              </AppButton>
+            </View>
+          </View>
+        ) : null}
+        {!programsQuery.isLoading && !programsQuery.error && featuredProgram ? (
+          <MarketplaceHero program={featuredProgram} />
+        ) : null}
+        {!programsQuery.isLoading && !programsQuery.error && !featuredProgram ? (
+          <View className="rounded-2xl border border-border bg-surface-raised p-5">
+            <Typography variant="headlineLg">No Programs Found</Typography>
+            <Typography className="mt-1" tone="secondary" variant="bodyMd">
+              Try a different category filter.
             </Typography>
           </View>
         ) : null}
-        {catalogPrograms.map((program) => (
-          <ProgramCard key={program.id} program={program} />
-        ))}
-      </View>
 
-      <View className="mx-2 gap-4">
-        <SectionTitle
-          action={
-            <Link
-              asChild
-              href={{
-                pathname: "/(marketplace)/coach/[coachId]",
-                params: { coachId: coachCards[0]?.id ?? "unknown-coach" },
-              }}
-            >
-              <AppButton size="sm" variant="ghost">Explore</AppButton>
-            </Link>
-          }
-          subtitle="Specialists behind the training systems."
-          title="Elite Coaches"
-        />
         <ScrollView
           alwaysBounceHorizontal={false}
-          contentContainerClassName=""
-          contentContainerStyle={{ paddingBottom: 4, paddingLeft: 2, paddingRight: 10, paddingTop: 4 }}
+          contentContainerClassName="gap-3"
+          contentContainerStyle={{ paddingBottom: 2, paddingLeft: 4, paddingRight: 10, paddingTop: 2 }}
           horizontal
           showsHorizontalScrollIndicator={false}
         >
-          {coachCards.map((coach, index) => (
-            <View key={coach.id} style={{ marginRight: index === coachCards.length - 1 ? 0 : 16 }}>
-              <CoachCard coach={coach} />
-            </View>
+          {categories.map((category) => (
+            <CategoryPill
+              active={selectedCategory === category}
+              key={category}
+              label={category}
+              onPress={() => setSelectedCategory(category)}
+            />
           ))}
         </ScrollView>
+
+        <View className="gap-4">
+          <SectionTitle
+            subtitle="Sparse, high-signal programming instead of a noisy catalog."
+            title="Featured Programs"
+          />
+          {catalogPrograms.length === 0 && !programsQuery.isLoading && !programsQuery.error ? (
+            <View className="rounded-2xl border border-border bg-surface-raised p-5">
+              <Typography tone="secondary" variant="bodyMd">
+                Additional programs will appear once more blocks are published.
+              </Typography>
+            </View>
+          ) : null}
+          {catalogPrograms.map((program) => (
+            <ProgramCard key={program.id} program={program} />
+          ))}
+        </View>
+
+        <View className="gap-4">
+          <SectionTitle
+            action={
+              hasCoachCatalog ? (
+                <Link
+                  asChild
+                  href={{
+                    pathname: "/(marketplace)/coach/[coachId]",
+                    params: { coachId: coachCards[0].id },
+                  }}
+                >
+                  <AppButton size="sm" variant="ghost">
+                    Explore
+                  </AppButton>
+                </Link>
+              ) : (
+                <AppButton
+                  onPress={() => {
+                    console.warn("[marketplace] Coach catalog unavailable. Prevented coach route navigation.", {
+                      screen: "Marketplace",
+                    });
+                  }}
+                  size="sm"
+                  variant="ghost"
+                >
+                  Explore
+                </AppButton>
+              )
+            }
+            subtitle="Specialists behind the training systems."
+            title="Elite Coaches"
+          />
+          <ScrollView
+            alwaysBounceHorizontal={false}
+            contentContainerClassName=""
+            contentContainerStyle={{ paddingBottom: 4, paddingLeft: 2, paddingRight: 10, paddingTop: 4 }}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+          >
+            {coachCards.map((coach, index) => (
+              <View key={coach.id} style={{ marginRight: index === coachCards.length - 1 ? 0 : 16 }}>
+                <CoachCard coach={coach} />
+              </View>
+            ))}
+          </ScrollView>
+          {!hasCoachCatalog && !programsQuery.isLoading && !programsQuery.error ? (
+            <View className="rounded-2xl border border-border bg-surface-raised p-5">
+              <Typography tone="secondary" variant="bodyMd">
+                Coaches will appear when published programs are available.
+              </Typography>
+            </View>
+          ) : null}
+        </View>
       </View>
     </ScreenScaffold>
   );

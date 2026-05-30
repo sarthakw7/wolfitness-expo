@@ -242,8 +242,9 @@ function AthleteDashboardScreenComponent() {
   }, [nutrition?.weeklyCompletedSessionDates]);
 
   return (
-    <ScreenScaffold header={<AppTopBar />}>
-      <View className="gap-2 px-1">
+    <ScreenScaffold contentClassName="gap-6" header={<AppTopBar />}>
+      <View className="gap-6 px-2">
+      <View className="gap-2">
         <Typography tone="secondary" variant="labelSm">
           PERFORMANCE PROTOCOL
         </Typography>
@@ -275,7 +276,7 @@ function AthleteDashboardScreenComponent() {
       {isLoading ? <DashboardSkeleton /> : null}
 
       {!isLoading && !hasBlockingError ? (
-      <View className="gap-gutter px-1">
+      <View className="gap-gutter">
         <View className="min-h-[420px] overflow-hidden rounded-3xl bg-surface-muted">
           <ImageBackground
             accessibilityLabel="Daily workout editorial image"
@@ -406,7 +407,7 @@ function AthleteDashboardScreenComponent() {
       </View>
       ) : null}
 
-      <View className="mt-4 gap-3 px-1">
+      <View className="mt-4 gap-3">
         <SectionTitle
           action={
             <Link href="/(marketplace)" asChild>
@@ -435,6 +436,7 @@ function AthleteDashboardScreenComponent() {
               </View>
             ))}
           </ScrollView>
+      </View>
       </View>
     </ScreenScaffold>
   );

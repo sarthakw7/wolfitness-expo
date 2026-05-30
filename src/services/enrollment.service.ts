@@ -23,6 +23,19 @@ export async function fetchEnrollments(userId: string): Promise<Enrollment[]> {
 }
 
 export async function enrollInProgram(input: { programId: string; userId: string }): Promise<Enrollment> {
+  const { data: program, error: programError } = await supabase
+    .from("programs")
+    .select("id,price")
+    .eq("id", input.programId)
+    .maybeSingle();
+
+  if (programError) throw programError;
+  if (!program) throw new Error("Program not found.");
+
+  if (Number(program.price ?? 0) > 0) {
+    throw new Error("Paid program enrollment requires completed purchase verification.");
+  }
+
   const { data, error } = await supabase
     .from("enrollments")
     .insert({
@@ -36,4 +49,3 @@ export async function enrollInProgram(input: { programId: string; userId: string
   if (error) throw error;
   return data as Enrollment;
 }
-

@@ -5,7 +5,7 @@ import { Image, type ImageSourcePropType, View } from "react-native";
 
 import { AppTopBar, Chip, EditorialCard, ScreenScaffold } from "@/src/components/layout";
 import { AppButton, Typography } from "@/src/components/primitives";
-import { useProfile } from "@/src/hooks/queries";
+import { useMacroTargets, useProfile } from "@/src/hooks/queries";
 import { useAuth } from "@/src/hooks/useAuth";
 import { colors } from "@/src/theme";
 
@@ -36,6 +36,7 @@ function fallbackDisplayName(email?: string | null) {
 function AthleteProfileScreenComponent() {
   const { signOut, user } = useAuth();
   const profileQuery = useProfile();
+  const macroTargetsQuery = useMacroTargets();
 
   useEffect(() => {
     if (profileQuery.error) {
@@ -46,6 +47,16 @@ function AthleteProfileScreenComponent() {
       });
     }
   }, [profileQuery.error]);
+
+  useEffect(() => {
+    if (macroTargetsQuery.error) {
+      console.warn("[nutrition]", {
+        error: macroTargetsQuery.error instanceof Error ? macroTargetsQuery.error.message : String(macroTargetsQuery.error),
+        screen: "AthleteProfile",
+        type: "macro-targets",
+      });
+    }
+  }, [macroTargetsQuery.error]);
 
   const publicProfile = profileQuery.data?.publicProfile ?? null;
   const fitnessProfile = profileQuery.data?.fitnessProfile ?? null;
@@ -87,6 +98,8 @@ function AthleteProfileScreenComponent() {
     }
     return { value: formatLbs(fitnessProfile.weight_kg), unit: "lbs" };
   }, [fitnessProfile?.weight_kg]);
+
+  const macroTargets = macroTargetsQuery.data ?? null;
 
   function ProfileStatCard({
     icon,
@@ -149,38 +162,43 @@ function AthleteProfileScreenComponent() {
 
   if (profileQuery.error) {
     return (
-      <ScreenScaffold contentClassName="gap-10" header={<AppTopBar centered title="Wolfitness" />}>
-        <EditorialCard className="gap-3">
-          <Typography variant="headlineLg">Unable to load profile</Typography>
-          <Typography tone="secondary" variant="bodyMd">
-            Please try again in a moment.
-          </Typography>
-          <AppButton onPress={() => profileQuery.refetch()} variant="secondary">
-            Retry
-          </AppButton>
-        </EditorialCard>
+      <ScreenScaffold contentClassName="gap-6" header={<AppTopBar centered title="Wolfitness" />}>
+        <View className="gap-6 px-2">
+          <EditorialCard className="gap-3">
+            <Typography variant="headlineLg">Unable to load profile</Typography>
+            <Typography tone="secondary" variant="bodyMd">
+              Please try again in a moment.
+            </Typography>
+            <AppButton onPress={() => profileQuery.refetch()} variant="secondary">
+              Retry
+            </AppButton>
+          </EditorialCard>
+        </View>
       </ScreenScaffold>
     );
   }
 
   if (isProfileBundleMissing) {
     return (
-      <ScreenScaffold contentClassName="gap-10" header={<AppTopBar centered title="Wolfitness" />}>
-        <EditorialCard className="gap-3">
-          <Typography variant="headlineLg">Complete Athlete Setup</Typography>
-          <Typography tone="secondary" variant="bodyMd">
-            Your athlete profile is incomplete. Add baseline details so the app can personalize your training flow.
-          </Typography>
-          <AppButton onPress={() => router.push("/(modals)/edit-profile")} variant="secondary">
-            Go To Profile Setup
-          </AppButton>
-        </EditorialCard>
+      <ScreenScaffold contentClassName="gap-6" header={<AppTopBar centered title="Wolfitness" />}>
+        <View className="gap-6 px-2">
+          <EditorialCard className="gap-3">
+            <Typography variant="headlineLg">Complete Athlete Setup</Typography>
+            <Typography tone="secondary" variant="bodyMd">
+              Your athlete profile is incomplete. Add baseline details so the app can personalize your training flow.
+            </Typography>
+            <AppButton onPress={() => router.push("/(modals)/edit-profile")} variant="secondary">
+              Go To Profile Setup
+            </AppButton>
+          </EditorialCard>
+        </View>
       </ScreenScaffold>
     );
   }
 
   return (
-    <ScreenScaffold contentClassName="gap-10" header={<AppTopBar centered title="Wolfitness" />}>
+    <ScreenScaffold contentClassName="gap-6" header={<AppTopBar centered title="Wolfitness" />}>
+      <View className="gap-6 px-2">
       <View className="items-center gap-6 pt-4">
         <View className="relative items-center justify-center">
           {/* soft background glow (approx the radial wash from the HTML) */}
@@ -257,6 +275,58 @@ function AthleteProfileScreenComponent() {
         </View>
       </View>
 
+      <View className="gap-4">
+        <View className="flex-row items-end justify-between">
+          <Typography variant="headlineLg">Nutrition Goals</Typography>
+          <AppButton onPress={() => router.push("/(modals)/nutrition-goals")} size="sm" variant="ghost">
+            {macroTargets ? "Edit Goals" : "Set Goals"}
+          </AppButton>
+        </View>
+
+        {!macroTargets ? (
+          <EditorialCard className="gap-3">
+            <Typography variant="headlineLg">Set Nutrition Goals</Typography>
+            <Typography tone="secondary" variant="bodyMd">
+              Add your daily calorie and macro targets so nutrition progress can track against your plan.
+            </Typography>
+            <AppButton onPress={() => router.push("/(modals)/nutrition-goals")} variant="secondary">
+              Set Nutrition Goals
+            </AppButton>
+          </EditorialCard>
+        ) : (
+          <View className="gap-gutter">
+            <View className="flex-row gap-gutter">
+              <ProfileStatCard
+                icon="flame-outline"
+                label="Calories"
+                unit="kcal"
+                value={macroTargets.daily_calorie_target.toString()}
+              />
+              <ProfileStatCard
+                icon="barbell-outline"
+                label="Protein"
+                unit="g"
+                value={macroTargets.daily_protein_target.toString()}
+              />
+            </View>
+            <View className="flex-row gap-gutter">
+              <ProfileStatCard
+                icon="nutrition-outline"
+                label="Carbs"
+                unit="g"
+                value={macroTargets.daily_carbs_target.toString()}
+              />
+              <ProfileStatCard
+                icon="water-outline"
+                label="Fat"
+                unit="g"
+                value={macroTargets.daily_fat_target.toString()}
+              />
+            </View>
+          </View>
+        )}
+      </View>
+
       <View className="w-full max-w-md self-center pt-2" style={{ width: "100%" }}>
         <AppButton
           className="w-full"
@@ -281,6 +351,7 @@ function AthleteProfileScreenComponent() {
         >
           Sign Out
         </AppButton>
+      </View>
       </View>
 
     </ScreenScaffold>

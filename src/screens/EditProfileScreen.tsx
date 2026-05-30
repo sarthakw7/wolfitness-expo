@@ -8,6 +8,7 @@ import { AppButton, AppInput } from "@/src/components/primitives";
 import { useUpdateProfile } from "@/src/hooks/mutations";
 import { useAuth } from "@/src/hooks/useAuth";
 import { profileService } from "@/src/services";
+import { colors } from "@/src/theme";
 
 function normalizeName(value: string) {
   return value.replace(/\s+/g, " ").trim();
@@ -125,7 +126,13 @@ function EditProfileScreenComponent() {
           </AppButton>
         </View>
         <View className="flex-1">
-          <AppButton isLoading={updateProfileMutation.isPending} onPress={handleSave} variant="secondary">
+          <AppButton
+            className="bg-black border-black"
+            isLoading={updateProfileMutation.isPending}
+            onPress={handleSave}
+            style={{ backgroundColor: colors.black, borderColor: colors.black }}
+            variant="primary"
+          >
             Save
           </AppButton>
         </View>

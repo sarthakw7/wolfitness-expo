@@ -16,6 +16,28 @@ This is an [Expo](https://expo.dev) project created with [`create-expo-app`](htt
    npx expo start
    ```
 
+## Wolfitness Web API
+
+Mobile AI nutrition requests call the Wolfitness web backend through `EXPO_PUBLIC_API_URL`.
+
+For local development, do not use `localhost` because physical devices resolve it to the phone itself. Use your Mac local network IP:
+
+```bash
+EXPO_PUBLIC_API_URL=http://192.168.1.16:3000
+```
+
+For production, point it at the deployed web app:
+
+```bash
+EXPO_PUBLIC_API_URL=https://wolfitness.vercel.app
+```
+
+After changing `.env`, restart Expo with a cleared cache:
+
+```bash
+npx expo start -c
+```
+
 In the output, you'll find options to open the app in a
 
 - [development build](https://docs.expo.dev/develop/development-builds/introduction/)

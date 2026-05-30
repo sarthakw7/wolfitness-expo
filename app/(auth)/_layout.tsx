@@ -11,7 +11,13 @@ export default function AuthLayout() {
   }
 
   if (isAuthenticated) {
-    return <Redirect href={onboardingStatus === "incomplete" ? "/(preauth-onboarding)" : "/(tabs)"} />;
+    const navigationTarget = onboardingStatus === "incomplete" ? "/(preauth-onboarding)" : "/(tabs)";
+    console.info("[auth-debug] route redirect", {
+      from: "/(auth)",
+      navigationTarget,
+      reason: onboardingStatus === "incomplete" ? "onboarding-incomplete" : "authenticated",
+    });
+    return <Redirect href={navigationTarget} />;
   }
 
   return (

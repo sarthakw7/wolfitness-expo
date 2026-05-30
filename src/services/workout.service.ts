@@ -291,6 +291,20 @@ export async function findActiveWorkoutSession(input: {
   return (todayRes.data as WorkoutSession | null) ?? null;
 }
 
+export async function findAnyActiveWorkoutSession(userId: string): Promise<WorkoutSession | null> {
+  const { data, error, status } = await supabase
+    .from("workout_sessions")
+    .select("id,user_id,program_id,day_id,started_at,completed_at,notes")
+    .eq("user_id", userId)
+    .is("completed_at", null)
+    .order("started_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error && status !== 406) throw error;
+  return (data as WorkoutSession | null) ?? null;
+}
+
 export async function fetchWorkoutLogSets(sessionId: string): Promise<WorkoutLogSet[]> {
   const { data, error } = await supabase
     .from("workout_log_sets")

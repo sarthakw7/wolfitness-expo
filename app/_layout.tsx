@@ -12,6 +12,7 @@ import { StatusBar } from "expo-status-bar";
 import { AppProviders } from "@/src/providers/AppProviders";
 import { useAppFonts } from "@/src/hooks/useAppFonts";
 import { useAuth } from "@/src/hooks/useAuth";
+import { validateNutritionApiConfiguration } from "@/src/services/nutrition.service";
 import { colors } from "@/src/theme";
 
 SplashScreen.preventAutoHideAsync().catch(() => {
@@ -25,6 +26,7 @@ export default function RootLayout() {
     SystemUI.setBackgroundColorAsync(colors.surface).catch(() => {
       // Non-critical on platforms that do not expose system background control.
     });
+    validateNutritionApiConfiguration();
   }, []);
 
   // We allow the app to continue even if fonts fail, it will just fallback to system fonts.

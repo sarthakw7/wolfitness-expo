@@ -9,11 +9,20 @@ import { clearOnboardingDraft, readOnboardingDraft } from "./onboarding-draft";
  * Callers should separately mark onboarding complete (local flag) once this succeeds.
  */
 export async function commitOnboardingDraftToSupabase(userId: string): Promise<{ committed: boolean }> {
+  console.info("[auth-debug] onboarding commit start", { userId });
   const draft = await readOnboardingDraft();
-  if (!draft) return { committed: false };
+  if (!draft) {
+    console.info("[auth-debug] onboarding commit skipped: no draft", { userId });
+    return { committed: false };
+  }
 
   // Minimum fields that ensure we can persist identity baselines.
   if (!draft.gender || !draft.dateOfBirth) {
+    console.warn("[auth-debug] onboarding commit skipped: incomplete draft", {
+      hasDateOfBirth: Boolean(draft.dateOfBirth),
+      hasGender: Boolean(draft.gender),
+      userId,
+    });
     return { committed: false };
   }
 
@@ -34,8 +43,13 @@ export async function commitOnboardingDraftToSupabase(userId: string): Promise<{
     { onConflict: "user_id" },
   );
   if (profileError) {
+    console.warn("[auth-debug] fitness profile persistence failed", {
+      error: profileError.message,
+      userId,
+    });
     throw profileError;
   }
+  console.info("[auth-debug] fitness profile persisted", { userId });
 
   // Raw answers (onboarding_assessments) for audit/recompute.
   const { error: assessmentError } = await supabase.from("onboarding_assessments").insert({
@@ -44,10 +58,15 @@ export async function commitOnboardingDraftToSupabase(userId: string): Promise<{
     calculated_vibe: draft.vibeType ?? "unknown",
   });
   if (assessmentError) {
+    console.warn("[auth-debug] onboarding assessment persistence failed", {
+      error: assessmentError.message,
+      userId,
+    });
     throw assessmentError;
   }
+  console.info("[auth-debug] onboarding assessment persisted", { userId });
 
   await clearOnboardingDraft();
+  console.info("[auth-debug] onboarding commit end", { userId });
   return { committed: true };
 }
-

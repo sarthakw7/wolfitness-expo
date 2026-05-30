@@ -3,3 +3,6 @@ export * as programsService from "./programs.service";
 export * as enrollmentService from "./enrollment.service";
 export * as dashboardService from "./dashboard.service";
 export * as workoutService from "./workout.service";
+export * as nutritionService from "./nutrition.service";
+export * as progressService from "./progress.service";
+export * as purchaseService from "./purchase.service";

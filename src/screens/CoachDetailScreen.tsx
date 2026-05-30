@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams } from "expo-router";
-import { memo, useMemo } from "react";
+import { memo, useEffect, useMemo } from "react";
 import { Image, View } from "react-native";
 
 import { AppTopBar, EditorialCard, ScreenScaffold, SectionTitle, StatCard } from "@/src/components/layout";
@@ -19,6 +19,15 @@ function CoachDetailScreenComponent() {
     if (!coachId) return [];
     return (programsQuery.data ?? []).filter((item) => item.creator_id === coachId);
   }, [coachId, programsQuery.data]);
+  const isCoachUnavailable = !coachId || (!programsQuery.isLoading && !programsQuery.error && programs.length === 0);
+
+  useEffect(() => {
+    if (!isCoachUnavailable) return;
+    console.warn("[marketplace] Coach route unavailable. Showing guarded empty state.", {
+      coachId,
+      screen: "CoachDetail",
+    });
+  }, [coachId, isCoachUnavailable]);
 
   const displayPrograms = useMemo<ProgramCardModel[]>(() => {
     return programs.map((item) => ({
@@ -36,28 +45,38 @@ function CoachDetailScreenComponent() {
     }));
   }, [programs]);
 
-  const coachName = programs[0]?.coach_name ?? (coachId ? `Coach ${coachId.slice(0, 8)}` : "Coach");
+  const coachName = programs[0]?.coach_name ?? "Coach";
   const coachImage =
     programs[0]?.coach_avatar_url ??
     "https://images.unsplash.com/photo-1594381898411-846e7d193883?q=80&w=600&auto=format&fit=crop";
 
   return (
-    <ScreenScaffold bottomChrome="none" header={<AppTopBar back title="Coach" />}>
-      {programsQuery.isLoading ? (
-        <View className="mx-1 min-h-[260px] rounded-3xl bg-surface-muted" />
-      ) : null}
+    <ScreenScaffold bottomChrome="none" contentClassName="gap-6" header={<AppTopBar back title="Coach" />}>
+      <View className="gap-6 px-2">
+        {programsQuery.isLoading ? (
+          <View className="min-h-[260px] rounded-3xl bg-surface-muted" />
+        ) : null}
 
-      {programsQuery.error ? (
-        <View className="mx-1 rounded-2xl border border-border bg-surface-raised p-5">
-          <Typography variant="headlineLg">Unable to load coach</Typography>
-          <Typography className="mt-1" tone="secondary" variant="bodyMd">
-            Please try again in a moment.
-          </Typography>
-        </View>
-      ) : null}
+        {programsQuery.error ? (
+          <View className="rounded-2xl border border-border bg-surface-raised p-5">
+            <Typography variant="headlineLg">Unable to load coach</Typography>
+            <Typography className="mt-1" tone="secondary" variant="bodyMd">
+              Please try again in a moment.
+            </Typography>
+          </View>
+        ) : null}
 
-      {!programsQuery.isLoading && !programsQuery.error ? (
-        <View className="mx-1 gap-gutter">
+        {isCoachUnavailable ? (
+          <View className="rounded-2xl border border-border bg-surface-raised p-5">
+            <Typography variant="headlineLg">Coach Unavailable</Typography>
+            <Typography className="mt-1" tone="secondary" variant="bodyMd">
+              This coach is not currently available in the marketplace.
+            </Typography>
+          </View>
+        ) : null}
+
+        {!programsQuery.isLoading && !programsQuery.error && !isCoachUnavailable ? (
+          <View className="gap-gutter">
           <View className="items-center gap-5 rounded-3xl border border-border bg-surface-raised p-6">
             <View className="h-36 w-36 overflow-hidden rounded-full border-4 border-white bg-surface-muted">
               <Image
@@ -101,19 +120,13 @@ function CoachDetailScreenComponent() {
 
           <View className="gap-4">
             <SectionTitle title="Programs By Coach" />
-            {displayPrograms.length === 0 ? (
-              <View className="rounded-2xl border border-border bg-surface-raised p-5">
-                <Typography tone="secondary" variant="bodyMd">
-                  No published programs found for this coach yet.
-                </Typography>
-              </View>
-            ) : null}
             {displayPrograms.map((program) => (
               <ProgramCard key={program.id} program={program} />
             ))}
           </View>
-        </View>
-      ) : null}
+          </View>
+        ) : null}
+      </View>
     </ScreenScaffold>
   );
 }

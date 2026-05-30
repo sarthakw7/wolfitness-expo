@@ -1,7 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
 import { Link, router } from "expo-router";
-import { memo, useEffect, useMemo } from "react";
-import { ImageBackground, View } from "react-native";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { ImageBackground, Pressable, StyleSheet, TextInput, View } from "react-native";
 
 import { AppTopBar, Chip, EditorialCard, ScreenScaffold } from "@/src/components/layout";
 import { AppButton, GlassCard, Typography } from "@/src/components/primitives";
@@ -29,6 +30,14 @@ function formatRest(remainingSec: number) {
   return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 }
 
+function lbsToKg(lbs: number) {
+  return lbs * 0.45359237;
+}
+
+function kgToLbs(kg: number) {
+  return kg / 0.45359237;
+}
+
 function WorkoutSkeleton() {
   return (
     <View className="gap-gutter">
@@ -39,40 +48,113 @@ function WorkoutSkeleton() {
   );
 }
 
-function SetRow({
+function SetRowVariantD({
   completed,
   index,
-  repsLabel,
+  isActive,
+  lbsValue,
+  repsValue,
+  setLabel,
+  onChangeLbs,
+  onChangeReps,
+  onToggleComplete,
+  weightInputRef,
 }: {
   completed: boolean;
   index: number;
-  repsLabel: string;
+  isActive: boolean;
+  lbsValue: string;
+  repsValue: string;
+  setLabel: string;
+  onChangeLbs: (next: string) => void;
+  onChangeReps: (next: string) => void;
+  onToggleComplete: () => void;
+  weightInputRef?: (node: TextInput | null) => void;
 }) {
+  const cardTone = completed
+    ? "opacity-70"
+    : isActive
+      ? "bg-white/90 border-white shadow-luxury"
+      : "bg-white/60 border-white/70";
+
+  const indicator = isActive ? <View className="absolute left-0 top-1/2 h-8 w-1 -translate-y-1/2 rounded-r-full bg-graphite" /> : null;
+
   return (
-    <GlassCard className={completed ? "border-emerald/50 bg-emerald/10" : "border-border bg-surface"}>
-      <View className="flex-row items-center justify-between gap-3">
-        <View className="flex-row items-center gap-3">
-          <Typography variant="headlineLg">{index}</Typography>
-          <Chip label={completed ? "Completed" : "Pending"} />
-        </View>
+    <GlassCard className={`relative overflow-hidden rounded-2xl border p-4 ${cardTone}`}>
+      {indicator}
+      <View className={isActive ? "flex-row items-center justify-between gap-3 pl-3" : "flex-row items-center justify-between gap-3"}>
         <View className="flex-row items-center gap-4">
-          <Typography tone="secondary" variant="bodyMd">
-            {repsLabel}
+          <Typography tone="secondary" variant="headlineLg">
+            {index}
           </Typography>
-          <View
+          <Typography className="uppercase tracking-widest" tone="secondary" variant="labelSm">
+            {setLabel}
+          </Typography>
+        </View>
+
+        <View className="flex-row items-center gap-6">
+          <TextInput
+            editable={!completed}
+            keyboardType="numeric"
+            onChangeText={onChangeLbs}
+            placeholder="-"
+            placeholderTextColor={colors.graphiteSubtle}
+            ref={weightInputRef}
+            selectionColor={colors.emerald}
+            style={[styles.setInput, completed ? styles.setInputCompleted : null, isActive ? styles.setInputActive : null]}
+            value={lbsValue}
+          />
+          <TextInput
+            editable={!completed}
+            keyboardType="numeric"
+            onChangeText={onChangeReps}
+            placeholder="-"
+            placeholderTextColor={colors.graphiteSubtle}
+            selectionColor={colors.emerald}
+            style={[styles.setInput, completed ? styles.setInputCompleted : null, isActive ? styles.setInputActive : null]}
+            value={repsValue}
+          />
+
+          <Pressable
+            accessibilityLabel={completed ? "Set complete" : "Mark set complete"}
+            accessibilityRole="button"
             className={
               completed
-                ? "h-8 w-8 items-center justify-center rounded-full bg-emerald"
-                : "h-8 w-8 items-center justify-center rounded-full border border-border"
+                ? "h-9 w-9 items-center justify-center rounded-full bg-emerald"
+                : isActive
+                  ? "h-9 w-9 items-center justify-center rounded-full border-2 border-border bg-white/50"
+                  : "h-9 w-9 items-center justify-center rounded-full border-2 border-border/50 bg-transparent opacity-60"
             }
+            disabled={completed || !isActive}
+            hitSlop={8}
+            onPress={onToggleComplete}
           >
-            <Ionicons color={completed ? colors.white : colors.graphiteSubtle} name="checkmark" size={16} />
-          </View>
+            <Ionicons color={completed ? colors.white : colors.graphiteMuted} name="checkmark" size={16} />
+          </Pressable>
         </View>
       </View>
     </GlassCard>
   );
 }
+
+const styles = StyleSheet.create({
+  setInput: {
+    borderBottomColor: colors.border,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    color: colors.graphite,
+    minWidth: 56,
+    paddingBottom: 4,
+    textAlign: "center",
+  },
+  setInputActive: {
+    borderBottomColor: colors.graphite,
+    borderBottomWidth: 2,
+  },
+  setInputCompleted: {
+    borderBottomColor: colors.border,
+    color: colors.graphiteMuted,
+  },
+});
 
 function WorkoutPlayerScreenComponent() {
   const enrollmentsQuery = useEnrollments();
@@ -90,6 +172,12 @@ function WorkoutPlayerScreenComponent() {
 
   const completeSetMutation = useCompleteSet();
   const finishWorkoutMutation = useFinishWorkout();
+  const setInputRefs = useRef<Record<number, TextInput | null>>({});
+  const [heldExerciseIndex, setHeldExerciseIndex] = useState<number | null>(null);
+  const [setFeedback, setSetFeedback] = useState<string | null>(null);
+  const [nextTargetCue, setNextTargetCue] = useState<string | null>(null);
+  const [restState, setRestState] = useState<"idle" | "started" | "running" | "complete">("idle");
+  const [transitionLabel, setTransitionLabel] = useState<string | null>(null);
 
   useEffect(() => {
     const failures = [
@@ -149,9 +237,10 @@ function WorkoutPlayerScreenComponent() {
     currentExerciseIndex >= 0
       ? currentExerciseIndex
       : Math.max(0, (workoutPlan?.exercises?.length ?? 1) - 1);
+  const displayExerciseIndex = heldExerciseIndex ?? safeExerciseIndex;
 
   const activeExercise: WorkoutExercise | null =
-    workoutPlan?.exercises?.[safeExerciseIndex] ?? null;
+    workoutPlan?.exercises?.[displayExerciseIndex] ?? null;
 
   const completedSetsForActive = activeExercise
     ? exerciseProgress.get(activeExercise.exercise.id) ?? 0
@@ -173,6 +262,36 @@ function WorkoutPlayerScreenComponent() {
     completeSetMutation.isPending ||
     sessionComplete;
 
+  const activeExerciseLogs = useMemo(() => {
+    if (!activeExercise) return [];
+    return logs.filter((log) => log.exercise_library_id === activeExercise.exercise.id);
+  }, [activeExercise, logs]);
+
+  const [setDrafts, setSetDrafts] = useState<Record<number, { lbs: string; reps: string }>>({});
+
+  useEffect(() => {
+    // Reset drafts when the active exercise changes or session changes.
+    setSetDrafts({});
+  }, [activeExercise?.exercise.id, sessionId]);
+
+  useEffect(() => {
+    // Prefill drafts from existing logs when available.
+    if (!activeExerciseLogs.length) return;
+
+    setSetDrafts((current) => {
+      const next = { ...current };
+      activeExerciseLogs.forEach((log) => {
+        const setNo = log.set_number;
+        if (next[setNo]) return;
+        next[setNo] = {
+          lbs: log.weight_kg != null ? String(Math.round(kgToLbs(Number(log.weight_kg)))) : "",
+          reps: log.reps_completed != null ? String(log.reps_completed) : "",
+        };
+      });
+      return next;
+    });
+  }, [activeExerciseLogs]);
+
   const allExercisesComplete = useMemo(() => {
     if (!workoutPlan?.exercises?.length) return false;
     return workoutPlan.exercises.every((item) => {
@@ -182,19 +301,79 @@ function WorkoutPlayerScreenComponent() {
     });
   }, [exerciseProgress, workoutPlan?.exercises]);
 
-  const handleCompleteSet = async () => {
+  const canCompleteExercise = Boolean(hasStartedSession && activeExercise && isActiveExerciseComplete && !sessionComplete);
+  const shouldEnableFooter = Boolean((allExercisesComplete && !sessionComplete) || canCompleteExercise);
+
+  const buildNextTargetCue = (nextSet: number) => {
+    if (!activeExercise) return null;
+    const draft = setDrafts[nextSet] ?? { lbs: "", reps: "" };
+    const reps = draft.reps.trim() || activeExercise.prescription.target_reps || "--";
+    const load = draft.lbs.trim() ? ` @ ${draft.lbs.trim()} lbs` : "";
+    return `Next: ${reps} reps${load}`;
+  };
+
+  useEffect(() => {
+    if (remainingRestSec > 0) {
+      setRestState((current) => (current === "started" ? "started" : "running"));
+      return;
+    }
+
+    setRestState((current) => (current === "running" || current === "started" ? "complete" : "idle"));
+  }, [remainingRestSec]);
+
+  useEffect(() => {
+    if (restState !== "started") return;
+    const id = setTimeout(() => setRestState("running"), 700);
+    return () => clearTimeout(id);
+  }, [restState]);
+
+  useEffect(() => {
+    if (restState !== "complete") return;
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+  }, [restState]);
+
+  const handleCompleteSet = async (setNumberOverride?: number) => {
     if (!sessionId || !activeExercise || disableCompleteSet) return;
+    const setNumber = setNumberOverride ?? nextSetNumber;
+    const draft = setDrafts[setNumber] ?? { lbs: "", reps: "" };
+    const totalSets = targetSetsForActive;
+    const willCompleteExercise = totalSets > 0 && setNumber >= totalSets;
+    const hasNextExercise = Boolean(workoutPlan?.exercises?.[displayExerciseIndex + 1]);
+
+    const repsCompleted = draft.reps.trim() ? Number(draft.reps) : repsForLog;
+    const weightLbs = draft.lbs.trim() ? Number(draft.lbs) : NaN;
+    const weightKg = Number.isFinite(weightLbs) ? lbsToKg(weightLbs) : null;
+
     try {
       await completeSetMutation.mutateAsync({
         exerciseLibraryId: activeExercise.exercise.id,
-        repsCompleted: repsForLog,
+        repsCompleted: Number.isFinite(repsCompleted as number) ? (repsCompleted as number) : null,
         sessionId,
-        setNumber: nextSetNumber,
-        weightKg: null,
+        setNumber,
+        weightKg,
       });
       const restSeconds = activeExercise.prescription.rest_seconds ?? 90;
       if (restSeconds > 0) {
         await startRestTimer(restSeconds);
+        setRestState("started");
+      }
+      setSetFeedback(`Set ${setNumber}/${totalSets || setNumber} complete`);
+      setNextTargetCue(willCompleteExercise ? (hasNextExercise ? "Next: move to the next exercise" : "Next: finish workout") : buildNextTargetCue(setNumber + 1));
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+
+      if (!willCompleteExercise) {
+        setTimeout(() => {
+          setInputRefs.current[setNumber + 1]?.focus();
+        }, 150);
+      } else if (hasNextExercise) {
+        setHeldExerciseIndex(displayExerciseIndex);
+        setTransitionLabel(`Next: ${workoutPlan?.exercises?.[displayExerciseIndex + 1]?.exercise.name ?? "Next exercise"}`);
+        setTimeout(() => {
+          setHeldExerciseIndex(null);
+          setTransitionLabel(null);
+          setSetFeedback(null);
+          setNextTargetCue(null);
+        }, 800);
       }
     } catch (error) {
       console.warn("[athlete-flow]", {
@@ -239,22 +418,70 @@ function WorkoutPlayerScreenComponent() {
     }
   };
 
+  const handleAdvanceExercise = () => {
+    setHeldExerciseIndex(null);
+    setTransitionLabel(null);
+    setSetFeedback(null);
+    setNextTargetCue(null);
+    Haptics.selectionAsync().catch(() => {});
+  };
+
+  const handleManualStartRest = async () => {
+    if (!hasStartedSession || !activeExercise) return;
+    const restSeconds = activeExercise.prescription.rest_seconds ?? 90;
+    if (restSeconds > 0) {
+      await startRestTimer(restSeconds);
+      setRestState("started");
+    }
+  };
+
+  const footerLabel = sessionComplete
+    ? "Workout Completed"
+    : allExercisesComplete
+      ? "Finish Workout"
+      : canCompleteExercise
+        ? "Next Exercise"
+        : "Complete Exercise";
+
+  const footerAction = allExercisesComplete
+    ? handleFinishWorkout
+    : canCompleteExercise
+      ? handleAdvanceExercise
+      : () => {};
+
   return (
     <ScreenScaffold
+      contentClassName="gap-gutter"
       header={
         <AppTopBar
           centered
-          subtitle={workoutPlan?.program.title ?? "Workout"}
+          subtitle={(workoutPlan?.day.title ?? workoutPlan?.program.title ?? "Workout").toUpperCase()}
           taskMode
           title={
             workoutPlan?.exercises?.length
-              ? `${safeExerciseIndex + 1} of ${workoutPlan.exercises.length} Exercises`
+              ? `${displayExerciseIndex + 1} of ${workoutPlan.exercises.length} Exercises`
               : "Workout"
           }
         />
       }
       taskMode
+      footer={
+        hasStartedSession ? (
+          <View className="px-container pb-6">
+            <AppButton
+              disabled={!shouldEnableFooter}
+              isLoading={finishWorkoutMutation.isPending}
+              onPress={footerAction}
+              size="lg"
+              variant="primary"
+            >
+              {footerLabel}
+            </AppButton>
+          </View>
+        ) : null
+      }
     >
+      <View className="gap-gutter px-container">
       {hasError ? (
         <EditorialCard className="gap-3">
           <Typography variant="headlineLg">Unable to load workout</Typography>
@@ -370,15 +597,37 @@ function WorkoutPlayerScreenComponent() {
               </View>
               <View>
                 <Typography tone="secondary" variant="labelSm">
-                  Rest Timer
+                  {restState === "complete" ? "Rest Complete" : restState === "started" ? "Rest Started" : restState === "running" ? "Rest Running" : "Rest Timer"}
                 </Typography>
-                <Typography variant="headlineXl">{formatRest(remainingRestSec)}</Typography>
+                <Typography variant="headlineXl">{restState === "complete" ? "Ready" : formatRest(remainingRestSec)}</Typography>
               </View>
             </View>
-            <AppButton onPress={() => clearRestTimer()} size="sm" variant="ghost">
-              Skip Rest
-            </AppButton>
+            {remainingRestSec > 0 ? (
+              <AppButton onPress={() => clearRestTimer()} size="sm" variant="ghost">
+                Skip Rest
+              </AppButton>
+            ) : (
+              <AppButton
+                disabled={!hasStartedSession}
+                onPress={handleManualStartRest}
+                size="sm"
+                variant="secondary"
+              >
+                Start Rest
+              </AppButton>
+            )}
           </GlassCard>
+
+          {(setFeedback || nextTargetCue || transitionLabel || restState === "complete") ? (
+            <EditorialCard className="gap-1 py-4">
+              <Typography variant="headlineLg">
+                {transitionLabel ?? setFeedback ?? "Ready for next set"}
+              </Typography>
+              <Typography tone="secondary" variant="bodyMd">
+                {transitionLabel ? "Exercise complete. Loading the next movement." : nextTargetCue ?? "Ready for next set"}
+              </Typography>
+            </EditorialCard>
+          ) : null}
 
           {!hasStartedSession ? (
             <EditorialCard className="gap-3">
@@ -394,57 +643,73 @@ function WorkoutPlayerScreenComponent() {
                 Start Workout
               </AppButton>
             </EditorialCard>
-          ) : (
-            <EditorialCard className="gap-3">
-              <View className="flex-row items-end justify-between border-b border-border pb-2">
+          ) : null}
+
+          <EditorialCard className="gap-3">
+              <View className="flex-row items-end justify-between border-b border-border/50 pb-2">
                 <Typography variant="headlineLg">Target Sets</Typography>
-                <Typography tone="secondary" variant="labelSm">
-                  {activeExercise.prescription.target_reps ?? "-- reps"}
-                </Typography>
+                <View className="flex-row items-center gap-6">
+                  <Typography className="w-12 text-center uppercase tracking-widest" tone="secondary" variant="labelSm">
+                    Lbs
+                  </Typography>
+                  <Typography className="w-12 text-center uppercase tracking-widest" tone="secondary" variant="labelSm">
+                    Reps
+                  </Typography>
+                  <View className="w-8" />
+                </View>
               </View>
+              {!hasStartedSession ? (
+                <Typography tone="secondary" variant="bodyMd">
+                  Start workout to log sets.
+                </Typography>
+              ) : null}
               {Array.from({ length: Math.max(0, targetSetsForActive) }).map((_, index) => {
                 const setNo = index + 1;
+                const isActiveSet = hasStartedSession && setNo === nextSetNumber && !isActiveExerciseComplete;
+                const completed = setNo <= completedSetsForActive;
+                const draft = setDrafts[setNo] ?? { lbs: "", reps: "" };
                 return (
-                  <SetRow
-                    completed={setNo <= completedSetsForActive}
+                  <SetRowVariantD
+                    completed={completed}
                     index={setNo}
+                    isActive={isActiveSet}
                     key={setNo}
-                    repsLabel={activeExercise.prescription.target_reps ?? "--"}
+                    lbsValue={draft.lbs}
+                    onChangeLbs={(next) =>
+                      setSetDrafts((current) => ({
+                        ...current,
+                        [setNo]: { ...(current[setNo] ?? { lbs: "", reps: "" }), lbs: next },
+                      }))
+                    }
+                    onChangeReps={(next) =>
+                      setSetDrafts((current) => ({
+                        ...current,
+                        [setNo]: { ...(current[setNo] ?? { lbs: "", reps: "" }), reps: next },
+                      }))
+                    }
+                    onToggleComplete={() => handleCompleteSet(setNo)}
+                    repsValue={draft.reps}
+                    setLabel={setNo === 1 ? "Warmup" : "Working"}
+                    weightInputRef={(node) => {
+                      setInputRefs.current[setNo] = node;
+                    }}
                   />
                 );
               })}
-              <AppButton
-                disabled={disableCompleteSet}
-                isLoading={completeSetMutation.isPending}
-                onPress={handleCompleteSet}
-                variant="secondary"
-              >
-                {isActiveExerciseComplete ? "Exercise Complete" : "Complete Set"}
-              </AppButton>
+
+              <GlassCard className="border-dashed bg-transparent p-4">
+                <AppButton
+                  disabled
+                  onPress={() => {}}
+                  variant="ghost"
+                >
+                  + Add Set
+                </AppButton>
+              </GlassCard>
             </EditorialCard>
-          )}
-
-          {hasStartedSession ? (
-            <AppButton
-              disabled={!allExercisesComplete || sessionComplete}
-              isLoading={finishWorkoutMutation.isPending}
-              onPress={handleFinishWorkout}
-              variant={allExercisesComplete ? "primary" : "ghost"}
-            >
-              {sessionComplete ? "Workout Completed" : "Finish Workout"}
-            </AppButton>
-          ) : null}
-
-          {sessionComplete ? (
-            <AppButton
-              onPress={() => router.push("/(tabs)")}
-              variant="secondary"
-            >
-              Back to Dashboard
-            </AppButton>
-          ) : null}
         </View>
       ) : null}
+      </View>
     </ScreenScaffold>
   );
 }

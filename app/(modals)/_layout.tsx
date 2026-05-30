@@ -13,10 +13,20 @@ export default function ModalsLayout() {
   }
 
   if (!isAuthenticated) {
+    console.info("[auth-debug] route redirect", {
+      from: "/(modals)",
+      navigationTarget: authLandingHref,
+      reason: "unauthenticated",
+    });
     return <Redirect href={authLandingHref} />;
   }
 
   if (onboardingStatus === "incomplete") {
+    console.info("[auth-debug] route redirect", {
+      from: "/(modals)",
+      navigationTarget: "/(preauth-onboarding)",
+      reason: "onboarding-incomplete",
+    });
     return <Redirect href="/(preauth-onboarding)" />;
   }
 

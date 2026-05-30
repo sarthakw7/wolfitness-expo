@@ -13,10 +13,20 @@ export default function MarketplaceLayout() {
   }
 
   if (!isAuthenticated) {
+    console.info("[auth-debug] route redirect", {
+      from: "/(marketplace)",
+      navigationTarget: authLandingHref,
+      reason: "unauthenticated",
+    });
     return <Redirect href={authLandingHref} />;
   }
 
   if (onboardingStatus === "incomplete") {
+    console.info("[auth-debug] route redirect", {
+      from: "/(marketplace)",
+      navigationTarget: "/(preauth-onboarding)",
+      reason: "onboarding-incomplete",
+    });
     return <Redirect href="/(preauth-onboarding)" />;
   }
 

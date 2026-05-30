@@ -70,16 +70,35 @@ export default function AthleteVibeRevealRoute() {
   const handleContinue = useCallback(async () => {
     // If already authenticated (e.g. Google sign-in), finalize onboarding in-place.
     if (user?.id) {
-      await commitOnboardingDraftToSupabase(user.id);
-      await refreshOnboardingStatus();
-      router.replace("/(tabs)");
+      console.info("[auth-debug] onboarding completion start", { userId: user.id });
+      try {
+        await commitOnboardingDraftToSupabase(user.id);
+        await refreshOnboardingStatus();
+        console.info("[auth-debug] onboarding completion route", {
+          navigationTarget: "/(tabs)",
+          userId: user.id,
+        });
+        router.replace("/(tabs)");
+      } catch (error) {
+        console.warn("[auth-debug] onboarding completion failed", {
+          error: error instanceof Error ? error.message : String(error),
+          userId: user.id,
+        });
+      }
       return;
     }
 
+    console.info("[auth-debug] onboarding preauth route", {
+      navigationTarget: "/(auth)/sign-up",
+    });
     router.replace("/(auth)/sign-up");
   }, [refreshOnboardingStatus, user?.id]);
 
   const handleSkip = useCallback(() => {
+    console.info("[auth-debug] onboarding skip route", {
+      navigationTarget: user?.id ? "/(tabs)" : "/(auth)/sign-up",
+      userId: user?.id ?? null,
+    });
     router.replace(user?.id ? "/(tabs)" : "/(auth)/sign-up");
   }, [user?.id]);
 

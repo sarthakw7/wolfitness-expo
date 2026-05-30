@@ -70,6 +70,17 @@ function ProgramDetailScreenComponent() {
     );
   }, [enrollmentsQuery.data, program]);
 
+  const isPaidProgram = Number(program?.price ?? 0) > 0;
+  const isPaidLocked = Boolean(program && isPaidProgram && !alreadyEnrolled);
+
+  useEffect(() => {
+    if (!isPaidLocked || !program) return;
+    console.info("[purchase-compliance]", "Paid program locked in mobile consumption-only build.", {
+      programId: program.id,
+      screen: "ProgramDetail",
+    });
+  }, [isPaidLocked, program]);
+
   const isTodayProgram = useMemo(() => {
     if (!program || !workoutQuery.data?.program.id) return false;
     return workoutQuery.data.program.id === program.id;
@@ -78,9 +89,9 @@ function ProgramDetailScreenComponent() {
   const workoutCta = useMemo(() => {
     if (!alreadyEnrolled) {
       return {
-        action: "enroll" as const,
-        disabled: enrollProgramMutation.isPending,
-        label: "Start Program",
+        action: isPaidProgram ? "locked" as const : "enroll" as const,
+        disabled: enrollProgramMutation.isPending || isPaidProgram,
+        label: isPaidProgram ? "Purchase available on web" : "Start Program",
         loading: enrollProgramMutation.isPending,
       };
     }
@@ -112,6 +123,7 @@ function ProgramDetailScreenComponent() {
   }, [
     alreadyEnrolled,
     enrollProgramMutation.isPending,
+    isPaidProgram,
     isTodayProgram,
     workoutSessionStatusQuery.data,
   ]);
@@ -136,31 +148,32 @@ function ProgramDetailScreenComponent() {
   };
 
   return (
-    <ScreenScaffold bottomChrome="none" header={<AppTopBar back title="Program" />}>
-      {programsQuery.isLoading ? (
-        <View className="mx-1 min-h-[440px] rounded-3xl bg-surface-muted" />
-      ) : null}
+    <ScreenScaffold bottomChrome="none" contentClassName="gap-6" header={<AppTopBar back title="Program" />}>
+      <View className="gap-6 px-2">
+        {programsQuery.isLoading ? (
+          <View className="min-h-[440px] rounded-3xl bg-surface-muted" />
+        ) : null}
 
-      {programsQuery.error ? (
-        <View className="mx-1 rounded-2xl border border-border bg-surface-raised p-5">
-          <Typography variant="headlineLg">Unable to load program</Typography>
-          <Typography className="mt-1" tone="secondary" variant="bodyMd">
-            Please try again in a moment.
-          </Typography>
-        </View>
-      ) : null}
+        {programsQuery.error ? (
+          <View className="rounded-2xl border border-border bg-surface-raised p-5">
+            <Typography variant="headlineLg">Unable to load program</Typography>
+            <Typography className="mt-1" tone="secondary" variant="bodyMd">
+              Please try again in a moment.
+            </Typography>
+          </View>
+        ) : null}
 
-      {!programsQuery.isLoading && !programsQuery.error && !program ? (
-        <View className="mx-1 rounded-2xl border border-border bg-surface-raised p-5">
-          <Typography variant="headlineLg">Program Not Found</Typography>
-          <Typography className="mt-1" tone="secondary" variant="bodyMd">
-            This program may have been removed or is no longer published.
-          </Typography>
-        </View>
-      ) : null}
+        {!programsQuery.isLoading && !programsQuery.error && !program ? (
+          <View className="rounded-2xl border border-border bg-surface-raised p-5">
+            <Typography variant="headlineLg">Program Not Found</Typography>
+            <Typography className="mt-1" tone="secondary" variant="bodyMd">
+              This program may have been removed or is no longer published.
+            </Typography>
+          </View>
+        ) : null}
 
-      {program ? (
-        <View className="mx-1 gap-gutter">
+        {program ? (
+          <View className="gap-gutter">
           <View className="min-h-[440px] overflow-hidden rounded-3xl bg-surface-muted shadow-luxury">
             <ImageBackground
               accessibilityLabel="Program hero image"
@@ -215,10 +228,33 @@ function ProgramDetailScreenComponent() {
                 await handleEnroll();
                 return;
               }
+              if (workoutCta.action === "locked") {
+                console.info("[purchase-compliance]", "Suppressed mobile Stripe checkout for paid program.", {
+                  programId: program.id,
+                  screen: "ProgramDetail",
+                });
+                return;
+              }
               router.push("/(tabs)/workouts");
             }}
             price={`$${program.price}`}
+            subtitle={
+              isPaidLocked
+                ? "This is paid workout content. Purchase is available on web; the mobile app unlocks access after ownership is confirmed."
+                : Number(program.price) > 0
+                  ? "Access is unlocked for this account. Continue training from the mobile app."
+                : "No payment required. Start this program immediately."
+            }
           />
+
+          {isPaidLocked ? (
+            <EditorialCard className="gap-3">
+              <Typography variant="headlineLg">Purchase available on web</Typography>
+              <Typography tone="secondary" variant="bodyMd">
+                This mobile build is consumption-only for paid programs. If you already purchased this program on web, refresh after your enrollment is confirmed.
+              </Typography>
+            </EditorialCard>
+          ) : null}
 
           {enrollError ? (
             <EditorialCard className="gap-3">
@@ -307,8 +343,9 @@ function ProgramDetailScreenComponent() {
               <ProgramCard key={item.id} program={item} />
             ))}
           </View>
-        </View>
-      ) : null}
+          </View>
+        ) : null}
+      </View>
     </ScreenScaffold>
   );
 }

@@ -23,8 +23,11 @@ export function useFinishWorkout() {
       if (userId) {
         await Promise.all([
           queryClient.invalidateQueries({ queryKey: queryKeys.workout(userId) }),
+          queryClient.invalidateQueries({ queryKey: queryKeys.workoutActiveSession(userId) }),
           queryClient.invalidateQueries({ queryKey: queryKeys.dashboardOverview(userId) }),
           queryClient.invalidateQueries({ queryKey: queryKeys.enrollments(userId) }),
+          queryClient.invalidateQueries({ queryKey: queryKeys.progressOverview(userId, "7d") }),
+          queryClient.invalidateQueries({ queryKey: queryKeys.progressOverview(userId, "30d") }),
         ]);
       }
     },

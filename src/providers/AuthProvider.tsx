@@ -8,6 +8,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type PropsWithChildren,
 } from "react";
@@ -20,6 +21,8 @@ import {
 } from "@/src/lib/supabase";
 import { commitOnboardingDraftToSupabase } from "@/src/lib/commit-onboarding-draft";
 import { normalizeEmail } from "@/src/lib/normalize-email";
+import { queryClient } from "@/src/lib/query-client";
+import { queryKeys } from "@/src/hooks/queries/queryKeys";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -55,21 +58,38 @@ export const AuthContext = createContext<AuthContextValue | null>(null);
 
 async function tryCommitOnboardingDraft(userId: string) {
   const { committed } = await commitOnboardingDraftToSupabase(userId);
-  if (!committed) return;
+  if (committed) {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: queryKeys.profile(userId) }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboardOverview(userId) }),
+    ]);
+  }
+  return committed;
 }
 
 async function getOnboardingStatus(userId: string): Promise<OnboardingStatus> {
-  // Single source of truth:
-  // 1) fitness_profiles row exists (structured baselines)
-  // 2) onboarding_assessments row exists (raw audit log)
-  //
+  console.info("[auth-debug] onboarding check start", { userId });
   const [fitness, assessment] = await Promise.all([
-    supabase.from("fitness_profiles").select("user_id").eq("user_id", userId).maybeSingle(),
-    supabase.from("onboarding_assessments").select("id").eq("user_id", userId).maybeSingle(),
+    supabase
+      .from("fitness_profiles")
+      .select("user_id,gender,date_of_birth,primary_goal")
+      .eq("user_id", userId)
+      .limit(1),
+    supabase.from("onboarding_assessments").select("id").eq("user_id", userId).limit(1),
   ]);
+  console.info("[auth-debug] profile fetch", {
+    error: fitness.error?.message,
+    rows: fitness.data?.length ?? 0,
+    userId,
+  });
+  console.info("[auth-debug] assessment fetch", {
+    error: assessment.error?.message,
+    rows: assessment.data?.length ?? 0,
+    userId,
+  });
 
   if (fitness.error || assessment.error) {
-    console.warn("Unable to verify onboarding completion. Preserving authenticated route state.", {
+    console.warn("[auth] Unable to verify onboarding completion. Preserving authenticated route state.", {
       assessmentError: assessment.error?.message,
       fitnessError: fitness.error?.message,
       userId,
@@ -77,9 +97,21 @@ async function getOnboardingStatus(userId: string): Promise<OnboardingStatus> {
     return "unknown";
   }
 
-  return Boolean(fitness.data?.user_id) && Boolean((assessment.data as { id?: string } | null)?.id)
-    ? "complete"
-    : "incomplete";
+  const fitnessProfile = Array.isArray(fitness.data) ? fitness.data[0] : null;
+  const hasCompletedFitnessProfile = Boolean(
+    fitnessProfile?.gender && fitnessProfile.date_of_birth && fitnessProfile.primary_goal,
+  );
+  const hasAssessment = Array.isArray(assessment.data) && assessment.data.length > 0;
+  const status = hasCompletedFitnessProfile && hasAssessment ? "complete" : "incomplete";
+
+  console.info("[auth-debug] onboarding check end", {
+    hasAssessment,
+    hasCompletedFitnessProfile,
+    status,
+    userId,
+  });
+
+  return status;
 }
 
 function createRedirectUrl(path: "auth/callback" | "auth/reset-password" = "auth/callback") {
@@ -107,21 +139,92 @@ function AuthProviderComponent({ children }: PropsWithChildren) {
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [onboardingStatus, setOnboardingStatus] = useState<OnboardingStatus>("unknown");
+  const hydrationSeqRef = useRef(0);
+  const mountedRef = useRef(true);
   const [error, setError] = useState<string | null>(
     isSupabaseConfigured ? null : "Supabase environment variables are not configured.",
   );
 
   const hydrateOnboarding = useCallback(async (nextSession: Session | null) => {
+    console.info("[auth-debug] hydration start", {
+      hasSession: Boolean(nextSession),
+      userId: nextSession?.user?.id ?? null,
+    });
     if (!nextSession?.user?.id) {
       setOnboardingStatus("incomplete");
+      console.info("[auth-debug] hydration end", {
+        status: "incomplete",
+        userId: null,
+      });
       return;
     }
 
     const nextStatus = await getOnboardingStatus(nextSession.user.id);
     setOnboardingStatus(nextStatus);
+    console.info("[auth-debug] hydration end", {
+      status: nextStatus,
+      userId: nextSession.user.id,
+    });
   }, []);
 
+  const hydrateSessionState = useCallback(
+    async (nextSession: Session | null, reason: string, options: { commitDraft?: boolean } = {}) => {
+      const seq = hydrationSeqRef.current + 1;
+      hydrationSeqRef.current = seq;
+      setIsLoading(true);
+      console.info("[auth-debug] hydration pipeline start", {
+        hasSession: Boolean(nextSession),
+        reason,
+        seq,
+        userId: nextSession?.user?.id ?? null,
+      });
+
+      try {
+        if (nextSession?.user?.id && options.commitDraft) {
+          try {
+            const committed = await tryCommitOnboardingDraft(nextSession.user.id);
+            console.info("[auth-debug] onboarding draft commit result", {
+              committed,
+              reason,
+              seq,
+              userId: nextSession.user.id,
+            });
+          } catch (commitError: unknown) {
+            setError(commitError instanceof Error ? commitError.message : "Unable to commit onboarding draft.");
+            console.warn("[auth] Unable to commit onboarding draft.", {
+              error: commitError instanceof Error ? commitError.message : String(commitError),
+              reason,
+              seq,
+              userId: nextSession.user.id,
+            });
+          }
+        }
+
+        await hydrateOnboarding(nextSession);
+      } catch (hydrationError: unknown) {
+        setError(hydrationError instanceof Error ? hydrationError.message : "Unable to hydrate onboarding state.");
+        console.warn("[auth] Unable to hydrate onboarding state.", {
+          error: hydrationError instanceof Error ? hydrationError.message : String(hydrationError),
+          reason,
+          seq,
+          userId: nextSession?.user?.id ?? null,
+        });
+      } finally {
+        if (mountedRef.current && hydrationSeqRef.current === seq) {
+          setIsLoading(false);
+        }
+        console.info("[auth-debug] hydration pipeline end", {
+          reason,
+          seq,
+          userId: nextSession?.user?.id ?? null,
+        });
+      }
+    },
+    [hydrateOnboarding],
+  );
+
   useEffect(() => {
+    mountedRef.current = true;
     if (!isSupabaseConfigured) {
       setIsLoading(false);
       return;
@@ -138,52 +241,42 @@ function AuthProviderComponent({ children }: PropsWithChildren) {
 
       if (sessionError) {
         setError(sessionError.message);
-        console.warn("Unable to restore auth session during startup.", {
+        console.warn("[auth] Unable to restore auth session during startup.", {
           error: sessionError.message,
         });
       }
 
       setSession(data.session);
-      await hydrateOnboarding(data.session);
-
-      if (isMounted) {
-        setIsLoading(false);
-      }
+      await hydrateSessionState(data.session, "startup");
     };
 
     hydrateSession();
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      setSession(nextSession);
-      hydrateOnboarding(nextSession).catch((hydrationError: unknown) => {
-        setError(hydrationError instanceof Error ? hydrationError.message : "Unable to hydrate onboarding state.");
-        console.warn("Unable to hydrate onboarding state.", {
-          error: hydrationError instanceof Error ? hydrationError.message : String(hydrationError),
-          userId: nextSession?.user?.id ?? null,
-        });
+    } = supabase.auth.onAuthStateChange((event, nextSession) => {
+      console.info("[auth-debug] session changed", {
+        event,
+        hasSession: Boolean(nextSession),
+        userId: nextSession?.user?.id ?? null,
       });
-
-      // Best-effort: if a user completed pre-auth onboarding, commit the draft immediately after auth.
-      if (nextSession?.user?.id) {
-        tryCommitOnboardingDraft(nextSession.user.id)
-          .then(() => hydrateOnboarding(nextSession))
-          .catch((commitError: unknown) => {
-            setError(commitError instanceof Error ? commitError.message : "Unable to commit onboarding draft.");
-            console.warn("Unable to commit onboarding draft.", {
-              error: commitError instanceof Error ? commitError.message : String(commitError),
-              userId: nextSession.user.id,
-            });
-          });
+      if (event === "INITIAL_SESSION") {
+        return;
       }
+      setSession(nextSession);
+      setIsLoading(true);
+      setTimeout(() => {
+        if (!mountedRef.current) return;
+        hydrateSessionState(nextSession, `auth:${event}`, { commitDraft: Boolean(nextSession?.user?.id) });
+      }, 0);
     });
 
     return () => {
       isMounted = false;
+      mountedRef.current = false;
       subscription.unsubscribe();
     };
-  }, [hydrateOnboarding]);
+  }, [hydrateSessionState]);
 
   useEffect(() => {
     if (!isSupabaseConfigured) {
@@ -207,6 +300,7 @@ function AuthProviderComponent({ children }: PropsWithChildren) {
     try {
       assertSupabaseConfigured();
       setError(null);
+      console.info("[auth-debug] sign in start", { email: normalizeEmail(email) });
       const { error: authError } = await supabase.auth.signInWithPassword({
         email: normalizeEmail(email),
         password,
@@ -214,6 +308,10 @@ function AuthProviderComponent({ children }: PropsWithChildren) {
       if (authError) {
         setError(authError.message);
       }
+      console.info("[auth-debug] sign in end", {
+        email: normalizeEmail(email),
+        hasError: Boolean(authError),
+      });
       return { error: authError };
     } catch (authError) {
       const normalized = authError instanceof Error ? authError : new Error("Unable to sign in.");
@@ -226,7 +324,8 @@ function AuthProviderComponent({ children }: PropsWithChildren) {
     try {
       assertSupabaseConfigured();
       setError(null);
-      const { error: authError } = await supabase.auth.signUp({
+      console.info("[auth-debug] sign up start", { email: normalizeEmail(email) });
+      const { data, error: authError } = await supabase.auth.signUp({
         email: normalizeEmail(email),
         options: fullName?.trim()
           ? {
@@ -240,6 +339,11 @@ function AuthProviderComponent({ children }: PropsWithChildren) {
       if (authError) {
         setError(authError.message);
       }
+      console.info("[auth-debug] sign up end", {
+        email: normalizeEmail(email),
+        hasError: Boolean(authError),
+        hasSession: Boolean(data.session),
+      });
       return { error: authError };
     } catch (authError) {
       const normalized = authError instanceof Error ? authError : new Error("Unable to create account.");
@@ -353,8 +457,8 @@ function AuthProviderComponent({ children }: PropsWithChildren) {
   }, []);
 
   const refreshOnboardingStatus = useCallback(async () => {
-    await hydrateOnboarding(session);
-  }, [hydrateOnboarding, session]);
+    await hydrateSessionState(session, "manual-refresh");
+  }, [hydrateSessionState, session]);
 
   const value = useMemo<AuthContextValue>(
     () => ({
