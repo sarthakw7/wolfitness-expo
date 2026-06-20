@@ -6,4 +6,8 @@ export * from "./MarketplaceScreen";
 export * from "./NutritionTrackerScreen";
 export * from "./ProgressAnalyticsScreen";
 export * from "./ProgramDetailScreen";
+export * from "./SignalDayScreen";
+export * from "./SignalProgramDetailScreen";
+export * from "./SignalProgramsScreen";
+export * from "./SignalWeekScreen";
 export * from "./WorkoutPlayerScreen";

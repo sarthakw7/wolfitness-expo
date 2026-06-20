@@ -73,6 +73,12 @@ function RootNavigator() {
           animation: "slide_from_right",
         }}
       />
+      <Stack.Screen
+        name="(signal)"
+        options={{
+          animation: "slide_from_right",
+        }}
+      />
       <Stack.Screen name="(auth)" />
       <Stack.Screen name="(preauth-onboarding)" />
       <Stack.Screen name="auth/callback" />

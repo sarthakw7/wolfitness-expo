@@ -1,8 +1,9 @@
-import { Link } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import { Link, type Href } from "expo-router";
 import { memo, useEffect, useMemo, useState } from "react";
-import { ScrollView, View } from "react-native";
+import { Image, Pressable, ScrollView, View } from "react-native";
 
-import { AppTopBar, ScreenScaffold, SectionTitle } from "@/src/components/layout";
+import { AppTopBar, EditorialCard, ScreenScaffold, SectionTitle } from "@/src/components/layout";
 import {
   CategoryPill,
   CoachCard,
@@ -11,10 +12,75 @@ import {
 } from "@/src/components/marketplace";
 import type { CoachCardModel, ProgramCardModel } from "@/src/components/marketplace/types";
 import { usePrograms } from "@/src/hooks/queries";
+import { usePrograms as useSignalPrograms } from "@/src/hooks/usePrograms";
 import { AppButton, Typography } from "@/src/components/primitives";
+import type { ProgramSummary } from "@/src/services/programs";
+import { colors } from "@/src/theme";
+
+function SignalProgramCard({ program }: { program: ProgramSummary }) {
+  return (
+    <Link
+      asChild
+      href={{
+        pathname: "/(signal)/program/[programId]",
+        params: { programId: program.id },
+      } as Href}
+    >
+      <Pressable accessibilityRole="button">
+        <EditorialCard className="gap-4">
+          {program.coverImage ? (
+            <View className="h-40 overflow-hidden rounded-3xl border border-border bg-surface-muted">
+              <Image
+                accessibilityIgnoresInvertColors
+                resizeMode="cover"
+                source={{ uri: program.coverImage }}
+                style={{ height: "100%", width: "100%" }}
+              />
+              <View className="absolute inset-0 bg-black/15" />
+              <View className="absolute inset-x-0 bottom-0 px-4 pb-4">
+                <Typography variant="labelSm" className="text-white">
+                  {program.goal}
+                </Typography>
+              </View>
+            </View>
+          ) : (
+            <View className="h-32 rounded-3xl border border-border bg-surface-muted px-4 py-4">
+              <Typography tone="secondary" variant="labelSm">
+                SIGNAL PROGRAM
+              </Typography>
+            </View>
+          )}
+
+          <View className="flex-row items-start justify-between gap-3">
+            <View className="flex-1 gap-2">
+              <Typography variant="headlineXl">{program.title}</Typography>
+              <Typography tone="secondary" variant="bodyMd">
+                {program.subtitle ?? "No subtitle provided."}
+              </Typography>
+            </View>
+            <Ionicons color={colors.graphiteMuted} name="chevron-forward" size={20} />
+          </View>
+
+          <View className="flex-row flex-wrap gap-2 border-t border-border pt-3">
+            <Typography tone="secondary" variant="labelSm">
+              {program.duration}
+            </Typography>
+            <Typography tone="secondary" variant="labelSm">
+              {program.difficulty}
+            </Typography>
+            <Typography tone="secondary" variant="labelSm">
+              {program.goal}
+            </Typography>
+          </View>
+        </EditorialCard>
+      </Pressable>
+    </Link>
+  );
+}
 
 function MarketplaceScreenComponent() {
   const programsQuery = usePrograms({ publishedOnly: true });
+  const signalProgramsQuery = useSignalPrograms();
   const [selectedCategory, setSelectedCategory] = useState("All Programs");
 
   useEffect(() => {
@@ -123,6 +189,49 @@ function MarketplaceScreenComponent() {
             </Typography>
           </View>
         ) : null}
+
+        <View className="gap-4">
+          <SectionTitle
+            subtitle="Published Signal workouts flow directly into week, day, block, and exercise detail."
+            title="Signal Programs"
+          />
+
+          {signalProgramsQuery.isLoading ? (
+            <View className="gap-4">
+              <EditorialCard className="min-h-44 bg-surface-muted" />
+              <EditorialCard className="min-h-44 bg-surface-muted" />
+            </View>
+          ) : null}
+
+          {signalProgramsQuery.error ? (
+            <EditorialCard className="gap-3">
+              <Typography variant="headlineLg">Unable to load Signal programs</Typography>
+              <Typography tone="secondary" variant="bodyMd">
+                Check the Signal API connection and try again.
+              </Typography>
+              <View className="mt-2">
+                <AppButton onPress={() => signalProgramsQuery.refetch()} variant="secondary">
+                  Retry
+                </AppButton>
+              </View>
+            </EditorialCard>
+          ) : null}
+
+          {!signalProgramsQuery.isLoading && !signalProgramsQuery.error && (signalProgramsQuery.data?.length ?? 0) === 0 ? (
+            <EditorialCard className="gap-3">
+              <Typography variant="headlineLg">No published Signal programs</Typography>
+              <Typography tone="secondary" variant="bodyMd">
+                Signal workouts will appear here after they are published.
+              </Typography>
+            </EditorialCard>
+          ) : null}
+
+          <View className="gap-4">
+            {(signalProgramsQuery.data ?? []).map((program) => (
+              <SignalProgramCard key={program.id} program={program} />
+            ))}
+          </View>
+        </View>
 
         <ScrollView
           alwaysBounceHorizontal={false}
