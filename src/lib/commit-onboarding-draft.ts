@@ -2,6 +2,12 @@ import { supabase } from "@/src/lib/supabase";
 
 import { clearOnboardingDraft, readOnboardingDraft } from "./onboarding-draft";
 
+function debugOnboarding(message: string, context?: Record<string, unknown>) {
+  if (__DEV__) {
+    console.info("[auth-debug]", message, context ?? {});
+  }
+}
+
 /**
  * Commits the locally-stored onboarding draft into Supabase for the authenticated user.
  *
@@ -9,20 +15,22 @@ import { clearOnboardingDraft, readOnboardingDraft } from "./onboarding-draft";
  * Callers should separately mark onboarding complete (local flag) once this succeeds.
  */
 export async function commitOnboardingDraftToSupabase(userId: string): Promise<{ committed: boolean }> {
-  console.info("[auth-debug] onboarding commit start", { userId });
+  debugOnboarding("onboarding commit start", { userId });
   const draft = await readOnboardingDraft();
   if (!draft) {
-    console.info("[auth-debug] onboarding commit skipped: no draft", { userId });
+    debugOnboarding("onboarding commit skipped: no draft", { userId });
     return { committed: false };
   }
 
   // Minimum fields that ensure we can persist identity baselines.
   if (!draft.gender || !draft.dateOfBirth) {
-    console.warn("[auth-debug] onboarding commit skipped: incomplete draft", {
-      hasDateOfBirth: Boolean(draft.dateOfBirth),
-      hasGender: Boolean(draft.gender),
-      userId,
-    });
+    if (__DEV__) {
+      console.warn("[auth-debug] onboarding commit skipped: incomplete draft", {
+        hasDateOfBirth: Boolean(draft.dateOfBirth),
+        hasGender: Boolean(draft.gender),
+        userId,
+      });
+    }
     return { committed: false };
   }
 
@@ -37,6 +45,7 @@ export async function commitOnboardingDraftToSupabase(userId: string): Promise<{
       height_cm: draft.heightCm ?? undefined,
       injuries: draft.injuries ?? undefined,
       primary_goal: draft.primaryGoal,
+      training_availability: draft.trainingAvailability ?? undefined,
       vibe_type: draft.vibeType,
       weight_kg: draft.weightKg ?? undefined,
     },
@@ -49,7 +58,7 @@ export async function commitOnboardingDraftToSupabase(userId: string): Promise<{
     });
     throw profileError;
   }
-  console.info("[auth-debug] fitness profile persisted", { userId });
+  debugOnboarding("fitness profile persisted", { userId });
 
   // Raw answers (onboarding_assessments) for audit/recompute.
   const { error: assessmentError } = await supabase.from("onboarding_assessments").insert({
@@ -64,9 +73,9 @@ export async function commitOnboardingDraftToSupabase(userId: string): Promise<{
     });
     throw assessmentError;
   }
-  console.info("[auth-debug] onboarding assessment persisted", { userId });
+  debugOnboarding("onboarding assessment persisted", { userId });
 
   await clearOnboardingDraft();
-  console.info("[auth-debug] onboarding commit end", { userId });
+  debugOnboarding("onboarding commit end", { userId });
   return { committed: true };
 }

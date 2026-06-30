@@ -4,8 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 
 import { queryKeys } from "@/src/hooks/queries/queryKeys";
 import { useAuth } from "@/src/hooks/useAuth";
+import { activeProgramService, workoutService } from "@/src/services";
 import type { WorkoutPlanForToday, WorkoutSession } from "@/src/services/workout.service";
-import { workoutService } from "@/src/services";
 
 const TIMER_KEY_PREFIX = "wolfitness:workout:rest-timer";
 
@@ -19,10 +19,24 @@ type SessionBundle = {
   session: WorkoutSession;
 };
 
+function isMatchingSignalActiveProgramPointer(
+  activeProgram: Awaited<ReturnType<typeof activeProgramService.continueActiveProgram>> | null,
+  workoutPlan: WorkoutPlanForToday,
+) {
+  return Boolean(
+    activeProgram &&
+      activeProgram.source === "signal" &&
+      activeProgram.source_program_id === workoutPlan.program.id &&
+      activeProgram.current_week_key === workoutPlan.week.id &&
+      activeProgram.current_day_key === workoutPlan.day.id,
+  );
+}
+
 export function useWorkoutSession(workoutPlan: WorkoutPlanForToday | null | undefined) {
   const { user } = useAuth();
   const userId = user?.id ?? null;
   const queryClient = useQueryClient();
+  const isSignalWorkout = Boolean(workoutPlan?.program.creator_id === "signal");
 
   const planKey =
     userId && workoutPlan
@@ -34,6 +48,27 @@ export function useWorkoutSession(workoutPlan: WorkoutPlanForToday | null | unde
     queryKey: planKey,
     queryFn: async () => {
       if (!userId || !workoutPlan) throw new Error("Workout session unavailable.");
+      if (isSignalWorkout) {
+        const activeProgram = await activeProgramService.continueActiveProgram(userId);
+        if (!activeProgram || !isMatchingSignalActiveProgramPointer(activeProgram, workoutPlan)) {
+          throw new Error("Active Signal program does not match this workout.");
+        }
+        const session = await workoutService.findActiveWorkoutSession({
+          activeProgramId: activeProgram.id,
+          source: "signal",
+          sourceDayKey: workoutPlan.day.id,
+          sourceProgramId: workoutPlan.program.id,
+          sourceProgramVersion: activeProgram.source_program_version ?? null,
+          sourceWeekKey: workoutPlan.week.id,
+          userId,
+        });
+        if (!session) return null;
+        const logs = await workoutService.fetchWorkoutLogSets(session.id);
+        const bundle = { logs, session };
+        queryClient.setQueryData(queryKeys.workoutSession(session.id), bundle);
+        return bundle;
+      }
+
       const session = await workoutService.findActiveWorkoutSession({
         dayId: workoutPlan.day.id,
         programId: workoutPlan.program.id,
@@ -52,6 +87,24 @@ export function useWorkoutSession(workoutPlan: WorkoutPlanForToday | null | unde
   const startSessionMutation = useMutation({
     mutationFn: async () => {
       if (!userId || !workoutPlan) throw new Error("Workout session unavailable.");
+      if (isSignalWorkout) {
+        const activeProgram = await activeProgramService.continueActiveProgram(userId);
+        if (!activeProgram || !isMatchingSignalActiveProgramPointer(activeProgram, workoutPlan)) {
+          throw new Error("Active Signal program does not match this workout.");
+        }
+        const session = await workoutService.getOrCreateWorkoutSession({
+          activeProgramId: activeProgram.id,
+          source: "signal",
+          sourceDayKey: workoutPlan.day.id,
+          sourceProgramId: workoutPlan.program.id,
+          sourceProgramVersion: activeProgram.source_program_version ?? null,
+          sourceWeekKey: workoutPlan.week.id,
+          userId,
+        });
+        const logs = await workoutService.fetchWorkoutLogSets(session.id);
+        return { logs, session };
+      }
+
       const session = await workoutService.getOrCreateWorkoutSession({
         dayId: workoutPlan.day.id,
         programId: workoutPlan.program.id,

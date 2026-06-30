@@ -8,6 +8,7 @@ export type OnboardingDraft = {
   heightCm?: number;
   injuries?: string[];
   primaryGoal?: string;
+  trainingAvailability?: string[];
   weightKg?: number;
   vibeType?: string;
   vibeMetrics?: {

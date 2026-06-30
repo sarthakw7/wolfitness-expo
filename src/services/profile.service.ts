@@ -19,6 +19,7 @@ export type FitnessProfile = {
   height_cm: number | null;
   injuries: string[] | null;
   primary_goal: string | null;
+  training_availability: string[] | null;
   user_id: string;
   vibe_type: string | null;
   weight_kg: number | null;
@@ -43,6 +44,7 @@ export type UpdateProfileInput = {
   experienceLevel?: string | null;
   equipmentAccess?: string[] | null;
   injuries?: string[] | null;
+  trainingAvailability?: string[] | null;
   vibeType?: string | null;
 };
 
@@ -56,7 +58,7 @@ export async function fetchProfileBundle(userId: string): Promise<Pick<ProfileBu
     supabase
       .from("fitness_profiles")
       .select(
-        "user_id,gender,date_of_birth,height_cm,weight_kg,primary_goal,experience_level,equipment_access,injuries,vibe_type",
+        "user_id,gender,date_of_birth,height_cm,weight_kg,primary_goal,experience_level,training_availability,equipment_access,injuries,vibe_type",
       )
       .eq("user_id", userId)
       .maybeSingle(),
@@ -98,6 +100,7 @@ export async function updateProfile(userId: string, input: UpdateProfileInput): 
   if ("weightKg" in input) fitnessPatch.weight_kg = input.weightKg ?? null;
   if ("primaryGoal" in input) fitnessPatch.primary_goal = input.primaryGoal ?? null;
   if ("experienceLevel" in input) fitnessPatch.experience_level = input.experienceLevel ?? null;
+  if ("trainingAvailability" in input) fitnessPatch.training_availability = input.trainingAvailability ?? null;
   if ("equipmentAccess" in input) fitnessPatch.equipment_access = input.equipmentAccess ?? null;
   if ("injuries" in input) fitnessPatch.injuries = input.injuries ?? null;
   if ("vibeType" in input) fitnessPatch.vibe_type = input.vibeType ?? null;

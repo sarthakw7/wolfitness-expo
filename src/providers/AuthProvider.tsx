@@ -1,4 +1,5 @@
 import type { AuthError, Session, User } from "@supabase/supabase-js";
+import * as Sentry from "@sentry/react-native";
 import * as AuthSession from "expo-auth-session";
 import * as Linking from "expo-linking";
 import * as WebBrowser from "expo-web-browser";
@@ -20,6 +21,7 @@ import {
   supabase,
 } from "@/src/lib/supabase";
 import { commitOnboardingDraftToSupabase } from "@/src/lib/commit-onboarding-draft";
+import { isAthleteOnboardingComplete } from "@/src/lib/onboarding-completion";
 import { normalizeEmail } from "@/src/lib/normalize-email";
 import { queryClient } from "@/src/lib/query-client";
 import { queryKeys } from "@/src/hooks/queries/queryKeys";
@@ -36,9 +38,13 @@ type SignUpCredentials = AuthCredentials & {
 };
 
 type OnboardingStatus = "complete" | "incomplete" | "unknown";
+type BootstrapPhase = "checking-setup" | "error" | "ready" | "restoring-session";
 
 type AuthContextValue = {
+  bootstrapError: string | null;
+  bootstrapPhase: BootstrapPhase;
   refreshOnboardingStatus: () => Promise<void>;
+  retryBootstrap: () => Promise<void>;
   error: string | null;
   isAuthenticated: boolean;
   isConfigured: boolean;
@@ -56,6 +62,28 @@ type AuthContextValue = {
 
 export const AuthContext = createContext<AuthContextValue | null>(null);
 
+type OnboardingFitnessProfileRow = {
+  date_of_birth: string | null;
+  equipment_access: string[] | null;
+  experience_level: string | null;
+  gender: string | null;
+  height_cm: number | null;
+  primary_goal: string | null;
+  training_availability: string[] | null;
+  weight_kg: number | null;
+};
+
+type OnboardingAssessmentRow = {
+  id: string;
+  raw_answers: Record<string, unknown> | null;
+};
+
+function debugAuth(message: string, context?: Record<string, unknown>) {
+  if (__DEV__) {
+    console.info("[auth-debug]", message, context ?? {});
+  }
+}
+
 async function tryCommitOnboardingDraft(userId: string) {
   const { committed } = await commitOnboardingDraftToSupabase(userId);
   if (committed) {
@@ -68,45 +96,64 @@ async function tryCommitOnboardingDraft(userId: string) {
 }
 
 async function getOnboardingStatus(userId: string): Promise<OnboardingStatus> {
-  console.info("[auth-debug] onboarding check start", { userId });
+  debugAuth("onboarding check start", { userId });
   const [fitness, assessment] = await Promise.all([
     supabase
       .from("fitness_profiles")
-      .select("user_id,gender,date_of_birth,primary_goal")
+      .select(
+        "gender,date_of_birth,primary_goal,experience_level,training_availability,equipment_access,height_cm,weight_kg",
+      )
       .eq("user_id", userId)
-      .limit(1),
-    supabase.from("onboarding_assessments").select("id").eq("user_id", userId).limit(1),
+      .maybeSingle(),
+    supabase
+      .from("onboarding_assessments")
+      .select("id,raw_answers")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ]);
-  console.info("[auth-debug] profile fetch", {
+
+  debugAuth("profile fetch", {
     error: fitness.error?.message,
-    rows: fitness.data?.length ?? 0,
+    hasProfile: Boolean(fitness.data),
     userId,
   });
-  console.info("[auth-debug] assessment fetch", {
+  debugAuth("assessment fetch", {
     error: assessment.error?.message,
-    rows: assessment.data?.length ?? 0,
+    hasAssessment: Boolean(assessment.data),
     userId,
   });
 
   if (fitness.error || assessment.error) {
-    console.warn("[auth] Unable to verify onboarding completion. Preserving authenticated route state.", {
+    const onboardingError = new Error("Unable to verify onboarding completion.");
+    console.warn("[auth] Unable to verify onboarding completion.", {
       assessmentError: assessment.error?.message,
       fitnessError: fitness.error?.message,
       userId,
     });
-    return "unknown";
+    Sentry.captureException(onboardingError, {
+      extra: {
+        assessmentError: assessment.error?.message ?? null,
+        fitnessError: fitness.error?.message ?? null,
+        userId,
+      },
+      tags: {
+        area: "auth-bootstrap",
+      },
+    });
+    throw onboardingError;
   }
 
-  const fitnessProfile = Array.isArray(fitness.data) ? fitness.data[0] : null;
-  const hasCompletedFitnessProfile = Boolean(
-    fitnessProfile?.gender && fitnessProfile.date_of_birth && fitnessProfile.primary_goal,
-  );
-  const hasAssessment = Array.isArray(assessment.data) && assessment.data.length > 0;
-  const status = hasCompletedFitnessProfile && hasAssessment ? "complete" : "incomplete";
+  const fitnessProfile = (fitness.data as OnboardingFitnessProfileRow | null) ?? null;
+  const latestAssessment = (assessment.data as OnboardingAssessmentRow | null) ?? null;
+  const status = isAthleteOnboardingComplete(fitnessProfile, latestAssessment)
+    ? "complete"
+    : "incomplete";
 
-  console.info("[auth-debug] onboarding check end", {
-    hasAssessment,
-    hasCompletedFitnessProfile,
+  debugAuth("onboarding check end", {
+    hasAssessment: Boolean(latestAssessment?.id),
+    hasCompletedFitnessProfile: status === "complete",
     status,
     userId,
   });
@@ -139,6 +186,8 @@ function AuthProviderComponent({ children }: PropsWithChildren) {
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [onboardingStatus, setOnboardingStatus] = useState<OnboardingStatus>("unknown");
+  const [bootstrapPhase, setBootstrapPhase] = useState<BootstrapPhase>("restoring-session");
+  const [bootstrapError, setBootstrapError] = useState<string | null>(null);
   const hydrationSeqRef = useRef(0);
   const mountedRef = useRef(true);
   const [error, setError] = useState<string | null>(
@@ -146,22 +195,25 @@ function AuthProviderComponent({ children }: PropsWithChildren) {
   );
 
   const hydrateOnboarding = useCallback(async (nextSession: Session | null) => {
-    console.info("[auth-debug] hydration start", {
+    debugAuth("hydration start", {
       hasSession: Boolean(nextSession),
       userId: nextSession?.user?.id ?? null,
     });
     if (!nextSession?.user?.id) {
       setOnboardingStatus("incomplete");
-      console.info("[auth-debug] hydration end", {
+      setBootstrapPhase("ready");
+      debugAuth("hydration end", {
         status: "incomplete",
         userId: null,
       });
       return;
     }
 
+    setBootstrapPhase("checking-setup");
     const nextStatus = await getOnboardingStatus(nextSession.user.id);
     setOnboardingStatus(nextStatus);
-    console.info("[auth-debug] hydration end", {
+    setBootstrapPhase("ready");
+    debugAuth("hydration end", {
       status: nextStatus,
       userId: nextSession.user.id,
     });
@@ -172,7 +224,9 @@ function AuthProviderComponent({ children }: PropsWithChildren) {
       const seq = hydrationSeqRef.current + 1;
       hydrationSeqRef.current = seq;
       setIsLoading(true);
-      console.info("[auth-debug] hydration pipeline start", {
+      setBootstrapError(null);
+      setBootstrapPhase(nextSession?.user?.id ? "checking-setup" : "restoring-session");
+      debugAuth("hydration pipeline start", {
         hasSession: Boolean(nextSession),
         reason,
         seq,
@@ -183,7 +237,7 @@ function AuthProviderComponent({ children }: PropsWithChildren) {
         if (nextSession?.user?.id && options.commitDraft) {
           try {
             const committed = await tryCommitOnboardingDraft(nextSession.user.id);
-            console.info("[auth-debug] onboarding draft commit result", {
+            debugAuth("onboarding draft commit result", {
               committed,
               reason,
               seq,
@@ -191,29 +245,58 @@ function AuthProviderComponent({ children }: PropsWithChildren) {
             });
           } catch (commitError: unknown) {
             setError(commitError instanceof Error ? commitError.message : "Unable to commit onboarding draft.");
+            setBootstrapError("We couldn't finish restoring your account setup.");
+            setBootstrapPhase("error");
             console.warn("[auth] Unable to commit onboarding draft.", {
               error: commitError instanceof Error ? commitError.message : String(commitError),
               reason,
               seq,
               userId: nextSession.user.id,
             });
+            Sentry.captureException(commitError instanceof Error ? commitError : new Error(String(commitError)), {
+              extra: {
+                reason,
+                seq,
+                userId: nextSession.user.id,
+              },
+              tags: {
+                area: "auth-bootstrap",
+              },
+            });
           }
         }
 
         await hydrateOnboarding(nextSession);
       } catch (hydrationError: unknown) {
-        setError(hydrationError instanceof Error ? hydrationError.message : "Unable to hydrate onboarding state.");
+        const message =
+          hydrationError instanceof Error ? hydrationError.message : "Unable to hydrate onboarding state.";
+        setError(message);
+        setBootstrapError("We couldn't verify your account setup.");
+        setBootstrapPhase("error");
         console.warn("[auth] Unable to hydrate onboarding state.", {
-          error: hydrationError instanceof Error ? hydrationError.message : String(hydrationError),
+          error: message,
           reason,
           seq,
           userId: nextSession?.user?.id ?? null,
         });
+        Sentry.captureException(
+          hydrationError instanceof Error ? hydrationError : new Error(String(hydrationError)),
+          {
+            extra: {
+              reason,
+              seq,
+              userId: nextSession?.user?.id ?? null,
+            },
+            tags: {
+              area: "auth-bootstrap",
+            },
+          },
+        );
       } finally {
         if (mountedRef.current && hydrationSeqRef.current === seq) {
           setIsLoading(false);
         }
-        console.info("[auth-debug] hydration pipeline end", {
+        debugAuth("hydration pipeline end", {
           reason,
           seq,
           userId: nextSession?.user?.id ?? null,
@@ -226,13 +309,18 @@ function AuthProviderComponent({ children }: PropsWithChildren) {
   useEffect(() => {
     mountedRef.current = true;
     if (!isSupabaseConfigured) {
+      setBootstrapPhase("error");
+      setBootstrapError("Wolfitness is missing required configuration.");
       setIsLoading(false);
       return;
     }
 
     let isMounted = true;
 
-    const hydrateSession = async () => {
+    const restoreSession = async (reason: string) => {
+      setIsLoading(true);
+      setBootstrapError(null);
+      setBootstrapPhase("restoring-session");
       const { data, error: sessionError } = await supabase.auth.getSession();
 
       if (!isMounted) {
@@ -241,21 +329,35 @@ function AuthProviderComponent({ children }: PropsWithChildren) {
 
       if (sessionError) {
         setError(sessionError.message);
+        setBootstrapError("We couldn't restore your session.");
+        setBootstrapPhase("error");
+        setOnboardingStatus("unknown");
+        setIsLoading(false);
         console.warn("[auth] Unable to restore auth session during startup.", {
+          reason,
           error: sessionError.message,
         });
+        Sentry.captureException(sessionError, {
+          extra: {
+            reason,
+          },
+          tags: {
+            area: "auth-bootstrap",
+          },
+        });
+        return;
       }
 
       setSession(data.session);
-      await hydrateSessionState(data.session, "startup");
+      await hydrateSessionState(data.session, reason);
     };
 
-    hydrateSession();
+    restoreSession("startup");
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, nextSession) => {
-      console.info("[auth-debug] session changed", {
+      debugAuth("session changed", {
         event,
         hasSession: Boolean(nextSession),
         userId: nextSession?.user?.id ?? null,
@@ -300,7 +402,7 @@ function AuthProviderComponent({ children }: PropsWithChildren) {
     try {
       assertSupabaseConfigured();
       setError(null);
-      console.info("[auth-debug] sign in start", { email: normalizeEmail(email) });
+      debugAuth("sign in start", { email: normalizeEmail(email) });
       const { error: authError } = await supabase.auth.signInWithPassword({
         email: normalizeEmail(email),
         password,
@@ -308,7 +410,7 @@ function AuthProviderComponent({ children }: PropsWithChildren) {
       if (authError) {
         setError(authError.message);
       }
-      console.info("[auth-debug] sign in end", {
+      debugAuth("sign in end", {
         email: normalizeEmail(email),
         hasError: Boolean(authError),
       });
@@ -324,7 +426,7 @@ function AuthProviderComponent({ children }: PropsWithChildren) {
     try {
       assertSupabaseConfigured();
       setError(null);
-      console.info("[auth-debug] sign up start", { email: normalizeEmail(email) });
+      debugAuth("sign up start", { email: normalizeEmail(email) });
       const { data, error: authError } = await supabase.auth.signUp({
         email: normalizeEmail(email),
         options: fullName?.trim()
@@ -339,7 +441,7 @@ function AuthProviderComponent({ children }: PropsWithChildren) {
       if (authError) {
         setError(authError.message);
       }
-      console.info("[auth-debug] sign up end", {
+      debugAuth("sign up end", {
         email: normalizeEmail(email),
         hasError: Boolean(authError),
         hasSession: Boolean(data.session),
@@ -376,7 +478,7 @@ function AuthProviderComponent({ children }: PropsWithChildren) {
       setError(null);
 
       const redirectTo = createRedirectUrl();
-      console.log("👉 Mobile Redirect URI:", redirectTo);
+      debugAuth("oauth redirect uri", { redirectTo });
 
       const { data, error: oauthError } = await supabase.auth.signInWithOAuth({
         options: {
@@ -460,9 +562,50 @@ function AuthProviderComponent({ children }: PropsWithChildren) {
     await hydrateSessionState(session, "manual-refresh");
   }, [hydrateSessionState, session]);
 
+  const retryBootstrap = useCallback(async () => {
+    if (!isSupabaseConfigured) {
+      setBootstrapError("Wolfitness is missing required configuration.");
+      setBootstrapPhase("error");
+      setIsLoading(false);
+      return;
+    }
+
+    setError(null);
+    setBootstrapError(null);
+    setBootstrapPhase("restoring-session");
+    setIsLoading(true);
+
+    try {
+      const { data, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError) {
+        throw sessionError;
+      }
+
+      setSession(data.session);
+      await hydrateSessionState(data.session, "manual-retry");
+    } catch (retryError: unknown) {
+      const message = retryError instanceof Error ? retryError.message : "Unable to restore your session.";
+      setError(message);
+      setBootstrapError("We couldn't restore your session.");
+      setBootstrapPhase("error");
+      setIsLoading(false);
+      console.warn("[auth] Bootstrap retry failed.", {
+        error: message,
+      });
+      Sentry.captureException(retryError instanceof Error ? retryError : new Error(String(retryError)), {
+        tags: {
+          area: "auth-bootstrap",
+        },
+      });
+    }
+  }, [hydrateSessionState]);
+
   const value = useMemo<AuthContextValue>(
     () => ({
+      bootstrapError,
+      bootstrapPhase,
       refreshOnboardingStatus,
+      retryBootstrap,
       error,
       isAuthenticated: Boolean(session),
       isConfigured: isSupabaseConfigured,
@@ -478,10 +621,13 @@ function AuthProviderComponent({ children }: PropsWithChildren) {
       user: session?.user ?? null,
     }),
     [
+      bootstrapError,
+      bootstrapPhase,
       error,
       isLoading,
       onboardingStatus,
       refreshOnboardingStatus,
+      retryBootstrap,
       session,
       signIn,
       signInWithGoogle,

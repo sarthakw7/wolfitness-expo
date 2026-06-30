@@ -52,12 +52,39 @@ export type WorkoutPlanForToday = {
 export type WorkoutSession = {
   completed_at: string | null;
   day_id: string | null;
+  active_program_id: string | null;
   id: string;
   notes: string | null;
   program_id: string | null;
+  source: "legacy" | "signal" | null;
+  source_day_key: string | null;
+  source_program_id: string | null;
+  source_program_version: string | null;
+  source_week_key: string | null;
   started_at: string;
   user_id: string;
 };
+
+export type WorkoutSessionLookupInput =
+  | {
+      dayId: string;
+      programId: string;
+      userId: string;
+      source?: "legacy" | null;
+    }
+  | {
+      activeProgramId?: string | null;
+      dayId?: null;
+      programId?: null;
+      source: "signal";
+      sourceDayKey: string;
+      sourceProgramId: string;
+      sourceProgramVersion?: string | null;
+      sourceWeekKey: string;
+      userId: string;
+    };
+
+export type WorkoutSessionCreateInput = WorkoutSessionLookupInput;
 
 export type WorkoutLogSet = {
   exercise_library_id: string;
@@ -113,6 +140,16 @@ function daysBetween(fromIso: string, to: Date) {
   const a = new Date(from.getFullYear(), from.getMonth(), from.getDate()).getTime();
   const b = new Date(to.getFullYear(), to.getMonth(), to.getDate()).getTime();
   return Math.max(0, Math.floor((b - a) / (1000 * 60 * 60 * 24)));
+}
+
+function isSignalWorkoutSessionInput(
+  input: WorkoutSessionLookupInput,
+): input is Extract<WorkoutSessionLookupInput, { source: "signal" }> {
+  return input.source === "signal";
+}
+
+function workoutSessionSelect() {
+  return "id,user_id,program_id,day_id,source,source_program_id,source_program_version,source_week_key,source_day_key,active_program_id,started_at,completed_at,notes";
 }
 
 export async function fetchWorkoutForToday(userId: string): Promise<WorkoutPlanForToday | null> {
@@ -201,100 +238,18 @@ export async function fetchWorkoutForToday(userId: string): Promise<WorkoutPlanF
   return { day, enrollment, exercises, program, week };
 }
 
-export async function getOrCreateWorkoutSession(input: {
-  dayId: string;
-  programId: string;
-  userId: string;
-}): Promise<WorkoutSession> {
-  const openRes = await supabase
-    .from("workout_sessions")
-    .select("id,user_id,program_id,day_id,started_at,completed_at,notes")
-    .eq("user_id", input.userId)
-    .eq("program_id", input.programId)
-    .eq("day_id", input.dayId)
-    .is("completed_at", null)
-    .order("started_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (openRes.error && openRes.status !== 406) throw openRes.error;
-  if (openRes.data) return openRes.data as WorkoutSession;
-
-  // One active session per day/program.
-  const todayIso = toIsoDate(new Date());
-  const dayStart = `${todayIso}T00:00:00.000Z`;
-  const dayEnd = `${todayIso}T23:59:59.999Z`;
-  const todayRes = await supabase
-    .from("workout_sessions")
-    .select("id,user_id,program_id,day_id,started_at,completed_at,notes")
-    .eq("user_id", input.userId)
-    .eq("program_id", input.programId)
-    .is("completed_at", null)
-    .gte("started_at", dayStart)
-    .lte("started_at", dayEnd)
-    .order("started_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (todayRes.error && todayRes.status !== 406) throw todayRes.error;
-  if (todayRes.data) return todayRes.data as WorkoutSession;
-
-  const insertRes = await supabase
-    .from("workout_sessions")
-    .insert({
-      day_id: input.dayId,
-      program_id: input.programId,
-      user_id: input.userId,
-    })
-    .select("id,user_id,program_id,day_id,started_at,completed_at,notes")
-    .single();
-
-  if (insertRes.error) throw insertRes.error;
-  return insertRes.data as WorkoutSession;
+export async function getOrCreateWorkoutSession(input: WorkoutSessionCreateInput): Promise<WorkoutSession> {
+  return getOrCreateWorkoutSessionInternal(input);
 }
 
-export async function findActiveWorkoutSession(input: {
-  dayId: string;
-  programId: string;
-  userId: string;
-}): Promise<WorkoutSession | null> {
-  const openRes = await supabase
-    .from("workout_sessions")
-    .select("id,user_id,program_id,day_id,started_at,completed_at,notes")
-    .eq("user_id", input.userId)
-    .eq("program_id", input.programId)
-    .eq("day_id", input.dayId)
-    .is("completed_at", null)
-    .order("started_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (openRes.error && openRes.status !== 406) throw openRes.error;
-  if (openRes.data) return openRes.data as WorkoutSession;
-
-  const todayIso = toIsoDate(new Date());
-  const dayStart = `${todayIso}T00:00:00.000Z`;
-  const dayEnd = `${todayIso}T23:59:59.999Z`;
-  const todayRes = await supabase
-    .from("workout_sessions")
-    .select("id,user_id,program_id,day_id,started_at,completed_at,notes")
-    .eq("user_id", input.userId)
-    .eq("program_id", input.programId)
-    .is("completed_at", null)
-    .gte("started_at", dayStart)
-    .lte("started_at", dayEnd)
-    .order("started_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (todayRes.error && todayRes.status !== 406) throw todayRes.error;
-  return (todayRes.data as WorkoutSession | null) ?? null;
+export async function findActiveWorkoutSession(input: WorkoutSessionLookupInput): Promise<WorkoutSession | null> {
+  return findActiveWorkoutSessionInternal(input);
 }
 
 export async function findAnyActiveWorkoutSession(userId: string): Promise<WorkoutSession | null> {
   const { data, error, status } = await supabase
     .from("workout_sessions")
-    .select("id,user_id,program_id,day_id,started_at,completed_at,notes")
+    .select(workoutSessionSelect())
     .eq("user_id", userId)
     .is("completed_at", null)
     .order("started_at", { ascending: false })
@@ -303,6 +258,22 @@ export async function findAnyActiveWorkoutSession(userId: string): Promise<Worko
 
   if (error && status !== 406) throw error;
   return (data as WorkoutSession | null) ?? null;
+}
+
+export async function findAnyOpenWorkoutSessionForStartup(
+  userId: string,
+): Promise<Pick<WorkoutSession, "completed_at" | "id" | "started_at" | "user_id"> | null> {
+  const { data, error, status } = await supabase
+    .from("workout_sessions")
+    .select("id,user_id,started_at,completed_at")
+    .eq("user_id", userId)
+    .is("completed_at", null)
+    .order("started_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error && status !== 406) throw error;
+  return (data as Pick<WorkoutSession, "completed_at" | "id" | "started_at" | "user_id"> | null) ?? null;
 }
 
 export async function fetchWorkoutLogSets(sessionId: string): Promise<WorkoutLogSet[]> {
@@ -366,6 +337,143 @@ export async function finishWorkoutSession(sessionId: string): Promise<void> {
   if (!data?.id) {
     throw new Error("Workout completion could not be persisted because the active session is no longer available.");
   }
+}
+
+async function getOrCreateWorkoutSessionInternal(input: WorkoutSessionCreateInput): Promise<WorkoutSession> {
+  if (isSignalWorkoutSessionInput(input)) {
+    const openRes = await supabase
+      .from("workout_sessions")
+      .select(workoutSessionSelect())
+      .eq("user_id", input.userId)
+      .eq("source", "signal")
+      .eq("source_program_id", input.sourceProgramId)
+      .eq("source_week_key", input.sourceWeekKey)
+      .eq("source_day_key", input.sourceDayKey)
+      .is("completed_at", null)
+      .order("started_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (openRes.error && openRes.status !== 406) throw openRes.error;
+    if (openRes.data) return openRes.data as unknown as WorkoutSession;
+
+    const insertRes = await supabase
+      .from("workout_sessions")
+      .insert({
+        active_program_id: input.activeProgramId ?? null,
+        day_id: null,
+        program_id: null,
+        source: "signal",
+        source_day_key: input.sourceDayKey,
+        source_program_id: input.sourceProgramId,
+        source_program_version: input.sourceProgramVersion ?? null,
+        source_week_key: input.sourceWeekKey,
+        user_id: input.userId,
+      })
+      .select(workoutSessionSelect())
+      .single();
+
+    if (insertRes.error) throw insertRes.error;
+    return insertRes.data as unknown as WorkoutSession;
+  }
+
+  const openRes = await supabase
+    .from("workout_sessions")
+    .select(workoutSessionSelect())
+    .eq("user_id", input.userId)
+    .eq("program_id", input.programId ?? "")
+    .eq("day_id", input.dayId ?? "")
+    .is("completed_at", null)
+    .order("started_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (openRes.error && openRes.status !== 406) throw openRes.error;
+  if (openRes.data) return openRes.data as unknown as WorkoutSession;
+
+  // One active session per day/program.
+  const todayIso = toIsoDate(new Date());
+  const dayStart = `${todayIso}T00:00:00.000Z`;
+  const dayEnd = `${todayIso}T23:59:59.999Z`;
+  const todayRes = await supabase
+    .from("workout_sessions")
+    .select(workoutSessionSelect())
+    .eq("user_id", input.userId)
+    .eq("program_id", input.programId ?? "")
+    .is("completed_at", null)
+    .gte("started_at", dayStart)
+    .lte("started_at", dayEnd)
+    .order("started_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (todayRes.error && todayRes.status !== 406) throw todayRes.error;
+  if (todayRes.data) return todayRes.data as unknown as WorkoutSession;
+
+  const insertRes = await supabase
+    .from("workout_sessions")
+    .insert({
+      day_id: input.dayId,
+      program_id: input.programId,
+      user_id: input.userId,
+    })
+    .select(workoutSessionSelect())
+    .single();
+
+  if (insertRes.error) throw insertRes.error;
+  return insertRes.data as unknown as WorkoutSession;
+}
+
+async function findActiveWorkoutSessionInternal(input: WorkoutSessionLookupInput): Promise<WorkoutSession | null> {
+  if (isSignalWorkoutSessionInput(input)) {
+    const openRes = await supabase
+      .from("workout_sessions")
+      .select(workoutSessionSelect())
+      .eq("user_id", input.userId)
+      .eq("source", "signal")
+      .eq("source_program_id", input.sourceProgramId)
+      .eq("source_week_key", input.sourceWeekKey)
+      .eq("source_day_key", input.sourceDayKey)
+      .is("completed_at", null)
+      .order("started_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (openRes.error && openRes.status !== 406) throw openRes.error;
+    return (openRes.data as unknown as WorkoutSession | null) ?? null;
+  }
+
+  const openRes = await supabase
+    .from("workout_sessions")
+    .select(workoutSessionSelect())
+    .eq("user_id", input.userId)
+    .eq("program_id", input.programId ?? "")
+    .eq("day_id", input.dayId ?? "")
+    .is("completed_at", null)
+    .order("started_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (openRes.error && openRes.status !== 406) throw openRes.error;
+  if (openRes.data) return openRes.data as unknown as WorkoutSession;
+
+  const todayIso = toIsoDate(new Date());
+  const dayStart = `${todayIso}T00:00:00.000Z`;
+  const dayEnd = `${todayIso}T23:59:59.999Z`;
+  const todayRes = await supabase
+    .from("workout_sessions")
+    .select(workoutSessionSelect())
+    .eq("user_id", input.userId)
+    .eq("program_id", input.programId ?? "")
+    .is("completed_at", null)
+    .gte("started_at", dayStart)
+    .lte("started_at", dayEnd)
+    .order("started_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (todayRes.error && todayRes.status !== 406) throw todayRes.error;
+  return (todayRes.data as unknown as WorkoutSession | null) ?? null;
 }
 
 export async function fetchProgramStructure(programId: string): Promise<ProgramWeekPreview[]> {

@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import { Link } from "expo-router";
+import { Link, router } from "expo-router";
 import { memo, useEffect, useMemo } from "react";
 import { ImageBackground, ScrollView, View } from "react-native";
 
@@ -17,15 +17,20 @@ import {
 } from "@/src/components/layout";
 import { ProgramCard } from "@/src/components/marketplace";
 import type { ProgramCardModel } from "@/src/components/marketplace/types";
+import { useAuth } from "@/src/hooks/useAuth";
 import {
   useDashboard,
   useEnrollments,
   useProfile,
   usePrograms,
+  useSignalProgramProgress,
+  useWorkoutActiveSession,
   useWorkout,
   useWorkoutSessionStatus,
 } from "@/src/hooks/queries";
+import { useWorkoutProgram } from "@/src/hooks/useWorkoutProgram";
 import type { Program } from "@/src/services/programs.service";
+import { getSignalProgramProgress } from "@/src/services/signal-workout-adapter";
 import { colors } from "@/src/theme";
 
 const heroImage =
@@ -71,6 +76,20 @@ function estimateSessionMinutes(exerciseCount: number) {
   return Math.max(35, Math.min(85, exerciseCount * 9));
 }
 
+function formatStartedAgo(value: string | null | undefined) {
+  if (!value) return null;
+  const startedAt = new Date(value).getTime();
+  if (!Number.isFinite(startedAt)) return null;
+
+  const elapsedMinutes = Math.max(1, Math.floor((Date.now() - startedAt) / (1000 * 60)));
+  if (elapsedMinutes < 60) return `Started ${elapsedMinutes} minute${elapsedMinutes === 1 ? "" : "s"} ago`;
+
+  const hours = Math.floor(elapsedMinutes / 60);
+  const minutes = elapsedMinutes % 60;
+  if (minutes === 0) return `Started ${hours} hour${hours === 1 ? "" : "s"} ago`;
+  return `Started ${hours}h ${minutes}m ago`;
+}
+
 function DashboardSkeleton() {
   return (
     <View className="gap-gutter">
@@ -82,12 +101,31 @@ function DashboardSkeleton() {
 }
 
 function AthleteDashboardScreenComponent() {
+  const { user } = useAuth();
+  const userId = user?.id ?? null;
   const profileQuery = useProfile();
   const enrollmentsQuery = useEnrollments();
   const dashboardQuery = useDashboard();
   const programsQuery = usePrograms({ publishedOnly: true });
   const workoutQuery = useWorkout();
   const workoutSessionStatusQuery = useWorkoutSessionStatus(workoutQuery.data ?? null);
+  const signalProgramProgressQuery = useSignalProgramProgress(userId ?? undefined);
+  const activeWorkoutSessionQuery = useWorkoutActiveSession();
+  const signalLifecycleRow = signalProgramProgressQuery.data?.lifecycle ?? null;
+  const signalProgramQuery = useWorkoutProgram(signalLifecycleRow?.source_program_id);
+  const activeWorkoutSession = activeWorkoutSessionQuery.data ?? null;
+  const hasOpenSignalWorkoutSession = useMemo(() => {
+    const session = activeWorkoutSession;
+    if (!session || !signalLifecycleRow || signalLifecycleRow.status !== "active") return false;
+
+    return Boolean(
+      session.source === "signal" &&
+        session.completed_at === null &&
+        session.source_program_id === signalLifecycleRow.source_program_id &&
+        session.source_week_key === signalLifecycleRow.current_week_key &&
+        session.source_day_key === signalLifecycleRow.current_day_key,
+    );
+  }, [activeWorkoutSession, signalLifecycleRow]);
 
   const hasBlockingError =
     profileQuery.error ||
@@ -105,6 +143,9 @@ function AthleteDashboardScreenComponent() {
       ["programs", programsQuery.error],
       ["workout", workoutQuery.error],
       ["workout-session-status", workoutSessionStatusQuery.error],
+      ["signal-program-progress", signalProgramProgressQuery.error],
+      ["signal-workout-program", signalProgramQuery.error],
+      ["active-workout-session", activeWorkoutSessionQuery.error],
     ].filter(([, error]) => Boolean(error));
 
     failures.forEach(([type, error]) => {
@@ -121,6 +162,9 @@ function AthleteDashboardScreenComponent() {
     programsQuery.error,
     workoutQuery.error,
     workoutSessionStatusQuery.error,
+    signalProgramProgressQuery.error,
+    signalProgramQuery.error,
+    activeWorkoutSessionQuery.error,
   ]);
 
   const programMap = useMemo(() => {
@@ -136,7 +180,7 @@ function AthleteDashboardScreenComponent() {
 
   const hasAnyEnrollment = (enrollmentsQuery.data ?? []).length > 0;
 
-  const activeProgram = useMemo(() => {
+  const legacyActiveProgram = useMemo(() => {
     if (!activeEnrollment) return null;
     return programMap.get(activeEnrollment.program_id) ?? null;
   }, [activeEnrollment, programMap]);
@@ -160,11 +204,142 @@ function AthleteDashboardScreenComponent() {
   const nutrition = dashboardQuery.data;
   const workoutPlan = workoutQuery.data;
   const sessionMinutes = estimateSessionMinutes(workoutPlan?.exercises.length ?? 0);
-  const todaySessionTitle = workoutPlan?.program.title ?? activeProgram?.title ?? "No Active Program";
+  const todaySessionTitle = workoutPlan?.program.title ?? legacyActiveProgram?.title ?? "No Active Program";
   const todayFocus = workoutPlan?.day.title ?? "Start with today’s assigned session";
-  const todayLoad = activeProgram?.difficulty ? titleCase(activeProgram.difficulty) : "Moderate";
+  const todayLoad = legacyActiveProgram?.difficulty ? titleCase(legacyActiveProgram.difficulty) : "Moderate";
   const headlineTitle = prettyGoal(profileQuery.data?.fitnessProfile?.primary_goal);
   const hasNutritionData = Boolean(nutrition?.todayNutritionSummary || nutrition?.macroTargets);
+  const signalProgressState = useMemo(() => {
+    if (signalProgramProgressQuery.isLoading || signalProgramQuery.isLoading) {
+      return { kind: "loading" as const };
+    }
+
+    if (signalProgramProgressQuery.error || signalProgramQuery.error) {
+      return {
+        body: "We could not load the progress for your Signal program.",
+        ctaLabel: "Browse Programs",
+        kind: "program_unavailable" as const,
+        title: "Program unavailable",
+      };
+    }
+
+    return getSignalProgramProgress(
+      signalProgramQuery.data,
+      signalProgramProgressQuery.data?.completedSessions ?? [],
+      signalLifecycleRow,
+    );
+  }, [
+    signalLifecycleRow,
+    signalProgramProgressQuery.data,
+    signalProgramProgressQuery.error,
+    signalProgramProgressQuery.isLoading,
+    signalProgramQuery.data,
+    signalProgramQuery.error,
+    signalProgramQuery.isLoading,
+  ]);
+  const signalReadyState = signalProgressState.kind === "ready" ? signalProgressState : null;
+  const signalCardState = useMemo(() => {
+    if (signalProgressState.kind === "hidden") return { kind: "hidden" as const };
+    if (signalProgressState.kind === "loading") return { kind: "loading" as const };
+    if (signalProgressState.kind === "program_unavailable" || signalProgressState.kind === "active_pointer_invalid") {
+      return signalProgressState;
+    }
+    if (!signalReadyState) return { kind: "loading" as const };
+
+    return {
+      completedWorkouts: signalReadyState.completedWorkouts,
+      currentDayLabel: signalReadyState.currentDayLabel,
+      currentWeekLabel: signalReadyState.currentWeekLabel,
+      hasOpenSession: hasOpenSignalWorkoutSession,
+      isProgramCompleted: signalReadyState.isProgramCompleted,
+      kind: "ready" as const,
+      nextWorkoutPreview: signalReadyState.nextWorkoutPreview,
+      percentage: signalReadyState.percentage,
+      programTitle: signalReadyState.programTitle,
+      totalWorkouts: signalReadyState.totalWorkouts,
+    };
+  }, [hasOpenSignalWorkoutSession, signalProgressState, signalReadyState]);
+  const activeWorkoutBannerState = useMemo(() => {
+    if (activeWorkoutSessionQuery.isLoading) {
+      return { kind: "loading" as const };
+    }
+
+    if (activeWorkoutSessionQuery.error) {
+      return { kind: "error" as const };
+    }
+
+    if (!activeWorkoutSession || activeWorkoutSession.completed_at) {
+      return { kind: "hidden" as const };
+    }
+
+    if (activeWorkoutSession.source === "signal") {
+      if (
+        !activeWorkoutSession.source_program_id ||
+        !activeWorkoutSession.source_week_key ||
+        !activeWorkoutSession.source_day_key
+      ) {
+        return {
+          body: "This Signal workout is missing required week or day keys.",
+          ctaLabel: activeWorkoutSession.source_program_id ? "View Program" : null,
+          kind: "recovery" as const,
+          programId: activeWorkoutSession.source_program_id,
+          title: "Workout needs recovery",
+        };
+      }
+
+      const activePointerMatches =
+        signalLifecycleRow?.status === "active" &&
+        signalLifecycleRow.source_program_id === activeWorkoutSession.source_program_id &&
+        signalLifecycleRow.current_week_key === activeWorkoutSession.source_week_key &&
+        signalLifecycleRow.current_day_key === activeWorkoutSession.source_day_key;
+
+      if (!activePointerMatches) {
+        return {
+          body: "Your active Signal program no longer points to this unfinished workout.",
+          ctaLabel: "View Program",
+          kind: "recovery" as const,
+          programId: activeWorkoutSession.source_program_id,
+          title: "Workout needs recovery",
+        };
+      }
+
+      return {
+        body:
+          formatStartedAgo(activeWorkoutSession.started_at) ??
+          "Resume your unfinished Signal workout.",
+        kind: "ready" as const,
+        label: "Signal",
+        resumeParams: {
+          signalDayId: activeWorkoutSession.source_day_key,
+          signalProgramId: activeWorkoutSession.source_program_id,
+          signalWeekId: activeWorkoutSession.source_week_key,
+        },
+        subtitle: `Signal Workout · Week ${activeWorkoutSession.source_week_key} · Day ${activeWorkoutSession.source_day_key}`,
+        title: "Workout in Progress",
+      };
+    }
+
+    return {
+      body:
+        formatStartedAgo(activeWorkoutSession.started_at) ??
+        "Resume your unfinished workout.",
+      kind: "ready" as const,
+      label: "Legacy",
+      resumeParams: null,
+      subtitle:
+        workoutPlan?.program.title && workoutPlan?.day.title
+          ? `${workoutPlan.program.title} · ${workoutPlan.day.title}`
+          : "Workout in progress",
+      title: "Workout in Progress",
+    };
+  }, [
+    activeWorkoutSession,
+    activeWorkoutSessionQuery.error,
+    activeWorkoutSessionQuery.isLoading,
+    signalLifecycleRow,
+    workoutPlan?.day.title,
+    workoutPlan?.program.title,
+  ]);
 
   const macroProgress = useMemo(() => {
     const summary = nutrition?.todayNutritionSummary;
@@ -201,7 +376,7 @@ function AthleteDashboardScreenComponent() {
     workoutSessionStatusQuery.isLoading;
 
   const workoutCta = useMemo(() => {
-    if (!activeProgram) {
+    if (!legacyActiveProgram) {
       return {
         href: "/(marketplace)" as const,
         icon: "compass-outline" as const,
@@ -220,7 +395,22 @@ function AthleteDashboardScreenComponent() {
       icon: "barbell-outline" as const,
       label: "Start Today's Workout",
     };
-  }, [activeProgram, workoutSessionStatusQuery.data]);
+  }, [legacyActiveProgram, workoutSessionStatusQuery.data]);
+
+  const handleContinueSignalProgram = useMemo(() => {
+    if (!signalReadyState || signalReadyState.isProgramCompleted) return null;
+
+    return () => {
+      router.push({
+        pathname: "/(signal)/program/[programId]/week/[weekId]/day/[dayId]",
+        params: {
+          dayId: signalLifecycleRow?.current_day_key ?? "",
+          programId: signalLifecycleRow?.source_program_id ?? "",
+          weekId: signalLifecycleRow?.current_week_key ?? "",
+        },
+      });
+    };
+  }, [signalLifecycleRow?.current_day_key, signalLifecycleRow?.current_week_key, signalLifecycleRow?.source_program_id, signalReadyState]);
 
   const weeklyDots = useMemo(() => {
     const now = new Date();
@@ -277,6 +467,166 @@ function AthleteDashboardScreenComponent() {
 
       {!isLoading && !hasBlockingError ? (
       <View className="gap-gutter">
+        {activeWorkoutBannerState.kind === "loading" ? (
+          <EditorialCard className="min-h-28 bg-surface-muted" />
+        ) : null}
+
+        {activeWorkoutBannerState.kind === "error" ? (
+          <EditorialCard className="gap-3">
+            <Typography variant="headlineLg">Unable to recover workout</Typography>
+            <Typography tone="secondary" variant="bodyMd">
+              We could not load your in-progress workout state.
+            </Typography>
+            <AppButton onPress={() => activeWorkoutSessionQuery.refetch()} variant="secondary">
+              Retry
+            </AppButton>
+          </EditorialCard>
+        ) : null}
+
+        {activeWorkoutBannerState.kind === "recovery" ? (
+          <EditorialCard className="gap-3">
+            <Typography tone="secondary" variant="labelSm">
+              WORKOUT RECOVERY
+            </Typography>
+            <Typography variant="headlineLg">{activeWorkoutBannerState.title}</Typography>
+            <Typography tone="secondary" variant="bodyMd">
+              {activeWorkoutBannerState.body}
+            </Typography>
+            {activeWorkoutBannerState.programId && activeWorkoutBannerState.ctaLabel ? (
+              <AppButton
+                onPress={() =>
+                  router.push({
+                    pathname: "/(signal)/program/[programId]",
+                    params: { programId: activeWorkoutBannerState.programId ?? "" },
+                  })
+                }
+                variant="secondary"
+              >
+                {activeWorkoutBannerState.ctaLabel}
+              </AppButton>
+            ) : null}
+          </EditorialCard>
+        ) : null}
+
+        {activeWorkoutBannerState.kind === "ready" ? (
+          <EditorialCard className="gap-4">
+            <View className="gap-2">
+              <Typography tone="secondary" variant="labelSm">
+                WORKOUT IN PROGRESS
+              </Typography>
+              <Typography variant="headlineLg">{activeWorkoutBannerState.subtitle}</Typography>
+              <Typography tone="secondary" variant="bodyMd">
+                {activeWorkoutBannerState.body}
+              </Typography>
+            </View>
+
+            <View className="flex-row flex-wrap gap-2">
+              <Typography tone="secondary" variant="labelSm">
+                Source {activeWorkoutBannerState.label}
+              </Typography>
+            </View>
+
+            <AppButton
+              onPress={() => {
+                if (activeWorkoutBannerState.resumeParams) {
+                  router.push({
+                    pathname: "/(tabs)/workouts",
+                    params: activeWorkoutBannerState.resumeParams,
+                  });
+                  return;
+                }
+
+                router.push("/(tabs)/workouts");
+              }}
+            >
+              Resume Workout
+            </AppButton>
+          </EditorialCard>
+        ) : null}
+
+        {signalCardState.kind === "loading" ? (
+          <EditorialCard className="min-h-36 bg-surface-muted" />
+        ) : null}
+
+        {signalCardState.kind === "program_unavailable" || signalCardState.kind === "active_pointer_invalid" ? (
+          <EditorialCard className="gap-3">
+            <Typography tone="secondary" variant="labelSm">
+              ACTIVE SIGNAL PROGRAM
+            </Typography>
+            <Typography variant="headlineLg">{signalCardState.title}</Typography>
+            <Typography tone="secondary" variant="bodyMd">
+              {signalCardState.body}
+            </Typography>
+            <View className="pt-2">
+              <Link href="/(marketplace)" asChild>
+                <AppButton variant="secondary">{signalCardState.ctaLabel}</AppButton>
+              </Link>
+            </View>
+          </EditorialCard>
+        ) : null}
+
+        {signalCardState.kind === "ready" ? (
+          <EditorialCard className="gap-4">
+            <View className="gap-2">
+              <Typography tone="secondary" variant="labelSm">
+                ACTIVE SIGNAL PROGRAM
+              </Typography>
+              <Typography variant="headlineXl">{signalCardState.programTitle}</Typography>
+              <Typography tone="secondary" variant="bodyMd">
+                {signalCardState.isProgramCompleted
+                  ? "Program completed."
+                  : "Continue from your saved week and day."}
+              </Typography>
+            </View>
+
+            <View className="flex-row flex-wrap gap-2">
+              <Typography tone="secondary" variant="labelSm">
+                {signalCardState.currentWeekLabel}
+              </Typography>
+              <Typography tone="secondary" variant="labelSm">
+                {signalCardState.currentDayLabel}
+              </Typography>
+            </View>
+
+            <View className="gap-2">
+              <View className="flex-row items-end justify-between gap-4">
+                <Typography variant="headlineLg">
+                  {signalCardState.completedWorkouts} of {signalCardState.totalWorkouts} workouts complete
+                </Typography>
+                <Typography tone="secondary" variant="headlineLg">
+                  {signalCardState.percentage}%
+                </Typography>
+              </View>
+              <View className="h-1.5 overflow-hidden rounded-full bg-surface-muted">
+                <View className="h-full rounded-full bg-emerald" style={{ width: `${signalCardState.percentage}%` }} />
+              </View>
+            </View>
+
+            <View className="gap-2">
+              <Typography tone="secondary" variant="labelSm">
+                {signalCardState.isProgramCompleted ? "Program completed" : "Next workout"}
+              </Typography>
+              <Typography variant="bodyMd">
+                {signalCardState.nextWorkoutPreview
+                  ? `${signalCardState.nextWorkoutPreview.weekLabel} · ${signalCardState.nextWorkoutPreview.dayLabel}`
+                  : "Program completed"}
+              </Typography>
+            </View>
+
+            <View className="gap-3 pt-2">
+              {!signalCardState.isProgramCompleted && handleContinueSignalProgram ? (
+                <AppButton onPress={handleContinueSignalProgram}>Continue Program</AppButton>
+              ) : null}
+
+              {signalCardState.isProgramCompleted ? (
+                <Link href="/(marketplace)" asChild>
+                  <AppButton variant="secondary">Browse Programs</AppButton>
+                </Link>
+              ) : null}
+            </View>
+          </EditorialCard>
+        ) : null}
+
         <View className="min-h-[420px] overflow-hidden rounded-3xl bg-surface-muted">
           <ImageBackground
             accessibilityLabel="Daily workout editorial image"
@@ -329,6 +679,24 @@ function AthleteDashboardScreenComponent() {
             </Link>
           </EditorialCard>
         ) : null}
+
+        <EditorialCard className="gap-3">
+          <View className="gap-1">
+            <Typography tone="secondary" variant="labelSm">
+              WORKOUT HISTORY
+            </Typography>
+            <Typography variant="headlineLg">Review completed sessions</Typography>
+            <Typography tone="secondary" variant="bodyMd">
+              See your recent finished workouts and logged set counts.
+            </Typography>
+          </View>
+          <AppButton
+            onPress={() => router.push("/(tabs)/history" as never)}
+            variant="secondary"
+          >
+            View Workout History
+          </AppButton>
+        </EditorialCard>
 
         {hasAnyEnrollment && !workoutPlan ? (
           <EditorialCard className="gap-3">

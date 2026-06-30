@@ -134,7 +134,7 @@ export default function InjuriesLimitationsRoute() {
           <View className="w-full flex flex-col gap-2">
             <View className="flex-row items-center justify-between">
               <Typography className="tracking-[2px] text-[#C4C7C7]" variant="labelSm">
-                STEP 07 OF 07
+                STEP 08 OF 08
               </Typography>
               <Typography className="tracking-[2px] text-[#C4C7C7]" variant="labelSm">
                 100%

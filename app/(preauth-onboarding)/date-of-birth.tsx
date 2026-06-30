@@ -89,14 +89,14 @@ export default function DateOfBirthRoute() {
           <View className="mb-12 gap-2">
             <View className="flex-row items-center justify-between">
               <Typography className="tracking-[2px] text-[#C4C7C7]" variant="labelSm">
-                STEP 02 OF 07
+                STEP 02 OF 08
               </Typography>
               <Typography className="tracking-[2px] text-[#C4C7C7]" variant="labelSm">
-                29%
+                25%
               </Typography>
             </View>
             <View className="h-[2px] w-full overflow-hidden rounded-full bg-[#242424]">
-              <View className="h-full rounded-full bg-[#c8c6c5]" style={{ width: "29%" }} />
+              <View className="h-full rounded-full bg-[#c8c6c5]" style={{ width: "25%" }} />
             </View>
           </View>
 

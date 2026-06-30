@@ -10,4 +10,7 @@ export * from "./SignalDayScreen";
 export * from "./SignalProgramDetailScreen";
 export * from "./SignalProgramsScreen";
 export * from "./SignalWeekScreen";
+export * from "./SettingsScreen";
+export * from "./WorkoutHistoryScreen";
+export * from "./WorkoutSessionDetailScreen";
 export * from "./WorkoutPlayerScreen";

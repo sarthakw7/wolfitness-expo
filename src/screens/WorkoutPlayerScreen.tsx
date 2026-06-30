@@ -1,14 +1,22 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { Link, router } from "expo-router";
+import { Link, router, useLocalSearchParams } from "expo-router";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { ImageBackground, Pressable, StyleSheet, TextInput, View } from "react-native";
 
-import { AppTopBar, Chip, EditorialCard, ScreenScaffold } from "@/src/components/layout";
+import { AppTopBar, Chip, EditorialCard, ProgressBar, ScreenScaffold } from "@/src/components/layout";
 import { AppButton, GlassCard, Typography } from "@/src/components/primitives";
-import { useCompleteSet, useFinishWorkout } from "@/src/hooks/mutations";
-import { useEnrollments, useWorkout, useWorkoutSession } from "@/src/hooks/queries";
-import type { WorkoutExercise } from "@/src/services/workout.service";
+import { useAdvanceActiveProgramAfterWorkout, useCompleteSet, useFinishWorkout } from "@/src/hooks/mutations";
+import { useActiveProgram, useEnrollments, useWorkout, useWorkoutSession } from "@/src/hooks/queries";
+import { useAuth } from "@/src/hooks/useAuth";
+import { useWorkoutProgram } from "@/src/hooks/useWorkoutProgram";
+import type { WorkoutExercise, WorkoutLogSet } from "@/src/services/workout.service";
+import {
+  buildSignalWorkoutExecutionContext,
+  hasSignalWorkoutPayload,
+  findNextSignalWorkoutDay,
+  resolveSignalWorkoutSelection,
+} from "@/src/services/signal-workout-adapter";
 import { colors } from "@/src/theme";
 
 function parseTargetReps(raw: string | null) {
@@ -17,6 +25,54 @@ function parseTargetReps(raw: string | null) {
   if (!match) return null;
   const parsed = Number(match[0]);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function singleParam(value: string | string[] | undefined) {
+  if (Array.isArray(value)) return value[0] ?? null;
+  return value ?? null;
+}
+
+function getProgramsErrorCode(error: unknown) {
+  return error instanceof Error ? (error as { code?: string }).code ?? null : null;
+}
+
+type WorkoutCompletionSummary = {
+  completedDayTitle: string;
+  completedExercises: number;
+  completedSets: number;
+  completedWeekLabel: string;
+  isProgramCompleted: boolean;
+  nextWorkout: {
+    dayId: string;
+    dayLabel: string;
+    programId: string;
+    weekId: string;
+    weekLabel: string;
+  } | null;
+  progressUpdateNeedsRefresh: boolean;
+  programTitle: string;
+};
+
+function isMatchingSignalActiveProgramPointer(
+  activeProgram:
+    | {
+        current_day_key: string | null;
+        current_week_key: string | null;
+        source: "legacy" | "signal";
+        source_program_id: string;
+      }
+    | null,
+  programId: string | null,
+  weekId: string | null,
+  dayId: string | null,
+) {
+  return Boolean(
+    activeProgram &&
+      activeProgram.source === "signal" &&
+      activeProgram.source_program_id === programId &&
+      activeProgram.current_week_key === weekId &&
+      activeProgram.current_day_key === dayId,
+  );
 }
 
 function formatDurationWeeks(weeks: number | null | undefined) {
@@ -157,9 +213,68 @@ const styles = StyleSheet.create({
 });
 
 function WorkoutPlayerScreenComponent() {
+  const { user } = useAuth();
+  const params = useLocalSearchParams<{
+    signalDayId?: string;
+    signalProgramId?: string;
+    signalWeekId?: string;
+  }>();
+  const signalProgramId = singleParam(params.signalProgramId);
+  const signalWeekId = singleParam(params.signalWeekId);
+  const signalDayId = singleParam(params.signalDayId);
+  const hasSignalRouteParams = Boolean(signalProgramId || signalWeekId || signalDayId);
+  const isSignalExecution = hasSignalRouteParams;
+
   const enrollmentsQuery = useEnrollments();
-  const workoutQuery = useWorkout();
-  const workoutPlan = workoutQuery.data ?? null;
+  const activeProgramQuery = useActiveProgram(isSignalExecution ? user?.id : undefined);
+  const workoutQuery = useWorkout({ enabled: !isSignalExecution });
+  const signalWorkoutQuery = useWorkoutProgram(signalProgramId);
+  const signalWorkoutPayload = useMemo(
+    () => (hasSignalWorkoutPayload(signalWorkoutQuery.data) ? signalWorkoutQuery.data : null),
+    [signalWorkoutQuery.data],
+  );
+  const signalWorkoutSelection = useMemo(
+    () =>
+      signalWorkoutPayload
+        ? resolveSignalWorkoutSelection(signalWorkoutPayload, { dayId: signalDayId, weekId: signalWeekId })
+        : null,
+    [signalDayId, signalWeekId, signalWorkoutPayload],
+  );
+  const activeProgram = activeProgramQuery.data ?? null;
+  const isActiveProgramLoading = isSignalExecution && activeProgramQuery.isLoading;
+  const signalActiveProgramIsValid = isMatchingSignalActiveProgramPointer(
+    activeProgram,
+    signalProgramId,
+    signalWeekId,
+    signalDayId,
+  );
+  const signalWorkoutPlan = useMemo(() => {
+    if (
+      !isSignalExecution ||
+      !user?.id ||
+      !signalWorkoutPayload ||
+      signalWorkoutSelection?.status !== "ok" ||
+      !signalActiveProgramIsValid
+    ) {
+      return null;
+    }
+    return buildSignalWorkoutExecutionContext(
+      signalWorkoutPayload,
+      { dayId: signalDayId, weekId: signalWeekId },
+      user.id,
+    );
+  }, [
+    isSignalExecution,
+    signalActiveProgramIsValid,
+    signalDayId,
+    signalWeekId,
+    signalWorkoutPayload,
+    signalWorkoutSelection?.status,
+    user?.id,
+  ]);
+  const workoutPlan = signalWorkoutPlan ?? workoutQuery.data ?? null;
+  const activeSignalProgram =
+    activeProgram?.source === "signal" && activeProgram.source_program_id === signalProgramId ? activeProgram : null;
   const {
     clearRestTimer,
     remainingRestSec,
@@ -170,19 +285,113 @@ function WorkoutPlayerScreenComponent() {
     startRestTimer,
   } = useWorkoutSession(workoutPlan);
 
+  const advanceActiveProgramMutation = useAdvanceActiveProgramAfterWorkout();
   const completeSetMutation = useCompleteSet();
   const finishWorkoutMutation = useFinishWorkout();
   const setInputRefs = useRef<Record<number, TextInput | null>>({});
+  const finishLockRef = useRef(false);
   const [heldExerciseIndex, setHeldExerciseIndex] = useState<number | null>(null);
   const [setFeedback, setSetFeedback] = useState<string | null>(null);
   const [nextTargetCue, setNextTargetCue] = useState<string | null>(null);
   const [restState, setRestState] = useState<"idle" | "started" | "running" | "complete">("idle");
   const [transitionLabel, setTransitionLabel] = useState<string | null>(null);
+  const [completionSummary, setCompletionSummary] = useState<WorkoutCompletionSummary | null>(null);
+  const signalProgramErrorCode = getProgramsErrorCode(signalWorkoutQuery.error);
+  const signalExecutionIssue = useMemo(() => {
+    if (!isSignalExecution) return null;
+
+    if (!signalProgramId) {
+      return {
+        body: "This workout link is missing a program id.",
+        retry: false,
+        title: "Invalid workout",
+      } as const;
+    }
+
+    if (isActiveProgramLoading) {
+      return null;
+    }
+
+    if (signalWorkoutQuery.error) {
+      if (signalProgramErrorCode === "NOT_FOUND") {
+        return {
+          body: "This workout is no longer published or was removed.",
+          retry: true,
+          title: "Workout unavailable",
+        } as const;
+      }
+
+      if (
+        signalProgramErrorCode === "PARSE_ERROR" ||
+        signalProgramErrorCode === "CONFIGURATION_ERROR" ||
+        signalProgramErrorCode === "BAD_REQUEST"
+      ) {
+        return {
+          body: "The Signal API returned an invalid workout payload.",
+          retry: true,
+          title: "Workout unavailable",
+        } as const;
+      }
+
+      return {
+        body: "Check your connection and try again.",
+        retry: true,
+        title: "Unable to load workout",
+      } as const;
+    }
+
+    if (signalWorkoutPayload?.weeks.length === 0) {
+      return {
+        body: "This published workout does not contain any weeks yet.",
+        retry: true,
+        title: "Workout unavailable",
+      } as const;
+    }
+
+    if (!signalWorkoutSelection || signalWorkoutSelection.status !== "ok") {
+      return {
+        body: "The selected Signal week or day could not be found.",
+        retry: false,
+        title: "Invalid workout",
+      } as const;
+    }
+
+    if (activeProgramQuery.error) {
+      return {
+        body: "We could not load your active Signal program.",
+        retry: true,
+        title: "Active program unavailable",
+      } as const;
+    }
+
+    if (isSignalExecution && !signalActiveProgramIsValid) {
+      return {
+        body: "Your active Signal program does not match this workout. Do not guess a different day.",
+        retry: false,
+        title: "Active program unavailable",
+      } as const;
+    }
+
+    return null;
+  }, [
+    isSignalExecution,
+    isActiveProgramLoading,
+    signalActiveProgramIsValid,
+    signalProgramErrorCode,
+    signalProgramId,
+    signalWorkoutPayload?.weeks.length,
+    activeProgramQuery.error,
+    signalWorkoutQuery.error,
+    signalWorkoutSelection,
+  ]);
 
   useEffect(() => {
     const failures = [
-      ["enrollments", enrollmentsQuery.error],
-      ["workout", workoutQuery.error],
+      ...(!isSignalExecution ? ([
+        ["enrollments", enrollmentsQuery.error],
+        ["workout", workoutQuery.error],
+      ] as const) : []),
+      ...(isSignalExecution ? ([["signal-workout", signalWorkoutQuery.error]] as const) : []),
       ["workout-session", sessionQuery.error],
       ["start-session", startSessionMutation.error],
       ["complete-set", completeSetMutation.error],
@@ -200,21 +409,26 @@ function WorkoutPlayerScreenComponent() {
     completeSetMutation.error,
     enrollmentsQuery.error,
     finishWorkoutMutation.error,
+    isSignalExecution,
     sessionQuery.error,
     startSessionMutation.error,
+    signalWorkoutQuery.error,
     workoutQuery.error,
   ]);
 
-  const isLoading =
-    enrollmentsQuery.isLoading ||
-    workoutQuery.isLoading ||
-    (workoutPlan ? sessionQuery.isLoading : false);
-  const hasError = Boolean(enrollmentsQuery.error || workoutQuery.error || sessionQuery.error);
+  const isLoading = isSignalExecution
+    ? signalWorkoutQuery.isLoading || activeProgramQuery.isLoading || (workoutPlan ? sessionQuery.isLoading : false)
+    : enrollmentsQuery.isLoading || workoutQuery.isLoading || (workoutPlan ? sessionQuery.isLoading : false);
+  const hasError = isSignalExecution
+    ? Boolean(sessionQuery.error)
+    : Boolean(enrollmentsQuery.error || workoutQuery.error || sessionQuery.error);
   const activeEnrollment = useMemo(() => {
+    if (isSignalExecution) return null;
     return (enrollmentsQuery.data ?? []).find((enrollment) => enrollment.status === "active") ?? null;
-  }, [enrollmentsQuery.data]);
+  }, [enrollmentsQuery.data, isSignalExecution]);
+  const hasWorkoutAccess = isSignalExecution ? Boolean(workoutPlan) : Boolean(activeEnrollment);
 
-  const logs = useMemo(() => sessionQuery.data?.logs ?? [], [sessionQuery.data?.logs]);
+  const logs = useMemo<WorkoutLogSet[]>(() => sessionQuery.data?.logs ?? [], [sessionQuery.data?.logs]);
   const exerciseProgress = useMemo(() => {
     const map = new Map<string, number>();
     logs.forEach((log) => {
@@ -261,6 +475,15 @@ function WorkoutPlayerScreenComponent() {
     isActiveExerciseComplete ||
     completeSetMutation.isPending ||
     sessionComplete;
+  const completedExerciseCount = useMemo(() => {
+    if (!workoutPlan?.exercises?.length) return 0;
+    return workoutPlan.exercises.filter((item) => {
+      const completed = exerciseProgress.get(item.exercise.id) ?? 0;
+      const target = item.prescription.target_sets ?? 0;
+      return target > 0 && completed >= target;
+    }).length;
+  }, [exerciseProgress, workoutPlan?.exercises]);
+  const completedSetCount = logs.length;
 
   const activeExerciseLogs = useMemo(() => {
     if (!activeExercise) return [];
@@ -401,9 +624,90 @@ function WorkoutPlayerScreenComponent() {
   };
 
   const handleFinishWorkout = async () => {
-    if (!sessionId || finishWorkoutMutation.isPending || sessionComplete) return;
+    if (!sessionId || finishWorkoutMutation.isPending || sessionComplete || finishLockRef.current || completionSummary) return;
+    finishLockRef.current = true;
     try {
+      const isSignalWorkout = Boolean(isSignalExecution && signalWorkoutPayload && activeSignalProgram);
+      const currentWeekLabel = workoutPlan?.week.title ?? signalWorkoutPayload?.weeks.find((week) => week.id === signalWeekId || week.sync_key === signalWeekId)?.title ?? "Workout";
+      const currentDayLabel = workoutPlan?.day.title ?? signalWorkoutPayload?.weeks
+        .find((week) => week.id === signalWeekId || week.sync_key === signalWeekId)
+        ?.days.find((day) => day.id === signalDayId || day.sync_key === signalDayId)?.title ?? "Workout";
+      const summarySnapshot: Omit<WorkoutCompletionSummary, "nextWorkout" | "progressUpdateNeedsRefresh" | "isProgramCompleted"> = {
+        completedDayTitle: currentDayLabel,
+        completedExercises: completedExerciseCount,
+        completedSets: completedSetCount,
+        completedWeekLabel: currentWeekLabel,
+        programTitle: workoutPlan?.program.title ?? signalWorkoutPayload?.program.title ?? "Workout",
+      };
+
       await finishWorkoutMutation.mutateAsync(sessionId);
+
+      if (!isSignalWorkout) {
+        await clearRestTimer();
+        await new Promise((resolve) => setTimeout(resolve, 750));
+        router.replace("/(tabs)");
+        return;
+      }
+
+      const nextDay = signalWorkoutPayload
+        ? findNextSignalWorkoutDay(signalWorkoutPayload, signalWeekId, signalDayId)
+        : { error: "missing_program", isProgramCompleted: false, nextDayKey: null, nextWeekKey: null };
+      let nextWorkout: WorkoutCompletionSummary["nextWorkout"] = null;
+      let progressUpdateNeedsRefresh = false;
+
+      if (nextDay.error) {
+        progressUpdateNeedsRefresh = true;
+        console.warn("[athlete-flow]", {
+          error: nextDay.error,
+          screen: "WorkoutPlayer",
+          type: "active-program-advance-validation",
+        });
+      } else if (!nextDay.isProgramCompleted && nextDay.nextWeekKey && nextDay.nextDayKey && signalWorkoutPayload) {
+        const nextWeek = signalWorkoutPayload.weeks.find((week) => week.id === nextDay.nextWeekKey || week.sync_key === nextDay.nextWeekKey);
+        const nextDayRow = nextWeek?.days.find((day) => day.id === nextDay.nextDayKey || day.sync_key === nextDay.nextDayKey);
+        if (!nextWeek || !nextDayRow) {
+          progressUpdateNeedsRefresh = true;
+        } else {
+          nextWorkout = {
+            dayId: nextDay.nextDayKey,
+            dayLabel: nextDayRow.title,
+            programId: signalWorkoutPayload.program.id,
+            weekId: nextDay.nextWeekKey,
+            weekLabel: nextWeek.title,
+          };
+        }
+      }
+
+      if (isSignalExecution && signalWorkoutPayload && activeSignalProgram) {
+        if (!nextDay.error) {
+          try {
+            await advanceActiveProgramMutation.mutateAsync({
+              activeProgramId: activeSignalProgram.id,
+              completedSessionId: sessionId,
+              isProgramCompleted: nextDay.isProgramCompleted,
+              nextDayKey: nextDay.nextDayKey,
+              nextWeekKey: nextDay.nextWeekKey,
+            });
+          } catch (error) {
+            progressUpdateNeedsRefresh = true;
+            console.warn("[athlete-flow]", {
+              error: error instanceof Error ? error.message : String(error),
+              screen: "WorkoutPlayer",
+              type: "active-program-advance",
+            });
+          }
+        }
+
+        await clearRestTimer();
+        setCompletionSummary({
+          ...summarySnapshot,
+          isProgramCompleted: nextDay.isProgramCompleted,
+          nextWorkout,
+          progressUpdateNeedsRefresh,
+        });
+        return;
+      }
+
       await clearRestTimer();
       await new Promise((resolve) => setTimeout(resolve, 750));
       router.replace("/(tabs)");
@@ -415,6 +719,7 @@ function WorkoutPlayerScreenComponent() {
       });
       workoutQuery.refetch();
       sessionQuery.refetch();
+      finishLockRef.current = false;
     }
   };
 
@@ -466,7 +771,7 @@ function WorkoutPlayerScreenComponent() {
       }
       taskMode
       footer={
-        hasStartedSession ? (
+        hasStartedSession && !completionSummary ? (
           <View className="px-container pb-6">
             <AppButton
               disabled={!shouldEnableFooter}
@@ -482,60 +787,161 @@ function WorkoutPlayerScreenComponent() {
       }
     >
       <View className="gap-gutter px-container">
-      {hasError ? (
-        <EditorialCard className="gap-3">
-          <Typography variant="headlineLg">Unable to load workout</Typography>
-          <Typography tone="secondary" variant="bodyMd">
-            Please try again in a moment.
-          </Typography>
-          <AppButton onPress={() => {
-            enrollmentsQuery.refetch();
-            workoutQuery.refetch();
-            sessionQuery.refetch();
-          }} variant="secondary">
-            Retry
-          </AppButton>
-        </EditorialCard>
-      ) : null}
+        {completionSummary ? (
+          <EditorialCard className="gap-5 py-5">
+          <View className="items-center gap-2">
+            <View className="h-14 w-14 items-center justify-center rounded-full bg-emerald/10">
+              <Ionicons color={colors.emerald} name="checkmark-circle" size={34} />
+            </View>
+            <Typography tone="secondary" variant="labelSm">
+              Workout Complete
+            </Typography>
+            <Typography variant="headlineXl">{completionSummary.programTitle}</Typography>
+          </View>
 
-      {isLoading ? <WorkoutSkeleton /> : null}
+          <ProgressBar progress={1} tone="accent" className="h-2" />
 
-      {!isLoading && !hasError && !activeEnrollment ? (
-        <EditorialCard className="gap-3">
-          <Typography variant="headlineLg">No active program</Typography>
-          <Typography tone="secondary" variant="bodyMd">
-            Start a training protocol before opening workout execution.
-          </Typography>
-          <Link asChild href="/(marketplace)">
-            <AppButton variant="secondary">Explore Programs</AppButton>
-          </Link>
-        </EditorialCard>
-      ) : null}
+          <View className="gap-2 rounded-2xl bg-surface-muted p-4">
+            <Typography variant="headlineLg">{completionSummary.completedWeekLabel}</Typography>
+              <Typography tone="secondary" variant="bodyMd">
+                {completionSummary.completedDayTitle}
+              </Typography>
+            </View>
 
-      {!isLoading && !hasError && activeEnrollment && !workoutPlan ? (
-        <EditorialCard className="gap-3">
-          <Typography variant="headlineLg">No active workout today</Typography>
-          <Typography tone="secondary" variant="bodyMd">
-            Your active protocol does not have a recoverable plan for today. It may be unpublished or missing today’s training day.
-          </Typography>
-          <View className="gap-2">
+            <View className="gap-3">
+              <View className="flex-row items-center justify-between">
+                <Typography tone="secondary" variant="bodyMd">
+                  Exercises completed
+                </Typography>
+                <Typography variant="headlineLg">{completionSummary.completedExercises}</Typography>
+              </View>
+              <View className="flex-row items-center justify-between">
+                <Typography tone="secondary" variant="bodyMd">
+                  Sets completed
+                </Typography>
+                <Typography variant="headlineLg">{completionSummary.completedSets}</Typography>
+              </View>
+            </View>
+
+            <View className="gap-2">
+              <Typography tone="secondary" variant="labelSm">
+                {completionSummary.progressUpdateNeedsRefresh
+                  ? "Workout saved, but progress update needs refresh"
+                  : completionSummary.isProgramCompleted
+                    ? "Program completed"
+                    : "Next workout"}
+              </Typography>
+              <Typography variant="bodyMd">
+                {completionSummary.progressUpdateNeedsRefresh
+                  ? "Please return to the dashboard to refresh your active program state."
+                  : completionSummary.isProgramCompleted
+                    ? "You completed every playable workout in this program."
+                    : completionSummary.nextWorkout
+                      ? `${completionSummary.nextWorkout.weekLabel} · ${completionSummary.nextWorkout.dayLabel}`
+                      : "Next workout unavailable."}
+              </Typography>
+            </View>
+
+            <View className="gap-3 pt-2">
+              {completionSummary.nextWorkout && !completionSummary.progressUpdateNeedsRefresh && !completionSummary.isProgramCompleted ? (
+                <AppButton
+                  onPress={() => {
+                    router.push({
+                      pathname: "/(signal)/program/[programId]/week/[weekId]/day/[dayId]",
+                      params: {
+                        dayId: completionSummary.nextWorkout?.dayId ?? "",
+                        programId: completionSummary.nextWorkout?.programId ?? "",
+                        weekId: completionSummary.nextWorkout?.weekId ?? "",
+                      },
+                    });
+                  }}
+                >
+                  View Next Workout
+                </AppButton>
+              ) : null}
+              <AppButton
+                onPress={() => {
+                  router.replace("/(tabs)");
+                }}
+                variant={completionSummary.nextWorkout && !completionSummary.progressUpdateNeedsRefresh && !completionSummary.isProgramCompleted ? "secondary" : "primary"}
+              >
+                Back to Dashboard
+              </AppButton>
+            </View>
+          </EditorialCard>
+        ) : null}
+
+        {signalExecutionIssue ? (
+          <EditorialCard className="gap-3">
+            <Typography variant="headlineLg">{signalExecutionIssue.title}</Typography>
+            <Typography tone="secondary" variant="bodyMd">
+              {signalExecutionIssue.body}
+            </Typography>
+            {signalExecutionIssue.retry ? (
+              <AppButton onPress={() => signalWorkoutQuery.refetch()} variant="secondary">
+                Retry
+              </AppButton>
+            ) : null}
+          </EditorialCard>
+        ) : null}
+
+        {hasError ? (
+          <EditorialCard className="gap-3">
+            <Typography variant="headlineLg">Unable to load workout</Typography>
+            <Typography tone="secondary" variant="bodyMd">
+              Please try again in a moment.
+            </Typography>
             <AppButton
               onPress={() => {
-                workoutQuery.refetch();
                 enrollmentsQuery.refetch();
+                workoutQuery.refetch();
+                sessionQuery.refetch();
               }}
               variant="secondary"
             >
               Retry
             </AppButton>
-            <Link asChild href="/(marketplace)">
-              <AppButton variant="ghost">Browse Training</AppButton>
-            </Link>
-          </View>
-        </EditorialCard>
-      ) : null}
+          </EditorialCard>
+        ) : null}
 
-      {!isLoading && !hasError && workoutPlan && workoutPlan.exercises.length === 0 ? (
+        {isLoading ? <WorkoutSkeleton /> : null}
+
+        {!completionSummary && !isLoading && !hasError && !signalExecutionIssue && !hasWorkoutAccess ? (
+          <EditorialCard className="gap-3">
+            <Typography variant="headlineLg">No active program</Typography>
+            <Typography tone="secondary" variant="bodyMd">
+              Start a training protocol before opening workout execution.
+            </Typography>
+            <Link asChild href="/(marketplace)">
+              <AppButton variant="secondary">Explore Programs</AppButton>
+            </Link>
+          </EditorialCard>
+        ) : null}
+
+        {!completionSummary && !isLoading && !hasError && !signalExecutionIssue && !workoutPlan && !isSignalExecution ? (
+          <EditorialCard className="gap-3">
+            <Typography variant="headlineLg">No active workout today</Typography>
+            <Typography tone="secondary" variant="bodyMd">
+              Your active protocol does not have a recoverable plan for today. It may be unpublished or missing today’s training day.
+            </Typography>
+            <View className="gap-2">
+              <AppButton
+                onPress={() => {
+                  workoutQuery.refetch();
+                  enrollmentsQuery.refetch();
+                }}
+                variant="secondary"
+              >
+                Retry
+              </AppButton>
+              <Link asChild href="/(marketplace)">
+                <AppButton variant="ghost">Browse Training</AppButton>
+              </Link>
+            </View>
+          </EditorialCard>
+        ) : null}
+
+        {!completionSummary && !isLoading && !hasError && !signalExecutionIssue && workoutPlan && workoutPlan.exercises.length === 0 ? (
         <EditorialCard className="gap-3">
           <Typography variant="headlineLg">No exercises for this day</Typography>
           <Typography tone="secondary" variant="bodyMd">
@@ -547,7 +953,7 @@ function WorkoutPlayerScreenComponent() {
         </EditorialCard>
       ) : null}
 
-      {!isLoading && !hasError && workoutPlan && workoutPlan.exercises.length > 0 && !activeExercise ? (
+        {!completionSummary && !isLoading && !hasError && !signalExecutionIssue && workoutPlan && workoutPlan.exercises.length > 0 && !activeExercise ? (
         <EditorialCard className="gap-3">
           <Typography variant="headlineLg">Workout changed</Typography>
           <Typography tone="secondary" variant="bodyMd">
@@ -559,7 +965,7 @@ function WorkoutPlayerScreenComponent() {
         </EditorialCard>
       ) : null}
 
-      {!isLoading && !hasError && workoutPlan && workoutPlan.exercises.length > 0 && activeExercise ? (
+        {!completionSummary && !isLoading && !hasError && !signalExecutionIssue && workoutPlan && workoutPlan.exercises.length > 0 && activeExercise ? (
         <View className="gap-gutter">
           <View className="aspect-[4/3] overflow-hidden rounded-3xl bg-surface-muted">
             <ImageBackground
@@ -706,7 +1112,7 @@ function WorkoutPlayerScreenComponent() {
                   + Add Set
                 </AppButton>
               </GlassCard>
-            </EditorialCard>
+          </EditorialCard>
         </View>
       ) : null}
       </View>

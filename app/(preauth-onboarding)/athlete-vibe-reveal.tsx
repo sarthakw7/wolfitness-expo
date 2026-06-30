@@ -12,6 +12,12 @@ import { computeVibeFromDraft, type VibeMetrics, type VibeType } from "@/src/lib
 import { OnboardingSubtext } from "@/src/components/onboarding/OnboardingCopy";
 import { OnboardingContinueButton } from "@/src/components/onboarding/OnboardingContinueButton";
 
+function debugOnboarding(message: string, context?: Record<string, unknown>) {
+  if (__DEV__) {
+    console.info("[auth-debug]", message, context ?? {});
+  }
+}
+
 function clamp0_100(n: number) {
   if (Number.isNaN(n)) return 0;
   return Math.max(0, Math.min(100, Math.round(n)));
@@ -70,11 +76,11 @@ export default function AthleteVibeRevealRoute() {
   const handleContinue = useCallback(async () => {
     // If already authenticated (e.g. Google sign-in), finalize onboarding in-place.
     if (user?.id) {
-      console.info("[auth-debug] onboarding completion start", { userId: user.id });
+      debugOnboarding("onboarding completion start", { userId: user.id });
       try {
         await commitOnboardingDraftToSupabase(user.id);
         await refreshOnboardingStatus();
-        console.info("[auth-debug] onboarding completion route", {
+        debugOnboarding("onboarding completion route", {
           navigationTarget: "/(tabs)",
           userId: user.id,
         });
@@ -88,14 +94,14 @@ export default function AthleteVibeRevealRoute() {
       return;
     }
 
-    console.info("[auth-debug] onboarding preauth route", {
+    debugOnboarding("onboarding preauth route", {
       navigationTarget: "/(auth)/sign-up",
     });
     router.replace("/(auth)/sign-up");
   }, [refreshOnboardingStatus, user?.id]);
 
   const handleSkip = useCallback(() => {
-    console.info("[auth-debug] onboarding skip route", {
+    debugOnboarding("onboarding skip route", {
       navigationTarget: user?.id ? "/(tabs)" : "/(auth)/sign-up",
       userId: user?.id ?? null,
     });

@@ -1,20 +1,45 @@
 import { Redirect, Tabs, type Href } from "expo-router";
 
+import { BootstrapStateScreen } from "@/src/components/layout/BootstrapStateScreen";
 import { PremiumTabBar } from "@/src/components/navigation";
 import { useAuth } from "@/src/hooks/useAuth";
 import { colors } from "@/src/theme";
 
 const authLandingHref = "/(auth)" as Href;
 
+function debugAuthRoute(message: string, context?: Record<string, unknown>) {
+  if (__DEV__) {
+    console.info("[auth-debug]", message, context ?? {});
+  }
+}
+
 export default function TabsLayout() {
-  const { isAuthenticated, isLoading, onboardingStatus } = useAuth();
+  const { bootstrapError, bootstrapPhase, isAuthenticated, isLoading, onboardingStatus, retryBootstrap } = useAuth();
 
   if (isLoading) {
-    return null;
+    return (
+      <BootstrapStateScreen
+        isLoading
+        message={bootstrapPhase === "checking-setup" ? "Checking your setup..." : "Restoring your session..."}
+        title="Starting Wolfitness..."
+      />
+    );
+  }
+
+  if (bootstrapError) {
+    return (
+      <BootstrapStateScreen
+        message={bootstrapError}
+        onAction={() => {
+          void retryBootstrap();
+        }}
+        title="Startup issue"
+      />
+    );
   }
 
   if (!isAuthenticated) {
-    console.info("[auth-debug] route redirect", {
+    debugAuthRoute("route redirect", {
       from: "/(tabs)",
       navigationTarget: authLandingHref,
       reason: "unauthenticated",
@@ -23,7 +48,7 @@ export default function TabsLayout() {
   }
 
   if (onboardingStatus === "incomplete") {
-    console.info("[auth-debug] route redirect", {
+    debugAuthRoute("route redirect", {
       from: "/(tabs)",
       navigationTarget: "/(preauth-onboarding)",
       reason: "onboarding-incomplete",
@@ -41,6 +66,9 @@ export default function TabsLayout() {
       tabBar={(props) => <PremiumTabBar {...props} />}
     >
       <Tabs.Screen name="index" options={{ title: "Home" }} />
+      <Tabs.Screen name="history" options={{ href: null, title: "History" }} />
+      <Tabs.Screen name="history/[sessionId]" options={{ href: null, title: "Workout Session" }} />
+      <Tabs.Screen name="settings" options={{ href: null, title: "Settings" }} />
       <Tabs.Screen name="workouts" options={{ title: "Workouts" }} />
       <Tabs.Screen name="nutrition" options={{ title: "Nutrition" }} />
       <Tabs.Screen name="progress" options={{ title: "Progress" }} />

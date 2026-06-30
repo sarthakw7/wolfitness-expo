@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Link, type Href } from "expo-router";
 import { memo, useEffect, useMemo, useState } from "react";
-import { Image, Pressable, ScrollView, View } from "react-native";
+import { Image, Pressable, RefreshControl, ScrollView, View } from "react-native";
 
 import { AppTopBar, EditorialCard, ScreenScaffold, SectionTitle } from "@/src/components/layout";
 import {
@@ -82,6 +82,7 @@ function MarketplaceScreenComponent() {
   const programsQuery = usePrograms({ publishedOnly: true });
   const signalProgramsQuery = useSignalPrograms();
   const [selectedCategory, setSelectedCategory] = useState("All Programs");
+  const isRefreshing = programsQuery.isFetching || signalProgramsQuery.isFetching;
 
   useEffect(() => {
     if (!programsQuery.error) return;
@@ -150,7 +151,19 @@ function MarketplaceScreenComponent() {
   const hasCoachCatalog = coachCards.length > 0;
 
   return (
-    <ScreenScaffold bottomChrome="none" contentClassName="gap-6" header={<AppTopBar back title="Marketplace" />}>
+    <ScreenScaffold
+      bottomChrome="none"
+      contentClassName="gap-6"
+      header={<AppTopBar back title="Marketplace" />}
+      refreshControl={
+        <RefreshControl
+          onRefresh={async () => {
+            await Promise.all([programsQuery.refetch(), signalProgramsQuery.refetch()]);
+          }}
+          refreshing={isRefreshing}
+        />
+      }
+    >
       <View className="gap-6 px-2">
         <View className="gap-2">
           <Typography tone="secondary" variant="labelSm">

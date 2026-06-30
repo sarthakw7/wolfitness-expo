@@ -1,10 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Link } from "expo-router";
 import { memo } from "react";
-import { Image, Pressable, View } from "react-native";
+import { Image, Pressable, RefreshControl, View } from "react-native";
 
 import { AppTopBar, EditorialCard, ScreenScaffold } from "@/src/components/layout";
-import { Typography } from "@/src/components/primitives";
+import { AppButton, Typography } from "@/src/components/primitives";
 import { usePrograms } from "@/src/hooks/usePrograms";
 import { colors } from "@/src/theme";
 
@@ -39,9 +39,22 @@ function ProgramCover({ uri, title }: { title: string; uri: string | null }) {
 
 function SignalProgramsScreenComponent() {
   const programsQuery = usePrograms();
+  const isRefreshing = programsQuery.isFetching;
 
   return (
-    <ScreenScaffold bottomChrome="none" contentClassName="gap-6" header={<AppTopBar back={false} title="Signal Programs" />}>
+    <ScreenScaffold
+      bottomChrome="none"
+      contentClassName="gap-6"
+      header={<AppTopBar back={false} title="Signal Programs" />}
+      refreshControl={
+        <RefreshControl
+          onRefresh={async () => {
+            await programsQuery.refetch();
+          }}
+          refreshing={isRefreshing}
+        />
+      }
+    >
       <View className="gap-4 px-2">
         <View className="gap-2">
           <Typography tone="secondary" variant="labelSm">
@@ -67,6 +80,11 @@ function SignalProgramsScreenComponent() {
             <Typography tone="secondary" variant="bodyMd">
               Check the API configuration and try again.
             </Typography>
+            <View className="pt-2">
+              <AppButton onPress={() => programsQuery.refetch()} variant="secondary">
+                Retry
+              </AppButton>
+            </View>
           </EditorialCard>
         ) : null}
 

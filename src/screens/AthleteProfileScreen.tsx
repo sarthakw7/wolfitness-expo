@@ -162,7 +162,10 @@ function AthleteProfileScreenComponent() {
 
   if (profileQuery.error) {
     return (
-      <ScreenScaffold contentClassName="gap-6" header={<AppTopBar centered title="Wolfitness" />}>
+      <ScreenScaffold
+        contentClassName="gap-6"
+        header={<AppTopBar centered onSettingsPress={() => router.push("/(tabs)/settings" as never)} title="Wolfitness" />}
+      >
         <View className="gap-6 px-2">
           <EditorialCard className="gap-3">
             <Typography variant="headlineLg">Unable to load profile</Typography>
@@ -180,7 +183,10 @@ function AthleteProfileScreenComponent() {
 
   if (isProfileBundleMissing) {
     return (
-      <ScreenScaffold contentClassName="gap-6" header={<AppTopBar centered title="Wolfitness" />}>
+      <ScreenScaffold
+        contentClassName="gap-6"
+        header={<AppTopBar centered onSettingsPress={() => router.push("/(tabs)/settings" as never)} title="Wolfitness" />}
+      >
         <View className="gap-6 px-2">
           <EditorialCard className="gap-3">
             <Typography variant="headlineLg">Complete Athlete Setup</Typography>
@@ -197,7 +203,10 @@ function AthleteProfileScreenComponent() {
   }
 
   return (
-    <ScreenScaffold contentClassName="gap-6" header={<AppTopBar centered title="Wolfitness" />}>
+    <ScreenScaffold
+      contentClassName="gap-6"
+      header={<AppTopBar centered onSettingsPress={() => router.push("/(tabs)/settings" as never)} title="Wolfitness" />}
+    >
       <View className="gap-6 px-2">
       <View className="items-center gap-6 pt-4">
         <View className="relative items-center justify-center">
@@ -326,6 +335,19 @@ function AthleteProfileScreenComponent() {
           </View>
         )}
       </View>
+
+      <EditorialCard className="gap-3">
+        <Typography tone="secondary" variant="labelSm">
+          ACCOUNT
+        </Typography>
+        <Typography variant="headlineLg">Support, legal, and account actions</Typography>
+        <Typography tone="secondary" variant="bodyMd">
+          Open settings for support, privacy, terms, sign out, and account deletion requests.
+        </Typography>
+        <AppButton onPress={() => router.push("/(tabs)/settings" as never)} variant="secondary">
+          Open Settings
+        </AppButton>
+      </EditorialCard>
 
       <View className="w-full max-w-md self-center pt-2" style={{ width: "100%" }}>
         <AppButton

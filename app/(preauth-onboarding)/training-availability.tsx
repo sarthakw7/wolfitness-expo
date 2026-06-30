@@ -7,63 +7,63 @@ import { ScreenContainer, Typography } from "@/src/components/primitives";
 import { useAuth } from "@/src/hooks/useAuth";
 import { mergeOnboardingDraft, readOnboardingDraft } from "@/src/lib/onboarding-draft";
 
-import { OnboardingQuestion } from "@/src/components/onboarding/OnboardingCopy";
+import { OnboardingQuestion, OnboardingSubtext } from "@/src/components/onboarding/OnboardingCopy";
 import { OnboardingContinueButton } from "@/src/components/onboarding/OnboardingContinueButton";
 
-type EquipmentValue = "full_gym" | "home_gym" | "dumbbells" | "bodyweight";
+type TrainingAvailabilityValue = "2_days" | "3_days" | "4_days" | "5_plus_days";
 
-const OPTIONS: Array<{
-  value: EquipmentValue;
-  title: string;
+const OPTIONS: {
   description: string;
   icon: keyof typeof Ionicons.glyphMap;
-}> = [
+  title: string;
+  value: TrainingAvailabilityValue;
+}[] = [
   {
-    value: "full_gym",
-    title: "Full Gym",
-    description: "Access to commercial machines, cables, and comprehensive free weights.",
-    icon: "business-outline",
+    value: "2_days",
+    title: "2 Days / Week",
+    description: "Minimal but consistent availability.",
+    icon: "calendar-outline",
   },
   {
-    value: "home_gym",
-    title: "Home Gym",
-    description: "Basic power rack, adjustable bench, and barbell setup.",
-    icon: "home-outline",
+    value: "3_days",
+    title: "3 Days / Week",
+    description: "Balanced training cadence for most athletes.",
+    icon: "calendar-clear-outline",
   },
   {
-    value: "dumbbells",
-    title: "Dumbbells Only",
-    description: "Limited to a set of dumbbells and potentially a bench.",
-    icon: "barbell-outline",
+    value: "4_days",
+    title: "4 Days / Week",
+    description: "Higher training frequency with solid recovery.",
+    icon: "calendar-number-outline",
   },
   {
-    value: "bodyweight",
-    title: "Bodyweight",
-    description: "No external loading. Relying purely on calisthenics and gravity.",
-    icon: "accessibility-outline",
+    value: "5_plus_days",
+    title: "5+ Days / Week",
+    description: "High availability for aggressive progression.",
+    icon: "flash-outline",
   },
 ];
 
-function EquipmentCard({
+function AvailabilityCard({
   active,
-  title,
   description,
   icon,
   onPress,
+  title,
 }: {
-  active?: boolean;
-  title: string;
+  active: boolean;
   description: string;
   icon: keyof typeof Ionicons.glyphMap;
   onPress: () => void;
+  title: string;
 }) {
   return (
     <Pressable
       accessibilityRole="button"
       className={
         active
-          ? "relative min-h-[180px] flex-1 rounded-md border border-[#444748] bg-[#2b2a2a] p-6"
-          : "relative min-h-[180px] flex-1 rounded-md border border-[#2b2a2a] bg-[#e5e2e1] p-6"
+          ? "flex-row items-start rounded-lg border border-[#444748] bg-[#2b2a2a] p-4"
+          : "flex-row items-start rounded-lg border border-[#2b2a2a] bg-[#e5e2e1] p-4"
       }
       onPress={onPress}
       style={({ pressed }) => (pressed ? { opacity: 0.92 } : null)}
@@ -71,13 +71,14 @@ function EquipmentCard({
       <View
         className={
           active
-            ? "h-10 w-10 items-center justify-center rounded-full border border-[#2b2a2a] bg-[#201f1f]"
-            : "h-10 w-10 items-center justify-center rounded-full border border-[#353434] bg-[#141313]"
+            ? "mt-0.5 h-10 w-10 items-center justify-center rounded-full border border-[#2b2a2a] bg-[#201f1f]"
+            : "mt-0.5 h-10 w-10 items-center justify-center rounded-full border border-[#353434] bg-[#141313]"
         }
       >
-        <Ionicons color={active ? "#e5e2e1" : "#F4F1EE"} name={icon} size={22} />
+        <Ionicons color={active ? "#e5e2e1" : "#F4F1EE"} name={icon} size={18} />
       </View>
-      <View className="mt-4 flex-1 justify-end">
+
+      <View className="ml-4 flex-1">
         <Typography
           tone={active ? "inverse" : "primary"}
           style={{ color: active ? "#F4F1EE" : "#141313", fontFamily: undefined, fontWeight: "700" }}
@@ -94,26 +95,31 @@ function EquipmentCard({
           {description}
         </Typography>
       </View>
+
       <View
         className={
           active
-            ? "absolute right-6 top-6 h-3 w-3 rounded-full border border-[#e5e2e1] bg-[#e5e2e1]"
-            : "absolute right-6 top-6 h-3 w-3 rounded-full border border-[#141313]"
+            ? "ml-4 mt-1 h-5 w-5 items-center justify-center rounded-full border-2 border-[#c8c6c5]"
+            : "ml-4 mt-1 h-5 w-5 rounded-full border-2 border-[#141313]"
         }
-      />
+      >
+        {active ? <View className="h-2.5 w-2.5 rounded-full bg-[#c8c6c5]" /> : null}
+      </View>
     </Pressable>
   );
 }
 
-export default function EquipmentAccessRoute() {
+export default function TrainingAvailabilityRoute() {
   const { user } = useAuth();
-  const [value, setValue] = useState<EquipmentValue | null>(null);
+  const [value, setValue] = useState<TrainingAvailabilityValue | null>(null);
 
   useEffect(() => {
     readOnboardingDraft()
       .then((draft) => {
-        const v = draft?.equipmentAccess;
-        if (v && OPTIONS.some((x) => x.value === v)) setValue(v as EquipmentValue);
+        const saved = draft?.trainingAvailability?.[0];
+        if (saved && OPTIONS.some((option) => option.value === saved)) {
+          setValue(saved as TrainingAvailabilityValue);
+        }
       })
       .catch(() => {});
   }, []);
@@ -122,8 +128,8 @@ export default function EquipmentAccessRoute() {
 
   const handleContinue = useCallback(async () => {
     if (!value) return;
-    await mergeOnboardingDraft({ equipmentAccess: value });
-    router.push("/(preauth-onboarding)/injuries-limitations");
+    await mergeOnboardingDraft({ trainingAvailability: [value] });
+    router.push("/(preauth-onboarding)/equipment-access");
   }, [value]);
 
   return (
@@ -150,37 +156,41 @@ export default function EquipmentAccessRoute() {
         scroll
         className="bg-[#141313]"
         contentClassName="flex-grow px-0 py-0"
-        contentContainerStyle={{ paddingHorizontal: 32, paddingTop: 32, paddingBottom: 200 }}
+        contentContainerStyle={{ paddingHorizontal: 32, paddingTop: 32, paddingBottom: 140 }}
         edges={{ top: false, bottom: true }}
       >
         <View className="w-full max-w-md gap-12 self-center" style={{ width: "100%" }}>
-          <View className="gap-2">
+          <View className="w-full flex flex-col gap-2">
             <View className="flex-row items-center justify-between">
               <Typography className="tracking-[2px] text-[#C4C7C7]" variant="labelSm">
-                STEP 07 OF 08
+                STEP 06 OF 08
               </Typography>
               <Typography className="tracking-[2px] text-[#C4C7C7]" variant="labelSm">
-                88%
+                75%
               </Typography>
             </View>
             <View className="h-[2px] w-full overflow-hidden rounded-full bg-[#242424]">
-              <View className="h-full rounded-full bg-[#c8c6c5]" style={{ width: "88%" }} />
+              <View className="h-full rounded-full bg-[#c8c6c5]" style={{ width: "75%" }} />
             </View>
           </View>
 
-          <OnboardingQuestion>What equipment do you have?</OnboardingQuestion>
+          <View className="gap-3">
+            <OnboardingQuestion>How often can you train?</OnboardingQuestion>
+            <OnboardingSubtext>
+              Set your realistic weekly training availability so the athlete plan does not over-prescribe your schedule.
+            </OnboardingSubtext>
+          </View>
 
-          <View className="flex-row flex-wrap gap-2">
-            {OPTIONS.map((o) => (
-              <View key={o.value} className="w-full md:w-1/2" style={{ width: "48%" }}>
-                <EquipmentCard
-                  active={value === o.value}
-                  description={o.description}
-                  icon={o.icon}
-                  title={o.title}
-                  onPress={() => setValue(o.value)}
-                />
-              </View>
+          <View className="gap-3">
+            {OPTIONS.map((option) => (
+              <AvailabilityCard
+                key={option.value}
+                active={value === option.value}
+                description={option.description}
+                icon={option.icon}
+                title={option.title}
+                onPress={() => setValue(option.value)}
+              />
             ))}
           </View>
         </View>

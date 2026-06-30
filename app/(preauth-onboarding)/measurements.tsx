@@ -6,7 +6,7 @@ import { Pressable, TextInput, View } from "react-native";
 import { ScreenContainer, Typography } from "@/src/components/primitives";
 import { useAuth } from "@/src/hooks/useAuth";
 import { mergeOnboardingDraft, readOnboardingDraft } from "@/src/lib/onboarding-draft";
-import { spacing, typography } from "@/src/theme";
+import { spacing } from "@/src/theme";
 
 import { OnboardingQuestion, OnboardingSubtext } from "@/src/components/onboarding/OnboardingCopy";
 import { OnboardingContinueButton } from "@/src/components/onboarding/OnboardingContinueButton";
@@ -219,14 +219,14 @@ export default function MeasurementsRoute() {
           <View className="w-full flex flex-col gap-2">
             <View className="flex-row items-center justify-between">
               <Typography className="tracking-[2px] text-[#C4C7C7]" variant="labelSm">
-                STEP 03 OF 07
+                STEP 03 OF 08
               </Typography>
               <Typography className="tracking-[2px] text-[#C4C7C7]" variant="labelSm">
-                43%
+                38%
               </Typography>
             </View>
             <View className="h-[2px] w-full overflow-hidden rounded-full bg-[#242424]">
-              <View className="h-full rounded-full bg-[#c8c6c5]" style={{ width: "43%" }} />
+              <View className="h-full rounded-full bg-[#c8c6c5]" style={{ width: "38%" }} />
             </View>
           </View>
 

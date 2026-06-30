@@ -1,4 +1,5 @@
 import { memo, type PropsWithChildren, type ReactNode } from "react";
+import type { ScrollViewProps } from "react-native";
 import { View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -12,6 +13,7 @@ type ScreenScaffoldProps = PropsWithChildren<{
   contentClassName?: string;
   footer?: ReactNode;
   header?: ReactNode;
+  refreshControl?: ScrollViewProps["refreshControl"];
   taskMode?: boolean;
 }>;
 
@@ -21,6 +23,7 @@ function ScreenScaffoldComponent({
   contentClassName,
   footer,
   header,
+  refreshControl,
   taskMode,
 }: ScreenScaffoldProps) {
   const insets = useSafeAreaInsets();
@@ -47,6 +50,7 @@ function ScreenScaffoldComponent({
           paddingTop: contentTop,
         }}
         edges={{ bottom: false, top: false }}
+        refreshControl={refreshControl}
       >
         {children}
       </ScreenContainer>

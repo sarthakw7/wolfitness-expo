@@ -2,6 +2,85 @@ import { assertSupabaseConfigured, supabase } from "@/src/lib/supabase";
 
 export type ProgressRange = "7d" | "30d";
 
+export type SignalProgramLifecycleProgressRow = {
+  completed_at: string | null;
+  current_day_key: string | null;
+  current_week_key: string | null;
+  id: string;
+  replaced_at: string | null;
+  source: "legacy" | "signal";
+  source_program_id: string;
+  source_program_version: string | null;
+  started_at: string;
+  status: "active" | "paused" | "completed" | "replaced";
+  updated_at: string;
+  user_id: string;
+};
+
+export type SignalCompletedWorkoutSessionRow = {
+  completed_at: string | null;
+  id: string;
+  source: "legacy" | "signal" | null;
+  source_day_key: string | null;
+  source_program_id: string | null;
+  source_week_key: string | null;
+};
+
+export type SignalProgramProgressSnapshot = {
+  completedSessions: SignalCompletedWorkoutSessionRow[];
+  lifecycle: SignalProgramLifecycleProgressRow | null;
+};
+
+export type WorkoutHistoryRow = {
+  completedAt: string;
+  dayId: string | null;
+  dayLabel: string;
+  exerciseCount: number;
+  id: string;
+  programId: string | null;
+  programLabel: string;
+  setCount: number;
+  source: "legacy" | "signal" | null;
+  sourceDayKey: string | null;
+  sourceProgramId: string | null;
+  sourceWeekKey: string | null;
+  startedAt: string;
+  subtitle: string;
+  title: string;
+};
+
+export type WorkoutSessionDetailSetRow = {
+  id: string;
+  loggedAt: string;
+  repsCompleted: number | null;
+  rpeActual: number | null;
+  setNumber: number;
+  weightKg: number | null;
+};
+
+export type WorkoutSessionDetailExerciseGroup = {
+  exerciseId: string;
+  exerciseLabel: string;
+  sets: WorkoutSessionDetailSetRow[];
+};
+
+export type WorkoutSessionDetail = {
+  completedAt: string | null;
+  dayLabel: string;
+  durationMinutes: number | null;
+  exerciseCount: number;
+  groupedExercises: WorkoutSessionDetailExerciseGroup[];
+  id: string;
+  programLabel: string;
+  setCount: number;
+  source: "legacy" | "signal" | null;
+  sourceDayKey: string | null;
+  sourceProgramId: string | null;
+  sourceWeekKey: string | null;
+  startedAt: string;
+  title: string;
+};
+
 type CompletedWorkoutSessionRow = {
   completed_at: string | null;
   day_id: string | null;
@@ -12,9 +91,32 @@ type CompletedWorkoutSessionRow = {
 
 type WorkoutLogSetRow = {
   logged_at: string;
+  exercise_library_id: string;
   reps_completed: number | null;
   session_id: string;
   weight_kg: number | null;
+};
+
+type WorkoutHistorySessionRow = {
+  completed_at: string | null;
+  day_id: string | null;
+  id: string;
+  program_id: string | null;
+  source: "legacy" | "signal" | null;
+  source_day_key: string | null;
+  source_program_id: string | null;
+  source_week_key: string | null;
+  started_at: string;
+};
+
+type WorkoutHistoryTitleRow = {
+  id: string;
+  title: string | null;
+};
+
+type ExerciseLibraryTitleRow = {
+  id: string;
+  name: string | null;
 };
 
 type DailyNutritionSummaryRow = {
@@ -165,6 +267,274 @@ function average(values: number[]) {
   return values.reduce((total, value) => total + value, 0) / values.length;
 }
 
+function formatFallbackTitle(value: string | null | undefined, fallback: string) {
+  if (!value) return fallback;
+  return value;
+}
+
+function formatSignalWorkoutTitle(row: WorkoutHistorySessionRow) {
+  return "Signal Workout";
+}
+
+function formatSignalWorkoutSubtitle(row: WorkoutHistorySessionRow) {
+  const week = row.source_week_key ? `Week ${row.source_week_key}` : "Week unavailable";
+  const day = row.source_day_key ? `Day ${row.source_day_key}` : "Day unavailable";
+  return `${week} · ${day}`;
+}
+
+function formatLegacyWorkoutTitle(
+  row: WorkoutHistorySessionRow,
+  programTitles: Map<string, string>,
+  dayTitles: Map<string, string>,
+) {
+  const programTitle = row.program_id ? programTitles.get(row.program_id) : null;
+  return formatFallbackTitle(programTitle, "Legacy Workout");
+}
+
+function formatLegacyWorkoutSubtitle(
+  row: WorkoutHistorySessionRow,
+  dayTitles: Map<string, string>,
+) {
+  const dayTitle = row.day_id ? dayTitles.get(row.day_id) : null;
+  return formatFallbackTitle(dayTitle, row.day_id ?? "Day unavailable");
+}
+
+function formatExerciseFallback(exerciseId: string) {
+  const shortId = exerciseId.slice(0, 8);
+  return `Exercise ${shortId}`;
+}
+
+export async function fetchWorkoutHistory(userId: string, limit = 20): Promise<WorkoutHistoryRow[]> {
+  try {
+    assertSupabaseConfigured();
+
+    const sessionsRes = await supabase
+      .from("workout_sessions")
+      .select("id,program_id,day_id,source,source_program_id,source_week_key,source_day_key,started_at,completed_at")
+      .eq("user_id", userId)
+      .not("completed_at", "is", null)
+      .order("completed_at", { ascending: false })
+      .limit(limit);
+
+    if (sessionsRes.error) throw sessionsRes.error;
+
+    const sessions = (sessionsRes.data ?? []) as WorkoutHistorySessionRow[];
+    if (!sessions.length) return [];
+
+    const sessionIds = sessions.map((session) => session.id);
+    const allLogsRes = await supabase
+      .from("workout_log_sets")
+      .select("session_id,exercise_library_id")
+      .in("session_id", sessionIds);
+
+    if (allLogsRes.error) throw allLogsRes.error;
+
+    const legacyProgramIds = Array.from(
+      new Set(
+        sessions
+          .filter((session) => session.source !== "signal")
+          .map((session) => session.program_id)
+          .filter((value): value is string => Boolean(value)),
+      ),
+    );
+    const legacyDayIds = Array.from(
+      new Set(
+        sessions
+          .filter((session) => session.source !== "signal")
+          .map((session) => session.day_id)
+          .filter((value): value is string => Boolean(value)),
+      ),
+    );
+
+    const [programTitlesRes, dayTitlesRes] = await Promise.all([
+      legacyProgramIds.length
+        ? supabase.from("programs").select("id,title").in("id", legacyProgramIds)
+        : Promise.resolve({ data: [], error: null } as const),
+      legacyDayIds.length
+        ? supabase.from("program_days").select("id,title").in("id", legacyDayIds)
+        : Promise.resolve({ data: [], error: null } as const),
+    ]);
+
+    if (programTitlesRes.error && programTitlesRes.status !== 406) throw programTitlesRes.error;
+    if (dayTitlesRes.error && dayTitlesRes.status !== 406) throw dayTitlesRes.error;
+
+    const programTitles = new Map(
+      ((programTitlesRes.data ?? []) as WorkoutHistoryTitleRow[]).map((row) => [row.id, row.title ?? "Legacy Workout"]),
+    );
+    const dayTitles = new Map(
+      ((dayTitlesRes.data ?? []) as WorkoutHistoryTitleRow[]).map((row) => [row.id, row.title ?? "Day unavailable"]),
+    );
+    const logs = (allLogsRes.data ?? []) as Pick<WorkoutLogSetRow, "exercise_library_id" | "session_id">[];
+    const logsBySession = new Map<string, { exerciseIds: Set<string>; setCount: number }>();
+
+    sessionIds.forEach((sessionId) => {
+      logsBySession.set(sessionId, { exerciseIds: new Set<string>(), setCount: 0 });
+    });
+
+    logs.forEach((log) => {
+      const bucket = logsBySession.get(log.session_id);
+      if (!bucket) return;
+      bucket.setCount += 1;
+      bucket.exerciseIds.add(log.exercise_library_id);
+    });
+
+    return sessions.map((session) => {
+      const bucket = logsBySession.get(session.id) ?? { exerciseIds: new Set<string>(), setCount: 0 };
+      const isSignal = session.source === "signal";
+
+      return {
+        completedAt: session.completed_at ?? session.started_at,
+        dayId: session.day_id,
+        dayLabel: isSignal
+          ? formatSignalWorkoutSubtitle(session)
+          : formatLegacyWorkoutSubtitle(session, dayTitles),
+        exerciseCount: bucket.exerciseIds.size,
+        id: session.id,
+        programId: session.program_id,
+        programLabel: isSignal
+          ? "Signal Program"
+          : formatLegacyWorkoutTitle(session, programTitles, dayTitles),
+        setCount: bucket.setCount,
+        source: session.source,
+        sourceDayKey: session.source_day_key,
+        sourceProgramId: session.source_program_id,
+        sourceWeekKey: session.source_week_key,
+        startedAt: session.started_at,
+        subtitle: isSignal
+          ? formatSignalWorkoutSubtitle(session)
+          : formatLegacyWorkoutSubtitle(session, dayTitles),
+        title: isSignal ? formatSignalWorkoutTitle(session) : formatLegacyWorkoutTitle(session, programTitles, dayTitles),
+      };
+    });
+  } catch (error) {
+    logProgress("error", "Failed to load workout history.", {
+      error: error instanceof Error ? error.message : String(error),
+      userId,
+    });
+    throw error;
+  }
+}
+
+export async function fetchWorkoutSessionDetail(
+  userId: string,
+  sessionId: string,
+): Promise<WorkoutSessionDetail | null> {
+  try {
+    assertSupabaseConfigured();
+
+    const sessionRes = await supabase
+      .from("workout_sessions")
+      .select("id,program_id,day_id,source,source_program_id,source_week_key,source_day_key,started_at,completed_at")
+      .eq("id", sessionId)
+      .eq("user_id", userId)
+      .not("completed_at", "is", null)
+      .maybeSingle();
+
+    if (sessionRes.error && sessionRes.status !== 406) throw sessionRes.error;
+
+    const session = (sessionRes.data as WorkoutHistorySessionRow | null) ?? null;
+    if (!session) return null;
+
+    const logsRes = await supabase
+      .from("workout_log_sets")
+      .select("id,session_id,exercise_library_id,set_number,reps_completed,weight_kg,rpe_actual,logged_at")
+      .eq("session_id", sessionId)
+      .order("exercise_library_id", { ascending: true })
+      .order("set_number", { ascending: true })
+      .order("logged_at", { ascending: true });
+
+    if (logsRes.error) throw logsRes.error;
+
+    const [programRes, dayRes] = await Promise.all([
+      session.program_id
+        ? supabase.from("programs").select("id,title").eq("id", session.program_id).maybeSingle()
+        : Promise.resolve({ data: null, error: null, status: 406 } as const),
+      session.day_id
+        ? supabase.from("program_days").select("id,title").eq("id", session.day_id).maybeSingle()
+        : Promise.resolve({ data: null, error: null, status: 406 } as const),
+    ]);
+
+    if (programRes.error && programRes.status !== 406) throw programRes.error;
+    if (dayRes.error && dayRes.status !== 406) throw dayRes.error;
+
+    const logs = (logsRes.data ?? []) as (
+      WorkoutLogSetRow & { id: string; rpe_actual: number | null; set_number: number }
+    )[];
+    const exerciseIds = Array.from(new Set(logs.map((log) => log.exercise_library_id)));
+    const exerciseLibraryRes = exerciseIds.length
+      ? await supabase.from("exercises_library").select("id,name").in("id", exerciseIds)
+      : { data: [], error: null };
+
+    if (exerciseLibraryRes.error) throw exerciseLibraryRes.error;
+
+    const exerciseTitles = new Map(
+      ((exerciseLibraryRes.data ?? []) as ExerciseLibraryTitleRow[]).map((row) => [
+        row.id,
+        row.name ?? formatExerciseFallback(row.id),
+      ]),
+    );
+
+    const groupedExercises = new Map<string, WorkoutSessionDetailExerciseGroup>();
+    logs.forEach((log) => {
+      const existing = groupedExercises.get(log.exercise_library_id);
+      const nextSet = {
+        id: log.id,
+        loggedAt: log.logged_at,
+        repsCompleted: log.reps_completed,
+        rpeActual: log.rpe_actual,
+        setNumber: log.set_number,
+        weightKg: log.weight_kg,
+      };
+
+      if (existing) {
+        existing.sets.push(nextSet);
+        return;
+      }
+
+      groupedExercises.set(log.exercise_library_id, {
+        exerciseId: log.exercise_library_id,
+        exerciseLabel:
+          exerciseTitles.get(log.exercise_library_id) ?? formatExerciseFallback(log.exercise_library_id),
+        sets: [nextSet],
+      });
+    });
+
+    const isSignal = session.source === "signal";
+    const programTitle =
+      isSignal
+        ? "Signal Workout"
+        : formatFallbackTitle((programRes.data as WorkoutHistoryTitleRow | null)?.title, "Legacy Workout");
+    const dayTitle =
+      isSignal
+        ? formatSignalWorkoutSubtitle(session)
+        : formatFallbackTitle((dayRes.data as WorkoutHistoryTitleRow | null)?.title, session.day_id ?? "Day unavailable");
+
+    return {
+      completedAt: session.completed_at,
+      dayLabel: dayTitle,
+      durationMinutes: calculateDurationMinutes(session.started_at, session.completed_at),
+      exerciseCount: groupedExercises.size,
+      groupedExercises: Array.from(groupedExercises.values()),
+      id: session.id,
+      programLabel: isSignal ? "Signal Program" : programTitle,
+      setCount: logs.length,
+      source: session.source,
+      sourceDayKey: session.source_day_key,
+      sourceProgramId: session.source_program_id,
+      sourceWeekKey: session.source_week_key,
+      startedAt: session.started_at,
+      title: programTitle,
+    };
+  } catch (error) {
+    logProgress("error", "Failed to load workout session detail.", {
+      error: error instanceof Error ? error.message : String(error),
+      sessionId,
+      userId,
+    });
+    throw error;
+  }
+}
+
 export async function fetchProgressOverview(
   userId: string,
   range: ProgressRange = "7d",
@@ -292,6 +662,50 @@ export async function fetchProgressOverview(
     logProgress("error", "Failed to fetch progress overview.", {
       error: error instanceof Error ? error.message : String(error),
       range,
+      userId,
+    });
+    throw error;
+  }
+}
+
+export async function fetchSignalProgramProgress(userId: string): Promise<SignalProgramProgressSnapshot | null> {
+  try {
+    assertSupabaseConfigured();
+
+    const lifecycleRes = await supabase
+      .from("active_programs")
+      .select(
+        "id,user_id,source,source_program_id,source_program_version,current_week_key,current_day_key,status,started_at,completed_at,replaced_at,updated_at",
+      )
+      .eq("user_id", userId)
+      .eq("source", "signal")
+      .in("status", ["active", "completed"])
+      .order("started_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (lifecycleRes.error && lifecycleRes.status !== 406) throw lifecycleRes.error;
+    const lifecycle = (lifecycleRes.data as SignalProgramLifecycleProgressRow | null) ?? null;
+    if (!lifecycle) return null;
+
+    const sessionsRes = await supabase
+      .from("workout_sessions")
+      .select("id,completed_at,source,source_program_id,source_week_key,source_day_key")
+      .eq("user_id", userId)
+      .eq("source", "signal")
+      .eq("source_program_id", lifecycle.source_program_id)
+      .not("completed_at", "is", null)
+      .order("completed_at", { ascending: false });
+
+    if (sessionsRes.error) throw sessionsRes.error;
+
+    return {
+      completedSessions: (sessionsRes.data ?? []) as SignalCompletedWorkoutSessionRow[],
+      lifecycle,
+    };
+  } catch (error) {
+    logProgress("error", "Failed to fetch Signal program progress.", {
+      error: error instanceof Error ? error.message : String(error),
       userId,
     });
     throw error;

@@ -51,11 +51,18 @@ Create/update `.env` with:
 EXPO_PUBLIC_SUPABASE_URL=...
 EXPO_PUBLIC_SUPABASE_ANON_KEY=...
 EXPO_PUBLIC_API_URL=http://<YOUR_MAC_LAN_IP>:3000
+EXPO_PUBLIC_SENTRY_DSN=https://<public-key>@o0.ingest.sentry.io/<project-id>
+EXPO_PUBLIC_APP_ENV=development
+EXPO_PUBLIC_SENTRY_ENABLE_DEV=false
+EXPO_PUBLIC_SENTRY_DEBUG=false
 ```
 
 Notes:
 - Do not use `localhost` for `EXPO_PUBLIC_API_URL` on physical devices.
 - `EXPO_PUBLIC_API_URL` should point at the `wolfitness` web app (used for AI nutrition + purchase init).
+- `EXPO_PUBLIC_SENTRY_DSN` is safe to expose in the client and is enough for runtime event capture.
+- `EXPO_PUBLIC_SENTRY_DSN` alone is not enough for readable production stack traces. Source map upload requires CI/EAS-only Sentry credentials.
+- Keep `SENTRY_AUTH_TOKEN` server-side only. Do not place it in the mobile client `.env`.
 
 3. Start:
 
@@ -94,6 +101,20 @@ eas build --profile development --platform ios
 eas build --profile preview --platform android
 eas build --profile production --platform ios
 ```
+
+For Sentry native source map upload on EAS builds, set these environment variables in EAS or CI:
+
+```bash
+SENTRY_AUTH_TOKEN=...
+SENTRY_ORG=...
+SENTRY_PROJECT=...
+```
+
+Notes:
+- These variables are required for source map upload and readable production stack traces.
+- Configure them in EAS secrets or your CI secret storage.
+- Do not commit `SENTRY_AUTH_TOKEN`.
+- Do not place `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, or `SENTRY_PROJECT` in the client `.env` file.
 
 ## Troubleshooting
 

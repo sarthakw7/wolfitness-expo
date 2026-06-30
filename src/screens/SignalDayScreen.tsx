@@ -1,12 +1,12 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { memo, useMemo } from "react";
-import { ScrollView, View } from "react-native";
+import { RefreshControl, View } from "react-native";
 
 import { AppTopBar, EditorialCard, ScreenScaffold } from "@/src/components/layout";
-import { Typography } from "@/src/components/primitives";
+import { AppButton, Typography } from "@/src/components/primitives";
 import { useWorkoutProgram } from "@/src/hooks/useWorkoutProgram";
-import type { WorkoutProgramPayloadBlock, WorkoutProgramPayloadDay, WorkoutProgramPayloadWeek } from "@/src/services/programs";
+import type { WorkoutProgramPayloadBlock, WorkoutProgramPayloadWeek } from "@/src/services/programs";
 import { colors } from "@/src/theme";
 
 function singleParam(value: string | string[] | undefined) {
@@ -28,6 +28,11 @@ function countExercisesInBlock(block: WorkoutProgramPayloadBlock) {
   return block.exercises.length;
 }
 
+function countExercisesInDay(day: WorkoutProgramPayloadBlock[] | null) {
+  if (!day) return 0;
+  return day.reduce((sum, block) => sum + countExercisesInBlock(block), 0);
+}
+
 function renderMediaLabel(media: string) {
   try {
     const url = new URL(media);
@@ -37,12 +42,17 @@ function renderMediaLabel(media: string) {
   }
 }
 
+function getProgramsErrorCode(error: unknown) {
+  return error instanceof Error ? (error as { code?: string }).code ?? null : null;
+}
+
 function SignalDayScreenComponent() {
   const params = useLocalSearchParams<{ programId?: string; weekId?: string; dayId?: string }>();
   const programId = singleParam(params.programId);
   const weekId = singleParam(params.weekId);
   const dayId = singleParam(params.dayId);
   const workoutProgramQuery = useWorkoutProgram(programId);
+  const isRefreshing = workoutProgramQuery.isFetching;
 
   const week = useMemo(
     () => findWeek(workoutProgramQuery.data?.weeks ?? [], weekId),
@@ -50,37 +60,68 @@ function SignalDayScreenComponent() {
   );
   const day = useMemo(() => findDay(week, dayId), [dayId, week]);
   const program = workoutProgramQuery.data?.program ?? null;
+  const invalidRoute = !programId || !weekId || !dayId;
+  const dayHasExercises = Boolean(day && countExercisesInDay(day.blocks) > 0);
 
-  const notFound = workoutProgramQuery.error instanceof Error && (workoutProgramQuery.error as { code?: string }).code === "NOT_FOUND";
+  const errorCode = getProgramsErrorCode(workoutProgramQuery.error);
+  const isUnavailableError =
+    errorCode === "NOT_FOUND" || errorCode === "PARSE_ERROR" || errorCode === "CONFIGURATION_ERROR" || errorCode === "BAD_REQUEST";
 
   return (
     <ScreenScaffold
       bottomChrome="none"
       contentClassName="gap-6"
       header={<AppTopBar back subtitle="Signal Day" title={day?.title ?? "Day"} />}
+      refreshControl={
+        <RefreshControl
+          onRefresh={async () => {
+            await workoutProgramQuery.refetch();
+          }}
+          refreshing={isRefreshing}
+        />
+      }
     >
-      <ScrollView className="flex-1" contentContainerClassName="gap-4 px-2 pb-8">
+      <View className="gap-4 px-2 pb-8">
+        {invalidRoute ? (
+          <EditorialCard className="gap-3">
+            <Typography variant="headlineLg">Invalid workout</Typography>
+            <Typography tone="secondary" variant="bodyMd">
+              This Signal day link is missing a program, week, or day id.
+            </Typography>
+          </EditorialCard>
+        ) : null}
+
         {workoutProgramQuery.isLoading ? <EditorialCard className="min-h-48 bg-surface-muted" /> : null}
 
-        {workoutProgramQuery.error && !notFound ? (
+        {workoutProgramQuery.error && !isUnavailableError ? (
           <EditorialCard className="gap-3">
             <Typography variant="headlineLg">Unable to load day</Typography>
             <Typography tone="secondary" variant="bodyMd">
-              The published workout payload could not be loaded.
+              Check your connection and try again.
             </Typography>
+            <View className="pt-2">
+              <AppButton onPress={() => workoutProgramQuery.refetch()} variant="secondary">
+                Retry
+              </AppButton>
+            </View>
           </EditorialCard>
         ) : null}
 
-        {notFound ? (
+        {isUnavailableError ? (
           <EditorialCard className="gap-3">
-            <Typography variant="headlineLg">Published program not found</Typography>
+            <Typography variant="headlineLg">Workout unavailable</Typography>
             <Typography tone="secondary" variant="bodyMd">
-              This program does not have a published workout payload yet.
+              This workout is no longer published, was removed, or returned an invalid payload.
             </Typography>
+            <View className="pt-2">
+              <AppButton onPress={() => workoutProgramQuery.refetch()} variant="secondary">
+                Retry
+              </AppButton>
+            </View>
           </EditorialCard>
         ) : null}
 
-        {day ? (
+        {day && !invalidRoute ? (
           <EditorialCard className="gap-4">
             <View className="gap-2">
               <Typography tone="secondary" variant="labelSm">
@@ -103,6 +144,34 @@ function SignalDayScreenComponent() {
                 Sync {day.sync_key}
               </Typography>
             </View>
+
+            {dayHasExercises ? (
+              <AppButton
+                onPress={() => {
+                  router.push({
+                    pathname: "/(tabs)/workouts",
+                    params: {
+                      signalDayId: day.sync_key,
+                      signalProgramId: program?.id ?? programId ?? "",
+                      signalWeekId: week?.sync_key ?? weekId ?? "",
+                    },
+                  });
+                }}
+                variant="primary"
+              >
+                Start Workout
+              </AppButton>
+            ) : (
+              <View className="gap-3 rounded-2xl border border-border bg-surface-muted p-4">
+                <Typography variant="headlineLg">Workout unavailable</Typography>
+                <Typography tone="secondary" variant="bodyMd">
+                  This day does not contain any playable exercises.
+                </Typography>
+                <AppButton onPress={() => workoutProgramQuery.refetch()} variant="secondary">
+                  Retry
+                </AppButton>
+              </View>
+            )}
           </EditorialCard>
         ) : null}
 
@@ -194,13 +263,18 @@ function SignalDayScreenComponent() {
 
         {!workoutProgramQuery.isLoading && !workoutProgramQuery.error && !day ? (
           <EditorialCard className="gap-3">
-            <Typography variant="headlineLg">Day not found</Typography>
+            <Typography variant="headlineLg">Workout unavailable</Typography>
             <Typography tone="secondary" variant="bodyMd">
               The requested day is not present in the published payload.
             </Typography>
+            <View className="pt-2">
+              <AppButton onPress={() => workoutProgramQuery.refetch()} variant="secondary">
+                Retry
+              </AppButton>
+            </View>
           </EditorialCard>
         ) : null}
-      </ScrollView>
+      </View>
     </ScreenScaffold>
   );
 }
