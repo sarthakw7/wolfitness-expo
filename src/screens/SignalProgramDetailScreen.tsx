@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Link, router, useLocalSearchParams, type Href } from "expo-router";
-import { memo, useCallback, useMemo } from "react";
+import { memo, useCallback, useEffect, useMemo } from "react";
 import { Alert, Pressable, RefreshControl, View } from "react-native";
 import { useAuth } from "@/src/hooks/useAuth";
 import { useActiveProgram } from "@/src/hooks/queries/useActiveProgram";
@@ -20,6 +20,35 @@ function singleParam(value: string | string[] | undefined) {
 
 function getProgramsErrorCode(error: unknown) {
   return error instanceof Error ? (error as { code?: string }).code ?? null : null;
+}
+
+function getErrorMessage(error: unknown) {
+  if (error instanceof Error && error.message.trim().length > 0) {
+    return error.message;
+  }
+
+  if (error && typeof error === "object") {
+    const candidate = error as {
+      code?: string;
+      details?: string;
+      hint?: string;
+      message?: string;
+    };
+
+    const parts = [candidate.message, candidate.details, candidate.hint].filter(
+      (value): value is string => Boolean(value && value.trim().length > 0),
+    );
+
+    if (parts.length > 0) {
+      return parts.join("\n");
+    }
+
+    if (candidate.code) {
+      return `Request failed (${candidate.code}).`;
+    }
+  }
+
+  return "We could not start this program. Please try again.";
 }
 
 function countExercisesInDay(day: WorkoutProgramPayloadDay) {
@@ -59,6 +88,7 @@ function SignalProgramDetailScreenComponent() {
   const activeProgramQuery = useActiveProgram(user?.id);
   const startSignalProgramMutation = useStartSignalProgram();
   const program = workoutProgramQuery.data?.program ?? null;
+  const publishedVersionId = workoutProgramQuery.data?.versionId ?? null;
   const weeks = useMemo(() => workoutProgramQuery.data?.weeks ?? [], [workoutProgramQuery.data?.weeks]);
   const isRefreshing = workoutProgramQuery.isFetching;
   const invalidRoute = !programId;
@@ -87,26 +117,37 @@ function SignalProgramDetailScreenComponent() {
   const launchSignalProgram = useCallback(
     async (selection: { dayKey: string; weekKey: string }) => {
       if (!program || !programId || !user?.id) return;
-      const launched = await startSignalProgramMutation.mutateAsync({
+      if (!publishedVersionId) {
+        throw new Error("Latest published Signal version is unavailable.");
+      }
+      if (__DEV__) {
+        console.info("[signal-program-detail]", {
+          action: "start-program",
+          firstDayKey: selection.dayKey,
+          firstWeekKey: selection.weekKey,
+          programId: program.id,
+          sourceProgramVersion: publishedVersionId,
+          sourceProgramId: activeProgram?.source_program_id ?? null,
+        });
+      }
+      await startSignalProgramMutation.mutateAsync({
         firstDayKey: selection.dayKey,
         firstWeekKey: selection.weekKey,
         signalProgramId: program.id,
-        signalProgramVersion: null,
+        signalProgramVersion: publishedVersionId,
       });
 
-      const nextWeekKey = launched.current_week_key ?? selection.weekKey;
-      const nextDayKey = launched.current_day_key ?? selection.dayKey;
+      if (__DEV__) {
+        console.info("[signal-program-detail]", {
+          action: "start-program-success",
+          navigateTo: "/(tabs)/workouts",
+          programId: program.id,
+        });
+      }
 
-      router.push({
-        pathname: "/(signal)/program/[programId]/week/[weekId]/day/[dayId]",
-        params: {
-          dayId: nextDayKey,
-          programId: programId ?? program.id,
-          weekId: nextWeekKey,
-        },
-      });
+      router.push("/(tabs)/workouts");
     },
-    [program, programId, startSignalProgramMutation, user?.id],
+    [activeProgram?.source_program_id, program, programId, publishedVersionId, startSignalProgramMutation, user?.id],
   );
 
   const handlePrimaryCtaPress = useCallback(async () => {
@@ -120,14 +161,7 @@ function SignalProgramDetailScreenComponent() {
     }
 
     if (isSameActiveProgram && activeProgram?.current_week_key && activeProgram?.current_day_key) {
-      router.push({
-        pathname: "/(signal)/program/[programId]/week/[weekId]/day/[dayId]",
-        params: {
-          dayId: activeProgram.current_day_key,
-          programId,
-          weekId: activeProgram.current_week_key,
-        },
-      });
+      router.push("/(tabs)/workouts");
       return;
     }
 
@@ -143,7 +177,24 @@ function SignalProgramDetailScreenComponent() {
             style: "destructive",
             text: "Replace Current Program",
             onPress: () => {
-              launchSignalProgram(firstPlayableSelection).catch(() => {});
+              if (__DEV__) {
+                console.info("[signal-program-detail]", {
+                  action: "replace-current-program",
+                  programId: program.id,
+                  sourceProgramId: activeProgram.source_program_id,
+                });
+              }
+              launchSignalProgram(firstPlayableSelection).catch((error) => {
+                const message = getErrorMessage(error);
+                if (__DEV__) {
+                  console.warn("[signal-program-detail]", {
+                    action: "replace-current-program-failed",
+                    message,
+                    programId: program.id,
+                  });
+                }
+                Alert.alert("Unable to start program", message);
+              });
             },
           },
         ],
@@ -151,7 +202,19 @@ function SignalProgramDetailScreenComponent() {
       return;
     }
 
-    await launchSignalProgram(firstPlayableSelection);
+    try {
+      await launchSignalProgram(firstPlayableSelection);
+    } catch (error) {
+      const message = getErrorMessage(error);
+      if (__DEV__) {
+        console.warn("[signal-program-detail]", {
+          action: "start-program-failed",
+          message,
+          programId: program.id,
+        });
+      }
+      Alert.alert("Unable to start program", message);
+    }
   }, [
     activeProgram,
     firstPlayableSelection,
@@ -190,24 +253,77 @@ function SignalProgramDetailScreenComponent() {
       ? "Program unavailable"
       : isSameActiveProgram
         ? "Continue Program"
-    : isDifferentActiveProgram
+        : isDifferentActiveProgram
           ? "Replace Current Program"
           : "Start Program";
   const unavailableLabel = "Program unavailable";
   const resolvedCtaLabel = ctaUnavailable || isActivePointerInvalid ? unavailableLabel : ctaLabel;
   const ctaDisabled =
-    !user?.id ||
     !program ||
     ctaUnavailable ||
     isActivePointerInvalid ||
     startSignalProgramMutation.isPending;
   const ctaVariant = isDifferentActiveProgram ? "danger" : "primary";
+  useEffect(() => {
+    if (!__DEV__) return;
+    console.info("[signal-program-detail]", {
+      activeProgramId: activeProgram?.id ?? null,
+      ctaDisabled,
+      ctaLabel: resolvedCtaLabel,
+      isLoading: startSignalProgramMutation.isPending,
+      programId: program?.id ?? null,
+      selectedFirstPlayableDay: firstPlayableSelection?.dayKey ?? null,
+      selectedFirstPlayableWeek: firstPlayableSelection?.weekKey ?? null,
+      sourceProgramId: activeProgram?.source_program_id ?? null,
+    });
+  }, [
+    activeProgram?.id,
+    activeProgram?.source_program_id,
+    ctaDisabled,
+    firstPlayableSelection?.dayKey,
+    firstPlayableSelection?.weekKey,
+    resolvedCtaLabel,
+    startSignalProgramMutation.isPending,
+    program?.id,
+  ]);
 
   return (
     <ScreenScaffold
       bottomChrome="none"
       contentClassName="gap-6"
       header={<AppTopBar back subtitle="Signal Program" title={program?.title ?? "Program"} />}
+      footer={
+        program && !invalidRoute && !isUnavailableError ? (
+          <View className="gap-3 rounded-[28px] border border-borderStrong bg-surface-raised px-4 py-4">
+            <AppButton
+              className="w-full"
+              disabled={ctaDisabled}
+              isLoading={startSignalProgramMutation.isPending}
+              onPress={handlePrimaryCtaPress}
+              size="lg"
+              variant={ctaVariant}
+            >
+              {resolvedCtaLabel}
+            </AppButton>
+            <Typography align="center" tone="secondary" variant="bodyMd">
+              {!user?.id
+                ? "Sign in to start this program."
+                : isActivePointerInvalid
+                  ? "Your active program pointer is invalid. Do not guess a start point."
+                  : isSameActiveProgram
+                    ? "You're currently enrolled in this program."
+                    : isDifferentActiveProgram
+                      ? "This will replace your current program."
+                      : "Ready to start this program."}
+            </Typography>
+            {startSignalProgramMutation.error ? (
+              <Typography align="center" tone="danger" variant="labelSm">
+                {getErrorMessage(startSignalProgramMutation.error)}
+              </Typography>
+            ) : null}
+          </View>
+        ) : null
+      }
       refreshControl={
         <RefreshControl
           onRefresh={async () => {
@@ -335,23 +451,17 @@ function SignalProgramDetailScreenComponent() {
             <Typography tone="secondary" variant="labelSm">
               PROGRAM LIFECYCLE
             </Typography>
-            <Typography variant="headlineLg">{resolvedCtaLabel}</Typography>
-            <Typography tone="secondary" variant="bodyMd">
+            <Typography variant="bodyLg">
               {!user?.id
                 ? "Sign in to start this program."
                 : isActivePointerInvalid
                   ? "Your active program pointer is invalid. Do not guess a start point."
                   : isSameActiveProgram
-                    ? "Continue from your saved Signal week and day."
+                    ? "You're currently enrolled in this program."
                     : isDifferentActiveProgram
-                      ? "Starting this program will replace your current active program."
-                      : "Start this Signal program at the first valid workout."}
+                      ? "Starting this will replace your current program."
+                      : "Ready to start this program."}
             </Typography>
-            <View className="pt-2">
-              <AppButton disabled={ctaDisabled} isLoading={startSignalProgramMutation.isPending} onPress={handlePrimaryCtaPress} variant={ctaVariant}>
-                {resolvedCtaLabel}
-              </AppButton>
-            </View>
           </EditorialCard>
         ) : null}
 

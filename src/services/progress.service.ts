@@ -23,6 +23,7 @@ export type SignalCompletedWorkoutSessionRow = {
   source: "legacy" | "signal" | null;
   source_day_key: string | null;
   source_program_id: string | null;
+  source_program_version: string | null;
   source_week_key: string | null;
 };
 
@@ -688,19 +689,45 @@ export async function fetchSignalProgramProgress(userId: string): Promise<Signal
     const lifecycle = (lifecycleRes.data as SignalProgramLifecycleProgressRow | null) ?? null;
     if (!lifecycle) return null;
 
-    const sessionsRes = await supabase
+    if (__DEV__) {
+      console.log("[SignalProgress] lifecycle version", lifecycle.source_program_version);
+    }
+
+    let sessionsQuery = supabase
       .from("workout_sessions")
-      .select("id,completed_at,source,source_program_id,source_week_key,source_day_key")
+      .select("id,completed_at,source,source_program_id,source_program_version,source_week_key,source_day_key")
       .eq("user_id", userId)
       .eq("source", "signal")
       .eq("source_program_id", lifecycle.source_program_id)
       .not("completed_at", "is", null)
       .order("completed_at", { ascending: false });
 
+    sessionsQuery = lifecycle.source_program_version
+      ? sessionsQuery.eq("source_program_version", lifecycle.source_program_version)
+      : sessionsQuery.is("source_program_version", null);
+
+    const sessionsRes = await sessionsQuery;
+
     if (sessionsRes.error) throw sessionsRes.error;
 
+    const completedSessions = (sessionsRes.data ?? []) as SignalCompletedWorkoutSessionRow[];
+
+    if (__DEV__) {
+      console.log(
+        "[SignalProgress] completed sessions version-filtered",
+        completedSessions.map((session) => ({
+          id: session.id,
+          source_day_key: session.source_day_key,
+          source_program_id: session.source_program_id,
+          source_program_version: session.source_program_version,
+          source_week_key: session.source_week_key,
+          status: session.completed_at ? "completed" : "open",
+        })),
+      );
+    }
+
     return {
-      completedSessions: (sessionsRes.data ?? []) as SignalCompletedWorkoutSessionRow[],
+      completedSessions,
       lifecycle,
     };
   } catch (error) {

@@ -14,3 +14,4 @@ export * from "./SettingsScreen";
 export * from "./WorkoutHistoryScreen";
 export * from "./WorkoutSessionDetailScreen";
 export * from "./WorkoutPlayerScreen";
+export * from "./WorkoutTabScreen";

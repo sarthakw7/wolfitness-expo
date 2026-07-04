@@ -39,6 +39,20 @@ export type AdvanceActiveProgramInput = {
   userId: string;
 };
 
+export type ResetSignalEnrollmentInput = {
+  activeProgramId: string;
+  signalProgramId: string;
+  signalProgramVersion?: string | null;
+  userId: string;
+};
+
+export type UpdateSignalProgramVersionInput = {
+  activeProgramId: string;
+  nextSignalProgramVersion: string;
+  signalProgramId: string;
+  userId: string;
+};
+
 export async function getActiveProgram(userId: string): Promise<ActiveProgramRow | null> {
   const { data, error, status } = await supabase
     .from("active_programs")
@@ -112,6 +126,52 @@ export async function advanceActiveProgramAfterWorkout(input: AdvanceActiveProgr
     .update(updatePayload)
     .eq("id", input.activeProgramId)
     .eq("user_id", input.userId)
+    .select(
+      "id,user_id,source,source_program_id,source_program_version,current_week_key,current_day_key,status,started_at,last_completed_session_id,completed_at,replaced_at,updated_at,legacy_program_id,legacy_week_id,legacy_day_id",
+    )
+    .single();
+
+  if (error) throw error;
+  return data as ActiveProgramRow;
+}
+
+export async function resetSignalEnrollment(input: ResetSignalEnrollmentInput): Promise<void> {
+  const now = new Date().toISOString();
+
+  const { error } = await supabase
+    .from("active_programs")
+    .update({
+      completed_at: null,
+      current_day_key: null,
+      current_week_key: null,
+      replaced_at: now,
+      status: "replaced",
+      updated_at: now,
+    })
+    .eq("id", input.activeProgramId)
+    .eq("user_id", input.userId)
+    .eq("source", "signal")
+    .eq("source_program_id", input.signalProgramId)
+    .eq("status", "active");
+
+  if (error) throw error;
+}
+
+export async function updateSignalProgramVersion(input: UpdateSignalProgramVersionInput): Promise<ActiveProgramRow> {
+  const now = new Date().toISOString();
+
+  const { data, error } = await supabase
+    .from("active_programs")
+    .update({
+      completed_at: null,
+      source_program_version: input.nextSignalProgramVersion,
+      status: "active",
+      updated_at: now,
+    })
+    .eq("id", input.activeProgramId)
+    .eq("user_id", input.userId)
+    .eq("source", "signal")
+    .eq("source_program_id", input.signalProgramId)
     .select(
       "id,user_id,source,source_program_id,source_program_version,current_week_key,current_day_key,status,started_at,last_completed_session_id,completed_at,replaced_at,updated_at,legacy_program_id,legacy_week_id,legacy_day_id",
     )

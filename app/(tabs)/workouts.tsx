@@ -1,5 +1,5 @@
-import { WorkoutPlayerScreen } from "@/src/screens";
+import { WorkoutTabScreen } from "@/src/screens";
 
 export default function WorkoutsRoute() {
-  return <WorkoutPlayerScreen />;
+  return <WorkoutTabScreen />;
 }

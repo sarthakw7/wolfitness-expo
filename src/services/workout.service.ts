@@ -1,4 +1,5 @@
 import { supabase } from "@/src/lib/supabase";
+import type { WorkoutExerciseMedia } from "@/src/lib/youtube-media";
 
 import type { Enrollment } from "./enrollment.service";
 import type { Program } from "./programs.service";
@@ -31,8 +32,13 @@ export type ProgramExerciseRow = {
 
 export type ExerciseLibraryRow = {
   id: string;
+  media_items?: WorkoutExerciseMedia[] | null;
   name: string;
   primary_muscle: string | null;
+  thumbnail_url?: string | null;
+  video_id?: string | null;
+  video_provider?: string | null;
+  video_title?: string | null;
   video_url: string | null;
 };
 
@@ -46,11 +52,15 @@ export type WorkoutPlanForToday = {
   enrollment: Enrollment;
   exercises: WorkoutExercise[];
   program: Program;
+  source_day_key?: string | null;
+  source_week_key?: string | null;
   week: ProgramWeek;
 };
 
 export type WorkoutSession = {
   completed_at: string | null;
+  cancelled_at: string | null;
+  cancel_reason: string | null;
   day_id: string | null;
   active_program_id: string | null;
   id: string;
@@ -85,6 +95,18 @@ export type WorkoutSessionLookupInput =
     };
 
 export type WorkoutSessionCreateInput = WorkoutSessionLookupInput;
+
+export type SignalWorkoutSessionScope = {
+  activeProgramId: string;
+  sourceDayKey: string;
+  sourceProgramId: string;
+  sourceProgramVersion: string | null;
+  sourceWeekKey: string;
+};
+
+export type SignalWorkoutSessionQueryInput = SignalWorkoutSessionScope & {
+  userId: string;
+};
 
 export type WorkoutLogSet = {
   exercise_library_id: string;
@@ -149,7 +171,18 @@ function isSignalWorkoutSessionInput(
 }
 
 function workoutSessionSelect() {
-  return "id,user_id,program_id,day_id,source,source_program_id,source_program_version,source_week_key,source_day_key,active_program_id,started_at,completed_at,notes";
+  return "id,user_id,program_id,day_id,source,source_program_id,source_program_version,source_week_key,source_day_key,active_program_id,started_at,completed_at,cancelled_at,cancel_reason,notes";
+}
+
+function applySignalProgramVersionFilter<
+  T extends {
+    eq: (column: string, value: string) => T;
+    is: (column: string, value: null) => T;
+  },
+>(query: T, sourceProgramVersion: string | null | undefined) {
+  return sourceProgramVersion
+    ? query.eq("source_program_version", sourceProgramVersion)
+    : query.is("source_program_version", null);
 }
 
 export async function fetchWorkoutForToday(userId: string): Promise<WorkoutPlanForToday | null> {
@@ -246,12 +279,67 @@ export async function findActiveWorkoutSession(input: WorkoutSessionLookupInput)
   return findActiveWorkoutSessionInternal(input);
 }
 
+export async function findActiveSignalWorkoutSession(input: SignalWorkoutSessionQueryInput): Promise<WorkoutSession | null> {
+  return findActiveWorkoutSessionInternal({
+    activeProgramId: input.activeProgramId,
+    dayId: null,
+    programId: null,
+    source: "signal",
+    sourceDayKey: input.sourceDayKey,
+    sourceProgramId: input.sourceProgramId,
+    sourceProgramVersion: input.sourceProgramVersion,
+    sourceWeekKey: input.sourceWeekKey,
+    userId: input.userId,
+  });
+}
+
+export async function getOrCreateSignalWorkoutSession(input: SignalWorkoutSessionQueryInput): Promise<WorkoutSession> {
+  return getOrCreateWorkoutSessionInternal({
+    activeProgramId: input.activeProgramId,
+    dayId: null,
+    programId: null,
+    source: "signal",
+    sourceDayKey: input.sourceDayKey,
+    sourceProgramId: input.sourceProgramId,
+    sourceProgramVersion: input.sourceProgramVersion,
+    sourceWeekKey: input.sourceWeekKey,
+    userId: input.userId,
+  });
+}
+
+async function findLegacyOpenSignalWorkoutSession(input: SignalWorkoutSessionQueryInput): Promise<WorkoutSession | null> {
+  const legacyRes = (await applySignalProgramVersionFilter(
+    supabase
+      .from("workout_sessions")
+      .select(workoutSessionSelect())
+      .eq("user_id", input.userId)
+      .eq("source", "signal")
+      .eq("source_program_id", input.sourceProgramId)
+      .eq("source_week_key", input.sourceWeekKey)
+      .eq("source_day_key", input.sourceDayKey)
+      .is("completed_at", null)
+      .is("cancelled_at", null)
+      .order("started_at", { ascending: false })
+      .limit(1),
+    input.sourceProgramVersion ?? null,
+  ).maybeSingle()) as { data: WorkoutSession | null; error: { message: string } | null; status: number };
+
+  if (legacyRes.error && legacyRes.status !== 406) throw legacyRes.error;
+  if (__DEV__) {
+    console.log("[SignalSessionScope] legacy conflict lookup", {
+      sessions: legacyRes.data ? [legacyRes.data] : [],
+    });
+  }
+  return (legacyRes.data as WorkoutSession | null) ?? null;
+}
+
 export async function findAnyActiveWorkoutSession(userId: string): Promise<WorkoutSession | null> {
   const { data, error, status } = await supabase
     .from("workout_sessions")
     .select(workoutSessionSelect())
     .eq("user_id", userId)
     .is("completed_at", null)
+    .is("cancelled_at", null)
     .order("started_at", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -268,6 +356,7 @@ export async function findAnyOpenWorkoutSessionForStartup(
     .select("id,user_id,started_at,completed_at")
     .eq("user_id", userId)
     .is("completed_at", null)
+    .is("cancelled_at", null)
     .order("started_at", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -339,23 +428,308 @@ export async function finishWorkoutSession(sessionId: string): Promise<void> {
   }
 }
 
-async function getOrCreateWorkoutSessionInternal(input: WorkoutSessionCreateInput): Promise<WorkoutSession> {
-  if (isSignalWorkoutSessionInput(input)) {
-    const openRes = await supabase
+export async function discardWorkoutSession(
+  sessionId: string,
+): Promise<{ status: "discarded" | "not_found" | "already_completed" | "already_cancelled" }> {
+  const { data: session, error: fetchError } = await supabase
+    .from("workout_sessions")
+    .select(
+      "id, completed_at, cancelled_at, cancel_reason, source_program_id, source_program_version, source_day_key, source_week_key, user_id",
+    )
+    .eq("id", sessionId)
+    .maybeSingle();
+
+  if (fetchError) throw fetchError;
+
+  console.log("[DiscardSoftCancel] before", {
+    id: session?.id,
+    completed_at: session?.completed_at,
+    cancelled_at: session?.cancelled_at,
+    cancel_reason: session?.cancel_reason,
+    source_program_id: session?.source_program_id,
+    source_program_version: session?.source_program_version,
+    source_day_key: session?.source_day_key,
+    source_week_key: session?.source_week_key,
+    user_id: session?.user_id,
+  });
+
+  if (!session) {
+    return { status: "not_found" };
+  }
+
+  if (session.completed_at !== null) {
+    return { status: "already_completed" };
+  }
+
+  if (session.cancelled_at !== null) {
+    return { status: "already_cancelled" };
+  }
+
+  const { data: deletedLogSetRows, error: logsError } = await supabase
+    .from("workout_log_sets")
+    .delete()
+    .eq("session_id", sessionId)
+    .select("id");
+
+  console.log("[DiscardSoftCancel] delete log sets result", {
+    count: Array.isArray(deletedLogSetRows) ? deletedLogSetRows.length : null,
+    data: deletedLogSetRows ?? null,
+    error: logsError
+      ? {
+          code: logsError.code ?? null,
+          details: logsError.details ?? null,
+          hint: logsError.hint ?? null,
+          message: logsError.message ?? null,
+          name: logsError.name ?? null,
+        }
+      : null,
+    sessionId,
+  });
+
+  if (logsError) {
+    console.warn("[DiscardSoftCancel] delete log sets failed but continuing", {
+      error: {
+        code: logsError.code ?? null,
+        details: logsError.details ?? null,
+        hint: logsError.hint ?? null,
+        message: logsError.message ?? null,
+        name: logsError.name ?? null,
+      },
+      sessionId,
+    });
+  }
+
+  const { data: updatedRows, error: updateError } = await supabase
+    .from("workout_sessions")
+    .update({
+      cancel_reason: "user_discarded",
+      cancelled_at: new Date().toISOString(),
+    })
+    .eq("id", sessionId)
+    .is("completed_at", null)
+    .is("cancelled_at", null)
+    .select("id,cancelled_at,cancel_reason");
+
+  console.log("[DiscardSoftCancel] update result", {
+    count: Array.isArray(updatedRows) ? updatedRows.length : null,
+    data: updatedRows ?? null,
+    error: updateError
+      ? {
+          code: updateError.code ?? null,
+          details: updateError.details ?? null,
+          hint: updateError.hint ?? null,
+          message: updateError.message ?? null,
+          name: updateError.name ?? null,
+        }
+      : null,
+    sessionId,
+  });
+  if (updateError) throw updateError;
+
+  const { data: remaining, error: verifyError } = await supabase
+    .from("workout_sessions")
+    .select("id, completed_at, cancelled_at, cancel_reason")
+    .eq("id", sessionId)
+    .maybeSingle();
+
+  console.log("[DiscardSoftCancel] after", {
+    remaining,
+    sessionId,
+  });
+
+  if (verifyError) throw verifyError;
+  if (!remaining || remaining.cancelled_at === null) {
+    const discardVerifyError = new Error("discard_soft_cancel_failed");
+    console.warn("[DiscardSoftCancel] failed", {
+      remaining,
+      sessionId,
+    });
+    throw discardVerifyError;
+  }
+
+  return { status: "discarded" };
+}
+
+export async function cancelOpenSignalWorkoutSessions(input: {
+  activeProgramId?: string | null;
+  sourceProgramId: string;
+  sourceProgramVersion?: string | null;
+  userId: string;
+}): Promise<number> {
+  let query = applySignalProgramVersionFilter(
+    supabase
       .from("workout_sessions")
-      .select(workoutSessionSelect())
+      .delete()
       .eq("user_id", input.userId)
       .eq("source", "signal")
       .eq("source_program_id", input.sourceProgramId)
-      .eq("source_week_key", input.sourceWeekKey)
-      .eq("source_day_key", input.sourceDayKey)
       .is("completed_at", null)
-      .order("started_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+      .is("cancelled_at", null),
+    input.sourceProgramVersion ?? null,
+  );
+
+  if (input.activeProgramId) {
+    query = query.eq("active_program_id", input.activeProgramId);
+  }
+
+  const { data, error } = await query.select("id");
+  if (error) throw error;
+  return Array.isArray(data) ? data.length : 0;
+}
+
+export async function clearUnfinishedSignalWorkoutSessionsForActiveProgram(input: {
+  activeProgramId: string;
+  userId: string;
+}): Promise<{ logSetsDeleted: number; sessionsDeleted: number }> {
+  const { data: sessions, error: fetchError } = await supabase
+    .from("workout_sessions")
+    .select("id")
+    .eq("user_id", input.userId)
+    .eq("active_program_id", input.activeProgramId)
+    .eq("source", "signal")
+    .is("completed_at", null)
+    .is("cancelled_at", null);
+
+  if (fetchError) throw fetchError;
+
+  const sessionIds = ((sessions as { id: string }[] | null) ?? []).map((row) => row.id);
+  if (sessionIds.length === 0) {
+    console.log("[SignalSessionScope] reset enrollment cleanup", {
+      activeProgramId: input.activeProgramId,
+      logSetsDeleted: 0,
+      sessionsDeleted: 0,
+    });
+    return { logSetsDeleted: 0, sessionsDeleted: 0 };
+  }
+
+  const { data: logSetRows, error: logSetsError } = await supabase
+    .from("workout_log_sets")
+    .delete()
+    .in("session_id", sessionIds)
+    .select("id");
+
+  if (logSetsError) throw logSetsError;
+
+  const { data: sessionRows, error: sessionDeleteError } = await supabase
+    .from("workout_sessions")
+    .delete()
+    .in("id", sessionIds)
+    .eq("user_id", input.userId)
+    .eq("active_program_id", input.activeProgramId)
+    .eq("source", "signal")
+    .is("completed_at", null)
+    .is("cancelled_at", null)
+    .select("id");
+
+  if (sessionDeleteError) throw sessionDeleteError;
+
+  const logSetsDeleted = Array.isArray(logSetRows) ? logSetRows.length : 0;
+  const sessionsDeleted = Array.isArray(sessionRows) ? sessionRows.length : sessionIds.length;
+
+  console.log("[SignalSessionScope] reset enrollment cleanup", {
+    activeProgramId: input.activeProgramId,
+    logSetsDeleted,
+    sessionsDeleted,
+  });
+
+  return { logSetsDeleted, sessionsDeleted };
+}
+
+async function getOrCreateWorkoutSessionInternal(input: WorkoutSessionCreateInput): Promise<WorkoutSession> {
+  if (isSignalWorkoutSessionInput(input)) {
+    if (__DEV__) {
+      console.log("[SignalSessionScope] lookup", {
+        activeProgramId: input.activeProgramId ?? null,
+        source_day_key: input.sourceDayKey,
+        source_program_id: input.sourceProgramId,
+        source_program_version: input.sourceProgramVersion ?? null,
+        source_week_key: input.sourceWeekKey,
+        userId: input.userId,
+      });
+      console.log("[SignalSessionScope] active lookup filters", {
+        active_program_id: input.activeProgramId ?? null,
+        cancelled_at: null,
+        completed_at: null,
+        source: "signal",
+        source_day_key: input.sourceDayKey,
+        source_program_id: input.sourceProgramId,
+        source_program_version: input.sourceProgramVersion ?? null,
+        source_week_key: input.sourceWeekKey,
+        user_id: input.userId,
+      });
+    }
+
+    const openRes = (await applySignalProgramVersionFilter(
+      supabase
+        .from("workout_sessions")
+        .select(workoutSessionSelect())
+        .eq("user_id", input.userId)
+        .eq("active_program_id", input.activeProgramId ?? "")
+        .eq("source", "signal")
+        .eq("source_program_id", input.sourceProgramId)
+        .eq("source_week_key", input.sourceWeekKey)
+        .eq("source_day_key", input.sourceDayKey)
+        .is("completed_at", null)
+        .is("cancelled_at", null)
+        .order("started_at", { ascending: false })
+        .limit(1),
+      input.sourceProgramVersion ?? null,
+    ).maybeSingle()) as { data: WorkoutSession | null; error: { message: string } | null; status: number };
 
     if (openRes.error && openRes.status !== 406) throw openRes.error;
     if (openRes.data) return openRes.data as unknown as WorkoutSession;
+
+    const legacyOpenSession = await findLegacyOpenSignalWorkoutSession({
+      activeProgramId: input.activeProgramId ?? "",
+      sourceDayKey: input.sourceDayKey,
+      sourceProgramId: input.sourceProgramId,
+      sourceProgramVersion: input.sourceProgramVersion ?? null,
+      sourceWeekKey: input.sourceWeekKey,
+      userId: input.userId,
+    });
+
+    if (legacyOpenSession) {
+      if (legacyOpenSession.active_program_id === null) {
+        const adoptionRes = await supabase
+          .from("workout_sessions")
+          .update({ active_program_id: input.activeProgramId ?? null })
+          .eq("id", legacyOpenSession.id)
+          .select(workoutSessionSelect())
+          .single();
+
+        if (adoptionRes.error) {
+          console.log("[SignalSessionScope] insert error", {
+            code: adoptionRes.error?.code ?? null,
+            details: adoptionRes.error?.details ?? null,
+            hint: adoptionRes.error?.hint ?? null,
+            message: adoptionRes.error?.message ?? null,
+            payload: {
+              action: "adopt-legacy-open-session",
+              active_program_id: input.activeProgramId ?? null,
+              sessionId: legacyOpenSession.id,
+            },
+          });
+          throw new Error(
+            `Failed to adopt legacy Signal workout session: ${adoptionRes.error?.message ?? "Unknown Supabase error"}`,
+          );
+        }
+
+        return adoptionRes.data as unknown as WorkoutSession;
+      }
+
+      console.warn("[SignalSessionScope] legacy open session belongs to another active program", {
+        activeProgramId: input.activeProgramId ?? null,
+        conflictSession: {
+          active_program_id: legacyOpenSession.active_program_id,
+          completed_at: legacyOpenSession.completed_at,
+          id: legacyOpenSession.id,
+          source_day_key: legacyOpenSession.source_day_key,
+          source_program_id: legacyOpenSession.source_program_id,
+          source_program_version: legacyOpenSession.source_program_version,
+          source_week_key: legacyOpenSession.source_week_key,
+        },
+      });
+    }
 
     const insertRes = await supabase
       .from("workout_sessions")
@@ -373,7 +747,38 @@ async function getOrCreateWorkoutSessionInternal(input: WorkoutSessionCreateInpu
       .select(workoutSessionSelect())
       .single();
 
-    if (insertRes.error) throw insertRes.error;
+    if (insertRes.error) {
+      const conflictSession = await findLegacyOpenSignalWorkoutSession({
+        activeProgramId: input.activeProgramId ?? "",
+        sourceDayKey: input.sourceDayKey,
+        sourceProgramId: input.sourceProgramId,
+        sourceProgramVersion: input.sourceProgramVersion ?? null,
+        sourceWeekKey: input.sourceWeekKey,
+        userId: input.userId,
+      });
+      const payload = {
+        active_program_id: input.activeProgramId ?? null,
+        day_id: null,
+        program_id: null,
+        source: "signal" as const,
+        source_day_key: input.sourceDayKey,
+        source_program_id: input.sourceProgramId,
+        source_program_version: input.sourceProgramVersion ?? null,
+        source_week_key: input.sourceWeekKey,
+        user_id: input.userId,
+      };
+      console.log("[SignalSessionScope] insert error", {
+        code: insertRes.error?.code ?? null,
+        details: insertRes.error?.details ?? null,
+        hint: insertRes.error?.hint ?? null,
+        message: insertRes.error?.message ?? null,
+        conflictSession,
+        payload,
+      });
+      throw new Error(
+        `Failed to create Signal workout session: ${insertRes.error?.message ?? "Unknown Supabase error"}`,
+      );
+    }
     return insertRes.data as unknown as WorkoutSession;
   }
 
@@ -384,6 +789,7 @@ async function getOrCreateWorkoutSessionInternal(input: WorkoutSessionCreateInpu
     .eq("program_id", input.programId ?? "")
     .eq("day_id", input.dayId ?? "")
     .is("completed_at", null)
+    .is("cancelled_at", null)
     .order("started_at", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -401,6 +807,7 @@ async function getOrCreateWorkoutSessionInternal(input: WorkoutSessionCreateInpu
     .eq("user_id", input.userId)
     .eq("program_id", input.programId ?? "")
     .is("completed_at", null)
+    .is("cancelled_at", null)
     .gte("started_at", dayStart)
     .lte("started_at", dayEnd)
     .order("started_at", { ascending: false })
@@ -426,20 +833,55 @@ async function getOrCreateWorkoutSessionInternal(input: WorkoutSessionCreateInpu
 
 async function findActiveWorkoutSessionInternal(input: WorkoutSessionLookupInput): Promise<WorkoutSession | null> {
   if (isSignalWorkoutSessionInput(input)) {
-    const openRes = await supabase
-      .from("workout_sessions")
-      .select(workoutSessionSelect())
-      .eq("user_id", input.userId)
-      .eq("source", "signal")
-      .eq("source_program_id", input.sourceProgramId)
-      .eq("source_week_key", input.sourceWeekKey)
-      .eq("source_day_key", input.sourceDayKey)
-      .is("completed_at", null)
-      .order("started_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    if (__DEV__) {
+      console.log("[SignalSessionScope] lookup", {
+        activeProgramId: input.activeProgramId ?? null,
+        source_day_key: input.sourceDayKey,
+        source_program_id: input.sourceProgramId,
+        source_program_version: input.sourceProgramVersion ?? null,
+        source_week_key: input.sourceWeekKey,
+        userId: input.userId,
+      });
+      console.log("[SignalSessionScope] active lookup filters", {
+        active_program_id: input.activeProgramId ?? null,
+        cancelled_at: null,
+        completed_at: null,
+        source: "signal",
+        source_day_key: input.sourceDayKey,
+        source_program_id: input.sourceProgramId,
+        source_program_version: input.sourceProgramVersion ?? null,
+        source_week_key: input.sourceWeekKey,
+        user_id: input.userId,
+      });
+    }
+
+    const openRes = (await applySignalProgramVersionFilter(
+      supabase
+        .from("workout_sessions")
+        .select(workoutSessionSelect())
+        .eq("user_id", input.userId)
+        .eq("active_program_id", input.activeProgramId ?? "")
+        .eq("source", "signal")
+        .eq("source_program_id", input.sourceProgramId)
+        .eq("source_week_key", input.sourceWeekKey)
+        .eq("source_day_key", input.sourceDayKey)
+        .is("completed_at", null)
+        .is("cancelled_at", null)
+        .order("started_at", { ascending: false })
+        .limit(1),
+      input.sourceProgramVersion ?? null,
+    ).maybeSingle()) as { data: WorkoutSession | null; error: { message: string } | null; status: number };
 
     if (openRes.error && openRes.status !== 406) throw openRes.error;
+    if (__DEV__) {
+      console.log("[SignalSessionScope] result", {
+        active_program_id: openRes.data?.active_program_id ?? null,
+        completed_at: openRes.data?.completed_at ?? null,
+        sessionId: openRes.data?.id ?? null,
+        source_program_id: openRes.data?.source_program_id ?? null,
+        source_program_version: openRes.data?.source_program_version ?? null,
+      });
+    }
     return (openRes.data as unknown as WorkoutSession | null) ?? null;
   }
 
@@ -450,6 +892,7 @@ async function findActiveWorkoutSessionInternal(input: WorkoutSessionLookupInput
     .eq("program_id", input.programId ?? "")
     .eq("day_id", input.dayId ?? "")
     .is("completed_at", null)
+    .is("cancelled_at", null)
     .order("started_at", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -466,6 +909,7 @@ async function findActiveWorkoutSessionInternal(input: WorkoutSessionLookupInput
     .eq("user_id", input.userId)
     .eq("program_id", input.programId ?? "")
     .is("completed_at", null)
+    .is("cancelled_at", null)
     .gte("started_at", dayStart)
     .lte("started_at", dayEnd)
     .order("started_at", { ascending: false })

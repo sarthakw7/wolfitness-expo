@@ -18,6 +18,7 @@ import {
 import { ProgramCard } from "@/src/components/marketplace";
 import type { ProgramCardModel } from "@/src/components/marketplace/types";
 import { useAuth } from "@/src/hooks/useAuth";
+import { useActiveProgram } from "@/src/hooks/queries/useActiveProgram";
 import {
   useDashboard,
   useEnrollments,
@@ -109,10 +110,35 @@ function AthleteDashboardScreenComponent() {
   const programsQuery = usePrograms({ publishedOnly: true });
   const workoutQuery = useWorkout();
   const workoutSessionStatusQuery = useWorkoutSessionStatus(workoutQuery.data ?? null);
-  const signalProgramProgressQuery = useSignalProgramProgress(userId ?? undefined);
-  const activeWorkoutSessionQuery = useWorkoutActiveSession();
+  const activeProgramQuery = useActiveProgram(userId ?? undefined);
+  const signalProgramProgressQuery = useSignalProgramProgress(
+    userId ?? undefined,
+    activeProgramQuery.data?.source_program_version ?? null,
+  );
   const signalLifecycleRow = signalProgramProgressQuery.data?.lifecycle ?? null;
-  const signalProgramQuery = useWorkoutProgram(signalLifecycleRow?.source_program_id);
+  const signalProgramVersionId = signalLifecycleRow?.source_program_version ?? null;
+  const signalSessionScope = useMemo(() => {
+    const activeSignalProgram = activeProgramQuery.data ?? null;
+    if (
+      !activeSignalProgram ||
+      activeSignalProgram.source !== "signal" ||
+      activeSignalProgram.status !== "active" ||
+      !activeSignalProgram.current_week_key ||
+      !activeSignalProgram.current_day_key
+    ) {
+      return null;
+    }
+
+    return {
+      activeProgramId: activeSignalProgram.id,
+      sourceDayKey: activeSignalProgram.current_day_key,
+      sourceProgramId: activeSignalProgram.source_program_id,
+      sourceProgramVersion: activeSignalProgram.source_program_version ?? null,
+      sourceWeekKey: activeSignalProgram.current_week_key,
+    };
+  }, [activeProgramQuery.data]);
+  const activeWorkoutSessionQuery = useWorkoutActiveSession(signalSessionScope);
+  const signalProgramQuery = useWorkoutProgram(signalLifecycleRow?.source_program_id, signalProgramVersionId);
   const activeWorkoutSession = activeWorkoutSessionQuery.data ?? null;
   const hasOpenSignalWorkoutSession = useMemo(() => {
     const session = activeWorkoutSession;
@@ -121,6 +147,7 @@ function AthleteDashboardScreenComponent() {
     return Boolean(
       session.source === "signal" &&
         session.completed_at === null &&
+        session.cancelled_at === null &&
         session.source_program_id === signalLifecycleRow.source_program_id &&
         session.source_week_key === signalLifecycleRow.current_week_key &&
         session.source_day_key === signalLifecycleRow.current_day_key,
@@ -204,13 +231,10 @@ function AthleteDashboardScreenComponent() {
   const nutrition = dashboardQuery.data;
   const workoutPlan = workoutQuery.data;
   const sessionMinutes = estimateSessionMinutes(workoutPlan?.exercises.length ?? 0);
-  const todaySessionTitle = workoutPlan?.program.title ?? legacyActiveProgram?.title ?? "No Active Program";
-  const todayFocus = workoutPlan?.day.title ?? "Start with today’s assigned session";
-  const todayLoad = legacyActiveProgram?.difficulty ? titleCase(legacyActiveProgram.difficulty) : "Moderate";
   const headlineTitle = prettyGoal(profileQuery.data?.fitnessProfile?.primary_goal);
   const hasNutritionData = Boolean(nutrition?.todayNutritionSummary || nutrition?.macroTargets);
   const signalProgressState = useMemo(() => {
-    if (signalProgramProgressQuery.isLoading || signalProgramQuery.isLoading) {
+    if (activeProgramQuery.isLoading || signalProgramProgressQuery.isLoading || signalProgramQuery.isLoading) {
       return { kind: "loading" as const };
     }
 
@@ -229,6 +253,7 @@ function AthleteDashboardScreenComponent() {
       signalLifecycleRow,
     );
   }, [
+    activeProgramQuery.isLoading,
     signalLifecycleRow,
     signalProgramProgressQuery.data,
     signalProgramProgressQuery.error,
@@ -238,6 +263,20 @@ function AthleteDashboardScreenComponent() {
     signalProgramQuery.isLoading,
   ]);
   const signalReadyState = signalProgressState.kind === "ready" ? signalProgressState : null;
+  const todaySessionTitle =
+    signalReadyState?.programTitle ??
+    workoutPlan?.program.title ??
+    legacyActiveProgram?.title ??
+    "No Active Program";
+  const todayFocus =
+    signalReadyState && signalLifecycleRow
+      ? `${signalReadyState.currentWeekLabel} · ${signalReadyState.currentDayLabel}`
+      : workoutPlan?.day.title ?? "Start with today’s assigned session";
+  const todayLoad = signalReadyState
+    ? "Active Signal Program"
+    : legacyActiveProgram?.difficulty
+      ? titleCase(legacyActiveProgram.difficulty)
+      : "Moderate";
   const signalCardState = useMemo(() => {
     if (signalProgressState.kind === "hidden") return { kind: "hidden" as const };
     if (signalProgressState.kind === "loading") return { kind: "loading" as const };
@@ -376,6 +415,13 @@ function AthleteDashboardScreenComponent() {
     workoutSessionStatusQuery.isLoading;
 
   const workoutCta = useMemo(() => {
+    if (signalReadyState && signalLifecycleRow?.status === "active") {
+      return {
+        href: "/(tabs)/workouts" as const,
+        icon: "play-circle-outline" as const,
+        label: "Go to Workout",
+      };
+    }
     if (!legacyActiveProgram) {
       return {
         href: "/(marketplace)" as const,
@@ -395,22 +441,15 @@ function AthleteDashboardScreenComponent() {
       icon: "barbell-outline" as const,
       label: "Start Today's Workout",
     };
-  }, [legacyActiveProgram, workoutSessionStatusQuery.data]);
+  }, [legacyActiveProgram, signalLifecycleRow?.status, signalReadyState, workoutSessionStatusQuery.data]);
 
   const handleContinueSignalProgram = useMemo(() => {
     if (!signalReadyState || signalReadyState.isProgramCompleted) return null;
 
     return () => {
-      router.push({
-        pathname: "/(signal)/program/[programId]/week/[weekId]/day/[dayId]",
-        params: {
-          dayId: signalLifecycleRow?.current_day_key ?? "",
-          programId: signalLifecycleRow?.source_program_id ?? "",
-          weekId: signalLifecycleRow?.current_week_key ?? "",
-        },
-      });
+      router.push("/(tabs)/workouts");
     };
-  }, [signalLifecycleRow?.current_day_key, signalLifecycleRow?.current_week_key, signalLifecycleRow?.source_program_id, signalReadyState]);
+  }, [signalReadyState]);
 
   const weeklyDots = useMemo(() => {
     const now = new Date();
@@ -568,13 +607,13 @@ function AthleteDashboardScreenComponent() {
         {signalCardState.kind === "ready" ? (
           <EditorialCard className="gap-4">
             <View className="gap-2">
-              <Typography tone="secondary" variant="labelSm">
-                ACTIVE SIGNAL PROGRAM
-              </Typography>
-              <Typography variant="headlineXl">{signalCardState.programTitle}</Typography>
-              <Typography tone="secondary" variant="bodyMd">
-                {signalCardState.isProgramCompleted
-                  ? "Program completed."
+            <Typography tone="secondary" variant="labelSm">
+              CURRENT PROGRAM
+            </Typography>
+            <Typography variant="headlineXl">{signalCardState.programTitle}</Typography>
+            <Typography tone="secondary" variant="bodyMd">
+              {signalCardState.isProgramCompleted
+                ? "Program completed."
                   : "Continue from your saved week and day."}
               </Typography>
             </View>
@@ -615,7 +654,7 @@ function AthleteDashboardScreenComponent() {
 
             <View className="gap-3 pt-2">
               {!signalCardState.isProgramCompleted && handleContinueSignalProgram ? (
-                <AppButton onPress={handleContinueSignalProgram}>Continue Program</AppButton>
+                <AppButton onPress={handleContinueSignalProgram}>Go to Workout</AppButton>
               ) : null}
 
               {signalCardState.isProgramCompleted ? (

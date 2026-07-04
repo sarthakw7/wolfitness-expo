@@ -7,6 +7,7 @@ import type { WorkoutLogSet } from "@/src/services/workout.service";
 type CompleteSetInput = {
   exerciseLibraryId: string;
   repsCompleted?: number | null;
+  rpeActual?: number | null;
   sessionId: string;
   setNumber: number;
   weightKg?: number | null;
@@ -20,6 +21,7 @@ export function useCompleteSet() {
       return workoutService.completeSet({
         exerciseLibraryId: input.exerciseLibraryId,
         repsCompleted: input.repsCompleted ?? null,
+        rpeActual: input.rpeActual ?? null,
         sessionId: input.sessionId,
         setNumber: input.setNumber,
         weightKg: input.weightKg ?? null,
@@ -36,7 +38,7 @@ export function useCompleteSet() {
           id: `optimistic-${input.sessionId}-${input.exerciseLibraryId}-${input.setNumber}`,
           logged_at: new Date().toISOString(),
           reps_completed: input.repsCompleted ?? null,
-          rpe_actual: null,
+          rpe_actual: input.rpeActual ?? null,
           session_id: input.sessionId,
           set_number: input.setNumber,
           weight_kg: input.weightKg ?? null,

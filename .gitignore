@@ -46,3 +46,8 @@ app-example
 .env
 .env.*
 !.env.example
+
+# Local Android builds
+*.apk
+*.aab
+build-*.apk

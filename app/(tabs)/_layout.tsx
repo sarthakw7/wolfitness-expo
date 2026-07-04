@@ -1,4 +1,4 @@
-import { Redirect, Tabs, type Href } from "expo-router";
+import { Redirect, Tabs, useGlobalSearchParams, useSegments, type Href } from "expo-router";
 
 import { BootstrapStateScreen } from "@/src/components/layout/BootstrapStateScreen";
 import { PremiumTabBar } from "@/src/components/navigation";
@@ -6,6 +6,11 @@ import { useAuth } from "@/src/hooks/useAuth";
 import { colors } from "@/src/theme";
 
 const authLandingHref = "/(auth)" as Href;
+
+function singleParam(value: string | string[] | undefined) {
+  if (Array.isArray(value)) return value[0] ?? null;
+  return value ?? null;
+}
 
 function debugAuthRoute(message: string, context?: Record<string, unknown>) {
   if (__DEV__) {
@@ -15,6 +20,16 @@ function debugAuthRoute(message: string, context?: Record<string, unknown>) {
 
 export default function TabsLayout() {
   const { bootstrapError, bootstrapPhase, isAuthenticated, isLoading, onboardingStatus, retryBootstrap } = useAuth();
+  const segments = useSegments();
+  const params = useGlobalSearchParams<{
+    signalDayId?: string | string[];
+    signalProgramId?: string | string[];
+    signalWeekId?: string | string[];
+  }>();
+  const isSignalWorkoutPlayerRoute =
+    segments[0] === "(tabs)" &&
+    segments[1] === "workouts" &&
+    Boolean(singleParam(params.signalProgramId) || singleParam(params.signalWeekId) || singleParam(params.signalDayId));
 
   if (isLoading) {
     return (
@@ -63,7 +78,7 @@ export default function TabsLayout() {
         headerShown: false,
         sceneStyle: { backgroundColor: colors.surface },
       }}
-      tabBar={(props) => <PremiumTabBar {...props} />}
+      tabBar={(props) => (isSignalWorkoutPlayerRoute ? null : <PremiumTabBar {...props} />)}
     >
       <Tabs.Screen name="index" options={{ title: "Home" }} />
       <Tabs.Screen name="history" options={{ href: null, title: "History" }} />

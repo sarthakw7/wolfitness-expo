@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { router, type Href } from "expo-router";
 import { memo } from "react";
 import { Image, Pressable, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -14,6 +14,8 @@ type AppTopBarProps = {
   centered?: boolean;
   subtitle?: string;
   taskMode?: boolean;
+  taskModeBackHref?: Href;
+  taskModeActionPress?: () => void;
   title?: string;
   onSettingsPress?: () => void;
 };
@@ -23,6 +25,8 @@ function AppTopBarComponent({
   centered = true,
   subtitle,
   taskMode,
+  taskModeBackHref,
+  taskModeActionPress,
   title = "Wolfitness",
   onSettingsPress,
 }: AppTopBarProps) {
@@ -51,7 +55,7 @@ function AppTopBarComponent({
               back
                 ? () => router.back()
                 : taskMode
-                  ? () => router.back()
+                  ? () => (taskModeBackHref ? router.replace(taskModeBackHref) : router.back())
                   : () => router.push("/(tabs)/profile")
             }
           >
@@ -76,11 +80,11 @@ function AppTopBarComponent({
           </View>
 
           <Pressable
-            accessibilityLabel={taskMode ? "Skip exercise" : "Open settings"}
+            accessibilityLabel={taskMode ? "Next step" : "Open settings"}
             accessibilityRole="button"
             className="h-10 w-10 items-center justify-center rounded-full"
             hitSlop={8}
-            onPress={onSettingsPress}
+            onPress={taskMode ? taskModeActionPress : onSettingsPress}
           >
             <Ionicons
               color={colors.graphiteMuted}

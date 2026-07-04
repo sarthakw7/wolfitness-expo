@@ -14,6 +14,8 @@ import { colors, spacing } from "@/src/theme";
 
 type ScreenContainerProps = PropsWithChildren<
   ViewProps & {
+    backgroundClassName?: string;
+    backgroundColor?: string;
     edges?: Partial<Record<"top" | "bottom", boolean>>;
     scroll?: false;
   }
@@ -21,6 +23,8 @@ type ScreenContainerProps = PropsWithChildren<
 
 type ScrollScreenContainerProps = PropsWithChildren<
   ScrollViewProps & {
+    backgroundClassName?: string;
+    backgroundColor?: string;
     contentClassName?: string;
     contentContainerStyle?: StyleProp<ViewStyle>;
     edges?: Partial<Record<"top" | "bottom", boolean>>;
@@ -38,11 +42,14 @@ function ScreenContainerComponent(
 
   if (props.scroll) {
     const {
+      backgroundClassName,
+      backgroundColor,
       children,
       className,
       contentClassName,
       contentContainerStyle,
       edges: _edges,
+      style,
       scroll,
       ...rest
     } = props;
@@ -50,7 +57,7 @@ function ScreenContainerComponent(
     return (
       <ScrollView
         alwaysBounceVertical={false}
-        className={cn("flex-1 bg-surface", className)}
+        className={cn("flex-1", backgroundClassName ?? "bg-surface", className)}
         contentContainerClassName={cn("px-container py-6", contentClassName)}
         contentContainerStyle={[
           {
@@ -61,6 +68,7 @@ function ScreenContainerComponent(
         ]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
+        style={[{ backgroundColor: backgroundColor ?? colors.surface }, style]}
         {...rest}
       >
         {children}
@@ -68,14 +76,14 @@ function ScreenContainerComponent(
     );
   }
 
-  const { children, className, edges: _edges, scroll, style, ...rest } = props;
+  const { backgroundClassName, backgroundColor, children, className, edges: _edges, scroll, style, ...rest } = props;
 
   return (
     <View
-      className={cn("flex-1 bg-surface px-container", className)}
+      className={cn("flex-1 px-container", backgroundClassName ?? "bg-surface", className)}
       style={[
         {
-          backgroundColor: colors.surface,
+          backgroundColor: backgroundColor ?? colors.surface,
           paddingBottom,
           paddingTop,
         },

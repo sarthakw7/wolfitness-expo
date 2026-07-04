@@ -13,6 +13,13 @@ import type {
   WorkoutProgramPayloadExercise,
   WorkoutProgramPayloadWeek,
 } from "./programs";
+import {
+  buildYouTubeThumbnailUrl,
+  buildYouTubeWatchUrl,
+  normalizeWorkoutExerciseMediaList,
+  parseYouTubeVideoId,
+  type WorkoutExerciseMedia,
+} from "@/src/lib/youtube-media";
 
 export type SignalWorkoutSelection = {
   dayId?: string | null;
@@ -116,6 +123,178 @@ export type SignalProgramOverview = {
   totalWeeks: number;
 };
 
+export type SignalWorkoutBlockPreview = {
+  exerciseCount: number;
+  exerciseNames: string[];
+  instruction: string | null;
+  isInstructionOnly: boolean;
+  isMixed: boolean;
+  isPlayable: boolean;
+  key: string;
+  prescriptionSummary: string | null;
+  title: string;
+};
+
+export type SignalWorkoutDayPreview = {
+  blockCount: number;
+  blocks: SignalWorkoutBlockPreview[];
+  coachInstructions: string | null;
+  exerciseCount: number;
+  isPlayable: boolean;
+};
+
+export type SignalWorkoutStepType =
+  | "coach_instructions"
+  | "instruction_block"
+  | "exercise_block"
+  | "done_training"
+  | "reflection"
+  | "summary";
+
+export type SignalWorkoutStep = {
+  block?: WorkoutProgramPayloadBlock;
+  blockIndex?: number;
+  blockLabel?: string;
+  body?: string;
+  exercises?: WorkoutProgramPayloadExercise[];
+  id: string;
+  label: string;
+  subtitle?: string;
+  title: string;
+  type: SignalWorkoutStepType;
+};
+
+export type SignalCalendarDayCell = {
+  date: Date;
+  dayKey: string | null;
+  dayLabel: string;
+  isCompleted: boolean;
+  isAssigned: boolean;
+  isPlayable: boolean;
+  isSelected: boolean;
+  isToday: boolean;
+  monthYearLabel: string;
+  weekdayLabel: string;
+  title: string;
+  weekKey: string | null;
+  weekLabel: string | null;
+};
+
+export type SignalWeekCalendarStrip = {
+  days: SignalCalendarDayCell[];
+  monthYearLabel: string;
+};
+
+function parseSignalDate(value: string | null | undefined) {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function addSignalDays(date: Date, days: number) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function toCalendarIsoDate(date: Date) {
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function toCalendarDateLabel(date: Date) {
+  return String(date.getDate()).padStart(2, "0");
+}
+
+function toCalendarWeekdayLabel(date: Date) {
+  return new Intl.DateTimeFormat(undefined, { weekday: "short" }).format(date).toUpperCase();
+}
+
+export function getSignalBlockLabel(blockIndex: number) {
+  if (blockIndex >= 0 && blockIndex < 26) {
+    return String.fromCharCode(65 + blockIndex);
+  }
+
+  return `${blockIndex + 1}`;
+}
+
+export function getSignalExerciseLabel(blockLabel: string, exerciseIndex: number) {
+  return `${blockLabel}${exerciseIndex + 1}`;
+}
+
+export function formatMonthYearLabel(date: Date) {
+  const month = new Intl.DateTimeFormat(undefined, { month: "long" }).format(date).toUpperCase();
+  const year = String(date.getFullYear()).slice(-2);
+  return `${month} ’${year}`;
+}
+
+export function resolveSignalDayDate(
+  programStartedAt: string | null | undefined,
+  week: WorkoutProgramPayloadWeek,
+  day: WorkoutProgramPayloadDay,
+): Date {
+  const anchor = parseSignalDate(programStartedAt) ?? new Date();
+  const weekOffset = (typeof week.position === "number" ? week.position : 0) * 7;
+  const dayOffset = typeof day.position === "number" ? day.position : 0;
+  return addSignalDays(anchor, weekOffset + dayOffset);
+}
+
+export function buildSignalWeekCalendarDays(
+  payload: WorkoutProgramPayload | null | undefined,
+  programStartedAt: string | null | undefined,
+  selectedWeekKey: string | null | undefined,
+  selectedDateIso: string | null | undefined,
+  completedDayKeys: Set<string> | string[] = [],
+): SignalWeekCalendarStrip | null {
+  if (!payload?.program?.id || !Array.isArray(payload.weeks) || payload.weeks.length === 0) {
+    return null;
+  }
+
+  const selectedWeek = payload.weeks.find((week) => week.id === selectedWeekKey || week.sync_key === selectedWeekKey) ?? null;
+  if (!selectedWeek) {
+    return null;
+  }
+
+  const completedSet = new Set(Array.isArray(completedDayKeys) ? completedDayKeys : Array.from(completedDayKeys));
+  const weekAnchor = parseSignalDate(programStartedAt) ?? new Date();
+  const weekStart = addSignalDays(weekAnchor, (typeof selectedWeek.position === "number" ? selectedWeek.position : 0) * 7);
+  const selectedIso = selectedDateIso ? selectedDateIso.slice(0, 10) : null;
+  const weekDayMap = new Map<number, WorkoutProgramPayloadDay>();
+  selectedWeek.days.forEach((day) => {
+    if (typeof day.position === "number") {
+      weekDayMap.set(day.position, day);
+    }
+  });
+  const monthYearLabel = formatMonthYearLabel(weekStart);
+  const todayIso = toCalendarIsoDate(new Date());
+
+  return {
+    monthYearLabel,
+    days: Array.from({ length: 7 }).map((_, dayOffset) => {
+      const date = addSignalDays(weekStart, dayOffset);
+      const dateIso = toCalendarIsoDate(date);
+      const assignedDay = weekDayMap.get(dayOffset) ?? null;
+      return {
+        date,
+        dayKey: assignedDay?.sync_key ?? null,
+        dayLabel: toCalendarDateLabel(date),
+        isAssigned: Boolean(assignedDay),
+        isCompleted: assignedDay ? completedSet.has(assignedDay.sync_key) : false,
+        isPlayable: isSignalPlayableDay(assignedDay),
+        isSelected: selectedIso ? dateIso === selectedIso : false,
+        isToday: dateIso === todayIso,
+        monthYearLabel: formatMonthYearLabel(weekStart),
+        weekdayLabel: toCalendarWeekdayLabel(date),
+        title: assignedDay?.title ?? "Rest",
+        weekKey: selectedWeek.sync_key,
+        weekLabel: selectedWeek.title,
+      };
+    }),
+  };
+}
+
 function findWeek(weeks: WorkoutProgramPayloadWeek[], weekId?: string | null) {
   if (!weeks.length) return null;
   if (!weekId) return null;
@@ -128,7 +307,8 @@ function findDay(week: WorkoutProgramPayloadWeek | null, dayId?: string | null) 
   return week.days.find((day) => day.id === dayId || day.sync_key === dayId) ?? null;
 }
 
-function isPlayableDay(day: WorkoutProgramPayloadDay) {
+export function isSignalPlayableDay(day: WorkoutProgramPayloadDay | null | undefined) {
+  if (!day) return false;
   return day.blocks.some((block) => block.exercises.length > 0);
 }
 
@@ -138,7 +318,7 @@ function countExercisesInDay(day: WorkoutProgramPayloadDay) {
 
 function countPlayableWorkouts(payload: WorkoutProgramPayload) {
   return payload.weeks.reduce((weekTotal, week) => {
-    return weekTotal + week.days.filter((day) => isPlayableDay(day)).length;
+    return weekTotal + week.days.filter((day) => isSignalPlayableDay(day)).length;
   }, 0);
 }
 
@@ -274,7 +454,7 @@ export function findNextSignalWorkoutDay(
   }
 
   const laterDaysInCurrentWeek = currentWeek.days.slice(currentDayIndex + 1);
-  const nextPlayableInCurrentWeek = laterDaysInCurrentWeek.find((day) => isPlayableDay(day));
+  const nextPlayableInCurrentWeek = laterDaysInCurrentWeek.find((day) => isSignalPlayableDay(day));
   if (nextPlayableInCurrentWeek) {
     return {
       isProgramCompleted: false,
@@ -285,7 +465,7 @@ export function findNextSignalWorkoutDay(
 
   for (let index = currentWeekIndex + 1; index < payload.weeks.length; index += 1) {
     const nextWeek = payload.weeks[index];
-    const nextPlayableDay = nextWeek.days.find((day) => isPlayableDay(day));
+    const nextPlayableDay = nextWeek.days.find((day) => isSignalPlayableDay(day));
     if (nextPlayableDay) {
       return {
         isProgramCompleted: false,
@@ -415,12 +595,12 @@ export function getSignalProgramOverview(
     days: week.days.map((day) => ({
       dayKey: day.sync_key,
       exerciseCount: countExercisesInDay(day),
-      isPlayable: isPlayableDay(day),
+      isPlayable: isSignalPlayableDay(day),
       title: day.title,
     })),
     title: week.title,
     totalExerciseCount: week.days.reduce((dayTotal, day) => dayTotal + countExercisesInDay(day), 0),
-    totalPlayableWorkouts: week.days.filter((day) => isPlayableDay(day)).length,
+    totalPlayableWorkouts: week.days.filter((day) => isSignalPlayableDay(day)).length,
     weekKey: week.sync_key,
   }));
 
@@ -448,6 +628,190 @@ export function getSignalProgramOverview(
     totalExercises,
     totalPlayableWorkouts,
     totalWeeks,
+  };
+}
+
+function compactPrescription(exercise: WorkoutProgramPayloadExercise) {
+  return [
+    exercise.sets ? `${exercise.sets} sets` : null,
+    exercise.reps ? `${exercise.reps} reps` : null,
+    exercise.rpe ? `RPE ${exercise.rpe}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+export function formatSignalExercisePrescription(exercise: WorkoutProgramPayloadExercise) {
+  return compactPrescription(exercise) || null;
+}
+
+function getCoachInstructionsBody(day: WorkoutProgramPayloadDay) {
+  return day.coachInstructions?.trim() || null;
+}
+
+export function buildSignalWorkoutSteps(day: WorkoutProgramPayloadDay | null | undefined): SignalWorkoutStep[] {
+  if (!day) return [];
+
+  const steps: SignalWorkoutStep[] = [];
+  const coachInstructions = getCoachInstructionsBody(day);
+
+  if (coachInstructions) {
+    steps.push({
+      body: coachInstructions,
+      id: `coach:${day.sync_key}`,
+      label: "COACH",
+      title: "Coach Instructions",
+      type: "coach_instructions",
+    });
+  }
+
+  day.blocks.forEach((block, blockIndex) => {
+    const blockLabel = getSignalBlockLabel(blockIndex);
+    const blockBody = block.description?.trim() || null;
+    const blockTitle = block.title?.trim() || `${blockLabel}. Block`;
+
+    if (block.exercises.length === 0) {
+      steps.push({
+        block,
+        blockIndex,
+        blockLabel,
+        body: blockBody ?? "Review this block before continuing.",
+        id: `block:${block.sync_key}`,
+        label: blockLabel,
+        subtitle: blockBody ?? undefined,
+        title: blockTitle,
+        type: "instruction_block",
+      });
+      return;
+    }
+
+    steps.push({
+      block,
+      blockIndex,
+      blockLabel,
+      body: blockBody ?? undefined,
+      exercises: block.exercises,
+      id: `exercise-block:${block.sync_key}`,
+      label: blockLabel,
+      subtitle: "Exercise Block",
+      title: blockTitle,
+      type: "exercise_block",
+    });
+  });
+
+  steps.push(
+    {
+      body: "You have completed the workout portion of this session.",
+      id: `done-training:${day.sync_key}`,
+      label: "DONE",
+      title: "Done Training",
+      type: "done_training",
+    },
+    {
+      body: "Rate the session, note how it felt, then finish.",
+      id: `reflection:${day.sync_key}`,
+      label: "REFLECTION",
+      title: "Session Reflection",
+      type: "reflection",
+    },
+    {
+      body: "Your session summary will appear after finish.",
+      id: `summary:${day.sync_key}`,
+      label: "SUMMARY",
+      title: "Final Summary",
+      type: "summary",
+    },
+  );
+
+  return steps;
+}
+
+export function resolveSignalWorkoutInitialStepIndex(
+  steps: SignalWorkoutStep[] | null | undefined,
+  focus: { blockIndex?: number | null; exerciseIndex?: number | null; stepType?: string | null },
+) {
+  if (!steps?.length) return 0;
+
+  const blockIndex = focus.blockIndex ?? null;
+  const exerciseIndex = focus.exerciseIndex ?? null;
+  const stepType = focus.stepType ?? null;
+
+  if (stepType === "coach") {
+    const coachStepIndex = steps.findIndex((step) => step.type === "coach_instructions");
+    if (coachStepIndex >= 0) return coachStepIndex;
+  }
+
+  if (stepType === "summary") {
+    const summaryStepIndex = steps.findIndex((step) => step.type === "summary");
+    if (summaryStepIndex >= 0) return summaryStepIndex;
+  }
+
+  if (blockIndex != null && exerciseIndex != null) {
+    const focusedExerciseIndex = steps.findIndex(
+      (step) => step.type === "exercise_block" && step.blockIndex === blockIndex,
+    );
+    if (focusedExerciseIndex >= 0) return focusedExerciseIndex;
+  }
+
+  if (blockIndex != null) {
+    const blockStepIndex = steps.findIndex((step) => step.blockIndex === blockIndex);
+    if (blockStepIndex >= 0) return blockStepIndex;
+  }
+
+  const coachStepIndex = steps.findIndex((step) => step.type === "coach_instructions");
+  if (coachStepIndex >= 0) return coachStepIndex;
+
+  const firstWorkoutStepIndex = steps.findIndex(
+    (step) => step.type === "instruction_block" || step.type === "exercise_block",
+  );
+  return firstWorkoutStepIndex >= 0 ? firstWorkoutStepIndex : 0;
+}
+
+export function getSignalWorkoutDayPreview(
+  day: WorkoutProgramPayloadDay | null | undefined,
+): SignalWorkoutDayPreview {
+  if (!day) {
+    return {
+      blockCount: 0,
+      blocks: [],
+      coachInstructions: null,
+      exerciseCount: 0,
+      isPlayable: false,
+    };
+  }
+
+  const blocks = day.blocks.map((block) => {
+    const instruction = block.description?.trim() || null;
+    const exerciseNames = block.exercises
+      .map((exercise) => exercise.exerciseName.trim())
+      .filter((name) => name.length > 0)
+      .slice(0, 4);
+    const prescriptionSummary =
+      block.exercises.map(compactPrescription).find((summary) => summary.length > 0) ?? null;
+
+    return {
+      exerciseCount: block.exercises.length,
+      exerciseNames,
+      instruction,
+      isInstructionOnly: block.exercises.length === 0 && Boolean(instruction),
+      isMixed: block.exercises.length > 0 && Boolean(instruction),
+      isPlayable: block.exercises.length > 0,
+      key: block.sync_key,
+      prescriptionSummary,
+      title: block.title || "Workout Block",
+    };
+  });
+  const mappedCoachInstructions = day.coachInstructions?.trim() ?? null;
+  if (__DEV__) {
+    console.log("[SignalAdapter] mapped coach instructions", mappedCoachInstructions);
+  }
+
+  return {
+    blockCount: day.blocks.length,
+    blocks,
+    coachInstructions: mappedCoachInstructions,
+    exerciseCount: countExercisesInDay(day),
+    isPlayable: isSignalPlayableDay(day),
   };
 }
 
@@ -489,11 +853,34 @@ function toEnrollment(programId: string, userId: string): Enrollment {
 }
 
 function toLibraryRow(exercise: WorkoutProgramPayloadExercise): ExerciseLibraryRow {
+  const normalizedMediaItems = normalizeWorkoutExerciseMediaList(exercise.mediaItems);
+  const firstMedia = normalizedMediaItems[0] ?? null;
+  const legacyVideoUrl = exercise.media.find((value) => parseYouTubeVideoId(value)) ?? exercise.media[0] ?? null;
+  const videoId = firstMedia?.videoId ?? parseYouTubeVideoId(legacyVideoUrl);
+  const mediaItems: WorkoutExerciseMedia[] = normalizedMediaItems.length
+    ? normalizedMediaItems
+    : videoId
+      ? [{
+          id: exercise.id,
+          provider: "youtube",
+          thumbnailUrl: buildYouTubeThumbnailUrl(videoId),
+          title: exercise.exerciseName,
+          type: "youtube",
+          url: buildYouTubeWatchUrl(videoId),
+          videoId,
+        }]
+      : [];
+
   return {
     id: exercise.exerciseId,
+    media_items: mediaItems,
     name: exercise.exerciseName,
     primary_muscle: null,
-    video_url: exercise.media[0] ?? null,
+    thumbnail_url: firstMedia?.thumbnailUrl ?? (videoId ? buildYouTubeThumbnailUrl(videoId) : null),
+    video_id: videoId ?? null,
+    video_provider: mediaItems[0]?.provider ?? null,
+    video_title: firstMedia?.title ?? exercise.exerciseName,
+    video_url: firstMedia?.url ?? (videoId ? buildYouTubeWatchUrl(videoId) : legacyVideoUrl),
   };
 }
 
@@ -545,6 +932,8 @@ export function buildSignalWorkoutExecutionContext(
     enrollment: toEnrollment(payload.program.id, userId),
     exercises,
     program,
+    source_day_key: day.sync_key,
+    source_week_key: week.sync_key,
     week: {
       id: week.id,
       program_id: payload.program.id,

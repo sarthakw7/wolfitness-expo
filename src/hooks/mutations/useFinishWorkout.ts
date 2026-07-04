@@ -19,6 +19,9 @@ export function useFinishWorkout() {
         queryClient.invalidateQueries({ queryKey: queryKeys.workoutSession(sessionId) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.workoutSessionPlans() }),
         queryClient.invalidateQueries({ queryKey: queryKeys.workoutSessionStatuses() }),
+        queryClient.invalidateQueries({ queryKey: ["workout", "signal-session"] }),
+        queryClient.invalidateQueries({ queryKey: ["workout", "signal-session-plan"] }),
+        queryClient.invalidateQueries({ queryKey: ["workout", "signal-session-status"] }),
       ]);
       if (userId) {
         await Promise.all([

@@ -5,7 +5,11 @@ import { useCallback, useEffect, useState } from "react";
 import { queryKeys } from "@/src/hooks/queries/queryKeys";
 import { useAuth } from "@/src/hooks/useAuth";
 import { activeProgramService, workoutService } from "@/src/services";
-import type { WorkoutPlanForToday, WorkoutSession } from "@/src/services/workout.service";
+import type {
+  SignalWorkoutSessionScope,
+  WorkoutPlanForToday,
+  WorkoutSession,
+} from "@/src/services/workout.service";
 
 const TIMER_KEY_PREFIX = "wolfitness:workout:rest-timer";
 
@@ -19,52 +23,111 @@ type SessionBundle = {
   session: WorkoutSession;
 };
 
-function isMatchingSignalActiveProgramPointer(
+function isMatchingSignalActiveProgram(
   activeProgram: Awaited<ReturnType<typeof activeProgramService.continueActiveProgram>> | null,
   workoutPlan: WorkoutPlanForToday,
 ) {
   return Boolean(
     activeProgram &&
       activeProgram.source === "signal" &&
-      activeProgram.source_program_id === workoutPlan.program.id &&
-      activeProgram.current_week_key === workoutPlan.week.id &&
-      activeProgram.current_day_key === workoutPlan.day.id,
+      activeProgram.source_program_id === workoutPlan.program.id,
   );
 }
 
-export function useWorkoutSession(workoutPlan: WorkoutPlanForToday | null | undefined) {
+function resolveSignalWorkoutSessionKeys(workoutPlan: WorkoutPlanForToday) {
+  return {
+    dayKey: workoutPlan.source_day_key ?? workoutPlan.day.id,
+    weekKey: workoutPlan.source_week_key ?? workoutPlan.week.id,
+  };
+}
+
+function logSignalWorkoutValidationIssue(message: string, context: Record<string, unknown>) {
+  if (__DEV__) {
+    console.warn("[signal-workout-session]", message, context);
+  }
+}
+
+export function useWorkoutSession(
+  workoutPlan: WorkoutPlanForToday | null | undefined,
+  signalSessionScope?: SignalWorkoutSessionScope | null,
+) {
   const { user } = useAuth();
   const userId = user?.id ?? null;
   const queryClient = useQueryClient();
   const isSignalWorkout = Boolean(workoutPlan?.program.creator_id === "signal");
+  const signalWorkoutKeys = workoutPlan ? resolveSignalWorkoutSessionKeys(workoutPlan) : null;
+  const isScopedSignalWorkout =
+    Boolean(isSignalWorkout && signalSessionScope) && signalSessionScope?.sourceProgramId === workoutPlan?.program.id;
 
   const planKey =
     userId && workoutPlan
-      ? queryKeys.workoutSessionPlan(userId, workoutPlan.program.id, workoutPlan.day.id)
+      ? isScopedSignalWorkout && signalSessionScope
+        ? queryKeys.signalWorkoutSessionPlan(
+            userId,
+            signalSessionScope.activeProgramId,
+            signalSessionScope.sourceProgramId,
+            signalSessionScope.sourceProgramVersion,
+            signalSessionScope.sourceWeekKey,
+            signalSessionScope.sourceDayKey,
+          )
+        : queryKeys.workoutSessionPlan(userId, workoutPlan.program.id, signalWorkoutKeys?.dayKey ?? workoutPlan.day.id)
       : (["workout", "session-plan", "anonymous"] as const);
 
   const sessionQuery = useQuery<SessionBundle | null>({
-    enabled: Boolean(userId && workoutPlan?.program.id && workoutPlan?.day.id),
+    enabled: Boolean(userId && workoutPlan?.program.id && workoutPlan?.day.id && (!isSignalWorkout || signalSessionScope)),
     queryKey: planKey,
     queryFn: async () => {
       if (!userId || !workoutPlan) throw new Error("Workout session unavailable.");
       if (isSignalWorkout) {
-        const activeProgram = await activeProgramService.continueActiveProgram(userId);
-        if (!activeProgram || !isMatchingSignalActiveProgramPointer(activeProgram, workoutPlan)) {
-          throw new Error("Active Signal program does not match this workout.");
+        if (!signalSessionScope) {
+          logSignalWorkoutValidationIssue("Signal workout session scope unavailable.", {
+            workoutProgramId: workoutPlan.program.id,
+          });
+          throw new Error("Signal workout session scope unavailable.");
         }
-        const session = await workoutService.findActiveWorkoutSession({
-          activeProgramId: activeProgram.id,
-          source: "signal",
-          sourceDayKey: workoutPlan.day.id,
-          sourceProgramId: workoutPlan.program.id,
-          sourceProgramVersion: activeProgram.source_program_version ?? null,
-          sourceWeekKey: workoutPlan.week.id,
+        const activeProgram = await activeProgramService.continueActiveProgram(userId);
+        if (!activeProgram || !isMatchingSignalActiveProgram(activeProgram, workoutPlan)) {
+          logSignalWorkoutValidationIssue("Active Signal program does not match this program.", {
+            activeProgramId: activeProgram?.id ?? null,
+            activeProgramSourceProgramId: activeProgram?.source_program_id ?? null,
+            workoutProgramId: workoutPlan.program.id,
+          });
+          throw new Error("Active Signal program does not match this program.");
+        }
+        const session = await workoutService.findActiveSignalWorkoutSession({
+          activeProgramId: signalSessionScope.activeProgramId,
+          sourceDayKey: signalSessionScope.sourceDayKey,
+          sourceProgramId: signalSessionScope.sourceProgramId,
+          sourceProgramVersion: signalSessionScope.sourceProgramVersion,
+          sourceWeekKey: signalSessionScope.sourceWeekKey,
           userId,
         });
         if (!session) return null;
         const logs = await workoutService.fetchWorkoutLogSets(session.id);
         const bundle = { logs, session };
+        queryClient.setQueryData(
+          queryKeys.signalWorkoutSession(
+            userId,
+            signalSessionScope.activeProgramId,
+            signalSessionScope.sourceProgramId,
+            signalSessionScope.sourceProgramVersion,
+            signalSessionScope.sourceWeekKey,
+            signalSessionScope.sourceDayKey,
+          ),
+          session,
+        );
+        queryClient.setQueryData(
+          queryKeys.signalWorkoutSessionStatus(
+            userId,
+            signalSessionScope.activeProgramId,
+            signalSessionScope.sourceProgramId,
+            signalSessionScope.sourceProgramVersion,
+            signalSessionScope.sourceWeekKey,
+            signalSessionScope.sourceDayKey,
+          ),
+          session,
+        );
+        queryClient.setQueryData(planKey, bundle);
         queryClient.setQueryData(queryKeys.workoutSession(session.id), bundle);
         return bundle;
       }
@@ -88,21 +151,46 @@ export function useWorkoutSession(workoutPlan: WorkoutPlanForToday | null | unde
     mutationFn: async () => {
       if (!userId || !workoutPlan) throw new Error("Workout session unavailable.");
       if (isSignalWorkout) {
-        const activeProgram = await activeProgramService.continueActiveProgram(userId);
-        if (!activeProgram || !isMatchingSignalActiveProgramPointer(activeProgram, workoutPlan)) {
-          throw new Error("Active Signal program does not match this workout.");
+        if (!signalSessionScope) {
+          logSignalWorkoutValidationIssue("Signal workout session scope unavailable.", {
+            workoutProgramId: workoutPlan.program.id,
+          });
+          throw new Error("Signal workout session scope unavailable.");
         }
-        const session = await workoutService.getOrCreateWorkoutSession({
-          activeProgramId: activeProgram.id,
-          source: "signal",
-          sourceDayKey: workoutPlan.day.id,
-          sourceProgramId: workoutPlan.program.id,
-          sourceProgramVersion: activeProgram.source_program_version ?? null,
-          sourceWeekKey: workoutPlan.week.id,
-          userId,
-        });
-        const logs = await workoutService.fetchWorkoutLogSets(session.id);
-        return { logs, session };
+        const activeProgram = await activeProgramService.continueActiveProgram(userId);
+        if (!activeProgram || !isMatchingSignalActiveProgram(activeProgram, workoutPlan)) {
+          logSignalWorkoutValidationIssue("Active Signal program does not match this program.", {
+            activeProgramId: activeProgram?.id ?? null,
+            activeProgramSourceProgramId: activeProgram?.source_program_id ?? null,
+            workoutProgramId: workoutPlan.program.id,
+          });
+          throw new Error("Active Signal program does not match this program.");
+        }
+        try {
+          const payload = {
+            activeProgramId: signalSessionScope.activeProgramId,
+            sourceDayKey: signalSessionScope.sourceDayKey,
+            sourceProgramId: signalSessionScope.sourceProgramId,
+            sourceProgramVersion: signalSessionScope.sourceProgramVersion,
+            sourceWeekKey: signalSessionScope.sourceWeekKey,
+            userId,
+          };
+          console.log("[SignalSessionScope] creating session payload", payload);
+          const session = await workoutService.getOrCreateSignalWorkoutSession(payload);
+          const logs = await workoutService.fetchWorkoutLogSets(session.id);
+          return { logs, session };
+        } catch (error) {
+          console.log("[BeginLoggingDebug] raw start error", {
+            code: error instanceof Error ? (error as { code?: string }).code ?? null : null,
+            details: error instanceof Error ? (error as { details?: string }).details ?? null : null,
+            hint: error instanceof Error ? (error as { hint?: string }).hint ?? null : null,
+            json: JSON.stringify(error, null, 2),
+            message: error instanceof Error ? error.message : String(error),
+            name: error instanceof Error ? error.name : typeof error,
+            stack: error instanceof Error ? error.stack ?? null : null,
+          });
+          throw error instanceof Error ? error : new Error(String(error));
+        }
       }
 
       const session = await workoutService.getOrCreateWorkoutSession({
@@ -114,14 +202,55 @@ export function useWorkoutSession(workoutPlan: WorkoutPlanForToday | null | unde
       return { logs, session };
     },
     onSuccess: async (bundle) => {
+      console.log("[BeginLoggingDebug] startSession success", {
+        active_program_id: bundle.session.active_program_id,
+        sessionId: bundle.session.id,
+        source_day_key: bundle.session.source_day_key,
+        source_program_version: bundle.session.source_program_version,
+        source_week_key: bundle.session.source_week_key,
+      });
       queryClient.setQueryData(planKey, bundle);
+      if (isSignalWorkout && signalSessionScope && userId) {
+        queryClient.setQueryData(
+          queryKeys.signalWorkoutSession(
+            userId,
+            signalSessionScope.activeProgramId,
+            signalSessionScope.sourceProgramId,
+            signalSessionScope.sourceProgramVersion,
+            signalSessionScope.sourceWeekKey,
+            signalSessionScope.sourceDayKey,
+          ),
+          bundle.session,
+        );
+        queryClient.setQueryData(
+          queryKeys.signalWorkoutSessionStatus(
+            userId,
+            signalSessionScope.activeProgramId,
+            signalSessionScope.sourceProgramId,
+            signalSessionScope.sourceProgramVersion,
+            signalSessionScope.sourceWeekKey,
+            signalSessionScope.sourceDayKey,
+          ),
+          bundle.session,
+        );
+      }
       queryClient.setQueryData(queryKeys.workoutSession(bundle.session.id), bundle);
       if (userId) {
         queryClient.setQueryData(queryKeys.workoutActiveSession(userId), bundle.session);
       }
       if (userId && workoutPlan) {
         await queryClient.invalidateQueries({
-          queryKey: queryKeys.workoutSessionStatus(userId, workoutPlan.program.id, workoutPlan.day.id),
+          queryKey:
+            isSignalWorkout && signalSessionScope
+              ? queryKeys.signalWorkoutSessionStatus(
+                  userId,
+                  signalSessionScope.activeProgramId,
+                  signalSessionScope.sourceProgramId,
+                  signalSessionScope.sourceProgramVersion,
+                  signalSessionScope.sourceWeekKey,
+                  signalSessionScope.sourceDayKey,
+                )
+              : queryKeys.workoutSessionStatus(userId, workoutPlan.program.id, signalWorkoutKeys?.dayKey ?? workoutPlan.day.id),
         });
       }
     },

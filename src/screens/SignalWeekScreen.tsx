@@ -1,11 +1,15 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Link, useLocalSearchParams, type Href } from "expo-router";
 import { memo, useMemo } from "react";
-import { Pressable, RefreshControl, View } from "react-native";
+import { Pressable, RefreshControl, ScrollView, View } from "react-native";
 
 import { AppTopBar, EditorialCard, ScreenScaffold } from "@/src/components/layout";
 import { AppButton, Typography } from "@/src/components/primitives";
+import { useActiveProgram } from "@/src/hooks/queries/useActiveProgram";
+import { useSignalProgramProgress } from "@/src/hooks/queries/useSignalProgramProgress";
+import { useAuth } from "@/src/hooks/useAuth";
 import { useWorkoutProgram } from "@/src/hooks/useWorkoutProgram";
+import { isSignalPlayableDay } from "@/src/services/signal-workout-adapter";
 import type { WorkoutProgramPayloadDay, WorkoutProgramPayloadWeek } from "@/src/services/programs";
 import { colors } from "@/src/theme";
 
@@ -28,17 +32,34 @@ function getProgramsErrorCode(error: unknown) {
 }
 
 function SignalWeekScreenComponent() {
+  const { user } = useAuth();
   const params = useLocalSearchParams<{ programId?: string; weekId?: string }>();
   const programId = singleParam(params.programId);
   const weekId = singleParam(params.weekId);
-  const workoutProgramQuery = useWorkoutProgram(programId);
-  const isRefreshing = workoutProgramQuery.isFetching;
+  const activeProgramQuery = useActiveProgram(user?.id);
+  const activeProgram = activeProgramQuery.data ?? null;
+  const signalProgramVersionId =
+    activeProgram?.source === "signal" && activeProgram.source_program_id === programId
+      ? activeProgram.source_program_version ?? null
+      : null;
+  const workoutProgramQuery = useWorkoutProgram(programId, signalProgramVersionId);
+  const signalProgressQuery = useSignalProgramProgress(user?.id, signalProgramVersionId);
+  const isRefreshing = workoutProgramQuery.isFetching || activeProgramQuery.isLoading;
   const week = useMemo(
     () => findWeek(workoutProgramQuery.data?.weeks ?? [], weekId),
     [weekId, workoutProgramQuery.data?.weeks],
   );
   const program = workoutProgramQuery.data?.program ?? null;
   const invalidRoute = !programId || !weekId;
+  const completedDayKeys = useMemo(() => {
+    const sessions = signalProgressQuery.data?.completedSessions ?? [];
+    return new Set(
+      sessions
+        .filter((session) => session.source_program_id === program?.id && session.source_week_key === week?.sync_key)
+        .map((session) => session.source_day_key)
+        .filter((value): value is string => Boolean(value)),
+    );
+  }, [program?.id, signalProgressQuery.data?.completedSessions, week?.sync_key]);
 
   const errorCode = getProgramsErrorCode(workoutProgramQuery.error);
   const isUnavailableError =
@@ -68,7 +89,7 @@ function SignalWeekScreenComponent() {
           </EditorialCard>
         ) : null}
 
-        {workoutProgramQuery.isLoading ? <EditorialCard className="min-h-48 bg-surface-muted" /> : null}
+        {workoutProgramQuery.isLoading || activeProgramQuery.isLoading ? <EditorialCard className="min-h-48 bg-surface-muted" /> : null}
 
         {workoutProgramQuery.error && !isUnavailableError ? (
           <EditorialCard className="gap-3">
@@ -118,6 +139,67 @@ function SignalWeekScreenComponent() {
                 Exercises {week.days.reduce((sum, day) => sum + countExercisesInDay(day), 0)}
               </Typography>
             </View>
+          </EditorialCard>
+        ) : null}
+
+        {week && !invalidRoute ? (
+          <EditorialCard className="gap-4">
+            <View className="flex-row items-center justify-between">
+              <View>
+                <Typography tone="secondary" variant="labelSm">
+                  WEEKLY SELECTOR
+                </Typography>
+                <Typography variant="headlineLg">Choose a training day</Typography>
+              </View>
+              <Typography tone="secondary" variant="labelSm">
+                {week.days.filter((day) => isSignalPlayableDay(day)).length} playable
+              </Typography>
+            </View>
+
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <View className="flex-row gap-3 pr-2">
+                {week.days.map((day, index) => {
+                  const isPlayable = isSignalPlayableDay(day);
+                  const isCompleted = completedDayKeys.has(day.sync_key);
+                  return (
+                    <Link
+                      asChild
+                      href={{
+                        pathname: "/program/[programId]/week/[weekId]/day/[dayId]",
+                        params: {
+                          dayId: day.sync_key,
+                          programId: program?.id ?? programId ?? "",
+                          weekId: week.sync_key,
+                        },
+                      } as unknown as Href}
+                      key={day.sync_key}
+                    >
+                      <Pressable
+                        accessibilityRole="button"
+                        className={`min-w-24 rounded-3xl border p-4 ${
+                          isPlayable ? "border-border bg-surface-muted" : "border-border/50 bg-background/40"
+                        }`}
+                      >
+                        <View className="gap-3">
+                          <View className="flex-row items-center justify-between">
+                            <Typography tone="secondary" variant="labelSm">
+                              Day {index + 1}
+                            </Typography>
+                            {isCompleted ? (
+                              <Ionicons color={colors.emerald} name="checkmark-circle" size={18} />
+                            ) : null}
+                          </View>
+                          <Typography variant="headlineLg">{day.title}</Typography>
+                          <Typography tone="secondary" variant="labelSm">
+                            {isPlayable ? `${countExercisesInDay(day)} exercises` : "Rest / unavailable"}
+                          </Typography>
+                        </View>
+                      </Pressable>
+                    </Link>
+                  );
+                })}
+              </View>
+            </ScrollView>
           </EditorialCard>
         ) : null}
 

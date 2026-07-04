@@ -7,7 +7,8 @@ export const queryKeys = {
   profile: (userId: string) => ["profile", userId] as const,
   progressOverview: (userId: string, range: string) => ["progress", "overview", userId, range] as const,
   workoutHistory: (userId: string) => ["workout-history", userId] as const,
-  signalProgramProgress: (userId: string) => ["signal", "program-progress", userId] as const,
+  signalProgramProgress: (userId: string, versionId?: string | null) =>
+    ["signal", "program-progress", userId, versionId ?? "latest"] as const,
   program: (programId: string) => ["programs", "detail", programId] as const,
   programs: (filters: { creatorId?: string; publishedOnly?: boolean } = {}) =>
     ["programs", "list", filters] as const,
@@ -22,5 +23,59 @@ export const queryKeys = {
   workoutSessionPlans: () => ["workout", "session-plan"] as const,
   workoutSessionPlan: (userId: string, programId: string, dayId: string) =>
     ["workout", "session-plan", userId, programId, dayId] as const,
+  signalWorkoutSession: (
+    userId: string,
+    activeProgramId: string,
+    sourceProgramId: string,
+    sourceProgramVersion: string | null,
+    sourceWeekKey: string,
+    sourceDayKey: string,
+  ) =>
+    [
+      "workout",
+      "signal-session",
+      userId,
+      activeProgramId,
+      sourceProgramId,
+      sourceProgramVersion ?? "legacy-null",
+      sourceWeekKey,
+      sourceDayKey,
+    ] as const,
+  signalWorkoutSessionPlan: (
+    userId: string,
+    activeProgramId: string,
+    sourceProgramId: string,
+    sourceProgramVersion: string | null,
+    sourceWeekKey: string,
+    sourceDayKey: string,
+  ) =>
+    [
+      "workout",
+      "signal-session-plan",
+      userId,
+      activeProgramId,
+      sourceProgramId,
+      sourceProgramVersion ?? "legacy-null",
+      sourceWeekKey,
+      sourceDayKey,
+    ] as const,
+  signalWorkoutSessionStatus: (
+    userId: string,
+    activeProgramId: string,
+    sourceProgramId: string,
+    sourceProgramVersion: string | null,
+    sourceWeekKey: string,
+    sourceDayKey: string,
+  ) =>
+    [
+      "workout",
+      "signal-session-status",
+      userId,
+      activeProgramId,
+      sourceProgramId,
+      sourceProgramVersion ?? "legacy-null",
+      sourceWeekKey,
+      sourceDayKey,
+    ] as const,
   workoutSession: (sessionId: string) => ["workout", "session", sessionId] as const,
 } as const;

@@ -1,3 +1,6 @@
+import type { WorkoutExerciseMedia } from "@/src/lib/youtube-media";
+import { normalizeWorkoutExerciseMediaList } from "@/src/lib/youtube-media";
+
 export type ProgramSummary = {
   coverImage: string | null;
   difficulty: string;
@@ -13,6 +16,7 @@ export type WorkoutProgramPayloadExercise = {
   exerciseName: string;
   id: string;
   media: string[];
+  mediaItems?: WorkoutExerciseMedia[];
   notes: string;
   position: number;
   sync_key: string;
@@ -33,6 +37,7 @@ export type WorkoutProgramPayloadBlock = {
 
 export type WorkoutProgramPayloadDay = {
   blocks: WorkoutProgramPayloadBlock[];
+  coachInstructions?: string | null;
   id: string;
   position: number;
   sync_key: string;
@@ -49,6 +54,9 @@ export type WorkoutProgramPayloadWeek = {
 
 export type WorkoutProgramPayload = {
   program: ProgramSummary;
+  versionId?: string | null;
+  versionNumber?: number | null;
+  versionStatus?: "draft" | "published" | "archived" | null;
   weeks: WorkoutProgramPayloadWeek[];
 };
 
@@ -155,6 +163,9 @@ function normalizeWorkoutProgramPayload(value: unknown): WorkoutProgramPayload {
 
   const candidate = value as Partial<WorkoutProgramPayload> & {
     program?: Partial<ProgramSummary>;
+    versionId?: unknown;
+    versionNumber?: unknown;
+    versionStatus?: unknown;
   };
 
   if (!candidate.program || typeof candidate.program !== "object" || !Array.isArray(candidate.weeks)) {
@@ -165,6 +176,12 @@ function normalizeWorkoutProgramPayload(value: unknown): WorkoutProgramPayload {
 
   return {
     program,
+    versionId: assertNullableString(candidate.versionId),
+    versionNumber: typeof candidate.versionNumber === "number" ? candidate.versionNumber : null,
+    versionStatus:
+      candidate.versionStatus === "draft" || candidate.versionStatus === "published" || candidate.versionStatus === "archived"
+        ? candidate.versionStatus
+        : null,
     weeks: candidate.weeks.map((week) => {
       if (!week || typeof week !== "object") {
         throw new ProgramsError("Workout program response was malformed.", "PARSE_ERROR");
@@ -185,12 +202,24 @@ function normalizeWorkoutProgramPayload(value: unknown): WorkoutProgramPayload {
             throw new ProgramsError("Workout program response was malformed.", "PARSE_ERROR");
           }
 
-          const dayCandidate = day as Partial<WorkoutProgramPayloadDay>;
+          const dayCandidate = day as Partial<WorkoutProgramPayloadDay> & {
+            coachInstructions?: unknown;
+            coach_instructions?: unknown;
+            instructions?: unknown;
+          };
           if (typeof dayCandidate.id !== "string" || typeof dayCandidate.title !== "string" || !Array.isArray(dayCandidate.blocks)) {
             throw new ProgramsError("Workout program response was malformed.", "PARSE_ERROR");
           }
 
+          if (__DEV__) {
+            console.log("[SignalAdapter] raw coach instructions", dayCandidate.coach_instructions, dayCandidate.coachInstructions);
+          }
+
           return {
+            coachInstructions:
+              assertNullableString(dayCandidate.coachInstructions) ??
+              assertNullableString(dayCandidate.coach_instructions) ??
+              assertNullableString(dayCandidate.instructions),
             id: dayCandidate.id,
             title: dayCandidate.title,
             position: typeof dayCandidate.position === "number" ? dayCandidate.position : 0,
@@ -229,14 +258,15 @@ function normalizeWorkoutProgramPayload(value: unknown): WorkoutProgramPayload {
                     throw new ProgramsError("Workout program response was malformed.", "PARSE_ERROR");
                   }
 
-                  return {
-                    id: exerciseCandidate.id,
-                    exerciseId: exerciseCandidate.exerciseId,
-                    exerciseName: exerciseCandidate.exerciseName,
-                    media: assertArrayOfStrings(exerciseCandidate.media),
-                    notes: assertString(exerciseCandidate.notes, ""),
-                    position: typeof exerciseCandidate.position === "number" ? exerciseCandidate.position : 0,
-                    sync_key: assertString(exerciseCandidate.sync_key, exerciseCandidate.id),
+                return {
+                  id: exerciseCandidate.id,
+                  exerciseId: exerciseCandidate.exerciseId,
+                  exerciseName: exerciseCandidate.exerciseName,
+                  media: assertArrayOfStrings(exerciseCandidate.media),
+                  mediaItems: normalizeWorkoutExerciseMediaList(exerciseCandidate.mediaItems),
+                  notes: assertString(exerciseCandidate.notes, ""),
+                  position: typeof exerciseCandidate.position === "number" ? exerciseCandidate.position : 0,
+                  sync_key: assertString(exerciseCandidate.sync_key, exerciseCandidate.id),
                     reps: assertString(exerciseCandidate.reps, ""),
                     rest: assertString(exerciseCandidate.rest, ""),
                     rpe: assertString(exerciseCandidate.rpe, ""),
@@ -272,18 +302,22 @@ export async function getPrograms(): Promise<ProgramSummary[]> {
   }
 }
 
-export async function getWorkoutProgram(programId: string): Promise<WorkoutProgramPayload> {
+export async function getWorkoutProgram(programId: string, versionId?: string | null): Promise<WorkoutProgramPayload> {
   try {
     if (!programId.trim()) {
       throw new ProgramsError("Program ID is required.", "BAD_REQUEST");
     }
 
-    const response = await fetch(resolveSignalApiUrl(`/api/workout-programs/${encodeURIComponent(programId)}`), {
-      headers: {
-        Accept: "application/json",
+    const versionQuery = versionId?.trim() ? `?versionId=${encodeURIComponent(versionId.trim())}` : "";
+    const response = await fetch(
+      resolveSignalApiUrl(`/api/workout-programs/${encodeURIComponent(programId)}${versionQuery}`),
+      {
+        headers: {
+          Accept: "application/json",
+        },
+        method: "GET",
       },
-      method: "GET",
-    });
+    );
 
     const payload = await readJsonResponse<unknown>(response);
     return normalizeWorkoutProgramPayload(payload);
