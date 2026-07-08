@@ -7,6 +7,12 @@ import { AppTopBar, Chip, EditorialCard, ScreenScaffold } from "@/src/components
 import { AppButton, Typography } from "@/src/components/primitives";
 import { useMacroTargets, useProfile } from "@/src/hooks/queries";
 import { useAuth } from "@/src/hooks/useAuth";
+import {
+  formatActivityLevelLabel,
+  formatGoalTypeLabel,
+  formatHeightCm,
+  formatWeightKg,
+} from "@/src/features/user-goals/constants";
 import { colors } from "@/src/theme";
 
 const fallbackAvatar = require("@/assets/images/landing.png");
@@ -98,6 +104,10 @@ function AthleteProfileScreenComponent() {
     }
     return { value: formatLbs(fitnessProfile.weight_kg), unit: "lbs" };
   }, [fitnessProfile?.weight_kg]);
+
+  const goalTypeLabel = formatGoalTypeLabel(fitnessProfile?.goal_type ?? fitnessProfile?.primary_goal);
+  const activityLevelLabel = formatActivityLevelLabel(fitnessProfile?.activity_level);
+  const targetGoalLabel = fitnessProfile?.target_goal?.trim() || null;
 
   const macroTargets = macroTargetsQuery.data ?? null;
 
@@ -282,6 +292,51 @@ function AthleteProfileScreenComponent() {
             value="--"
           />
         </View>
+      </View>
+
+      <View className="gap-4">
+        <View className="flex-row items-end justify-between">
+          <Typography variant="headlineLg">Goal Profile</Typography>
+          <AppButton onPress={() => router.push("/(modals)/goal-profile" as never)} size="sm" variant="ghost">
+            {fitnessProfile ? "Edit Goal Profile" : "Set Goal Profile"}
+          </AppButton>
+        </View>
+        <EditorialCard className="gap-4">
+          <View className="flex-row flex-wrap gap-3">
+            <View className="rounded-full bg-surface-muted px-3 py-1.5">
+              <Typography tone="secondary" variant="labelSm">
+                {goalTypeLabel ?? "Goal Type not set"}
+              </Typography>
+            </View>
+            <View className="rounded-full bg-surface-muted px-3 py-1.5">
+              <Typography tone="secondary" variant="labelSm">
+                {activityLevelLabel ?? "Activity level not set"}
+              </Typography>
+            </View>
+          </View>
+
+          <View className="flex-row flex-wrap gap-3">
+            <View className="flex-1 rounded-2xl border border-border bg-surface-raised p-4">
+              <Typography tone="secondary" variant="labelSm">
+                Weight
+              </Typography>
+              <Typography variant="headlineLg">{formatWeightKg(fitnessProfile?.weight_kg)}</Typography>
+            </View>
+            <View className="flex-1 rounded-2xl border border-border bg-surface-raised p-4">
+              <Typography tone="secondary" variant="labelSm">
+                Height
+              </Typography>
+              <Typography variant="headlineLg">{formatHeightCm(fitnessProfile?.height_cm)}</Typography>
+            </View>
+          </View>
+
+          <View className="rounded-2xl border border-border bg-surface-raised p-4">
+            <Typography tone="secondary" variant="labelSm">
+              Target Goal
+            </Typography>
+            <Typography variant="bodyMd">{targetGoalLabel ?? "Not set"}</Typography>
+          </View>
+        </EditorialCard>
       </View>
 
       <View className="gap-4">

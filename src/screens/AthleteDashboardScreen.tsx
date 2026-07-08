@@ -30,6 +30,7 @@ import {
   useWorkoutSessionStatus,
 } from "@/src/hooks/queries";
 import { useWorkoutProgram } from "@/src/hooks/useWorkoutProgram";
+import { normalizeGoalType } from "@/src/features/user-goals/constants";
 import type { Program } from "@/src/services/programs.service";
 import { getSignalProgramProgress } from "@/src/services/signal-workout-adapter";
 import { colors } from "@/src/theme";
@@ -57,18 +58,24 @@ function titleCase(value: string) {
 }
 
 function prettyGoal(raw: string | null | undefined) {
-  if (!raw) return "Precision Training.";
-  switch (raw) {
-    case "build_muscle":
-      return "Precision Training.";
-    case "lose_fat":
-      return "Conditioning Focus.";
-    case "increase_endurance":
+  const goal = normalizeGoalType(raw);
+  if (!goal) return "Precision Training.";
+
+  switch (goal) {
+    case "fat_loss":
+      return "Fat Loss Focus.";
+    case "muscle_gain":
+      return "Muscle Gain Focus.";
+    case "strength":
+      return "Strength Focus.";
+    case "endurance":
       return "Endurance Build.";
-    case "improve_mobility":
-      return "Mobility Progress.";
+    case "hybrid_athlete":
+      return "Hybrid Athlete Focus.";
+    case "general_health":
+      return "General Health.";
     default:
-      return `${titleCase(raw)}.`;
+      return `${titleCase(goal)}.`;
   }
 }
 

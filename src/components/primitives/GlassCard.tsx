@@ -45,7 +45,7 @@ function GlassCardComponent({
       {Platform.OS !== "android" ? (
         <BlurView intensity={intensity} style={styles.blurFill} tint="light" />
       ) : null}
-      <View className="relative">{children}</View>
+      <View className="relative flex-1">{children}</View>
     </View>
   );
 }

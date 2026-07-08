@@ -1,6 +1,7 @@
 import type { User } from "@supabase/supabase-js";
 
 import { supabase } from "@/src/lib/supabase";
+import type { ActivityLevelValue, GoalTypeValue } from "@/src/features/user-goals/constants";
 
 export type PublicUserProfile = {
   avatar_url: string | null;
@@ -12,13 +13,16 @@ export type PublicUserProfile = {
 };
 
 export type FitnessProfile = {
+  activity_level: string | null;
   date_of_birth: string | null;
   equipment_access: string[] | null;
   experience_level: string | null;
   gender: string | null;
   height_cm: number | null;
   injuries: string[] | null;
+  goal_type: string | null;
   primary_goal: string | null;
+  target_goal: string | null;
   training_availability: string[] | null;
   user_id: string;
   vibe_type: string | null;
@@ -40,7 +44,10 @@ export type UpdateProfileInput = {
   // fitness_profiles fields (optional patch)
   heightCm?: number | null;
   weightKg?: number | null;
+  goalType?: GoalTypeValue | null;
   primaryGoal?: string | null;
+  targetGoal?: string | null;
+  activityLevel?: ActivityLevelValue | null;
   experienceLevel?: string | null;
   equipmentAccess?: string[] | null;
   injuries?: string[] | null;
@@ -58,7 +65,7 @@ export async function fetchProfileBundle(userId: string): Promise<Pick<ProfileBu
     supabase
       .from("fitness_profiles")
       .select(
-        "user_id,gender,date_of_birth,height_cm,weight_kg,primary_goal,experience_level,training_availability,equipment_access,injuries,vibe_type",
+        "user_id,gender,date_of_birth,height_cm,weight_kg,goal_type,target_goal,activity_level,primary_goal,experience_level,training_availability,equipment_access,injuries,vibe_type",
       )
       .eq("user_id", userId)
       .maybeSingle(),
@@ -98,7 +105,15 @@ export async function updateProfile(userId: string, input: UpdateProfileInput): 
   const fitnessPatch: Partial<FitnessProfile> = {};
   if ("heightCm" in input) fitnessPatch.height_cm = input.heightCm ?? null;
   if ("weightKg" in input) fitnessPatch.weight_kg = input.weightKg ?? null;
+  if ("goalType" in input) {
+    fitnessPatch.goal_type = input.goalType ?? null;
+    if (!("primaryGoal" in input)) {
+      fitnessPatch.primary_goal = input.goalType ?? null;
+    }
+  }
   if ("primaryGoal" in input) fitnessPatch.primary_goal = input.primaryGoal ?? null;
+  if ("targetGoal" in input) fitnessPatch.target_goal = input.targetGoal ?? null;
+  if ("activityLevel" in input) fitnessPatch.activity_level = input.activityLevel ?? null;
   if ("experienceLevel" in input) fitnessPatch.experience_level = input.experienceLevel ?? null;
   if ("trainingAvailability" in input) fitnessPatch.training_availability = input.trainingAvailability ?? null;
   if ("equipmentAccess" in input) fitnessPatch.equipment_access = input.equipmentAccess ?? null;

@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { memo, type PropsWithChildren } from "react";
+import { memo, type PropsWithChildren, type ReactNode } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
@@ -16,10 +16,11 @@ import { colors } from "@/src/theme";
 
 type ModalSheetProps = PropsWithChildren<{
   eyebrow?: string;
+  footer?: ReactNode;
   title: string;
 }>;
 
-function ModalSheetComponent({ children, eyebrow, title }: ModalSheetProps) {
+function ModalSheetComponent({ children, eyebrow, footer, title }: ModalSheetProps) {
   const insets = useSafeAreaInsets();
 
   return (
@@ -32,7 +33,7 @@ function ModalSheetComponent({ children, eyebrow, title }: ModalSheetProps) {
         className="flex-1 justify-end"
       >
         <GlassCard
-          className="gap-6 rounded-t-2xl rounded-b-none px-3 pt-3"
+          className="w-full self-stretch flex-1 gap-6 rounded-t-2xl rounded-b-none px-3 pt-3"
           intensity={24}
           style={[styles.sheet, { paddingBottom: insets.bottom + 24 }]}
           tier="floating"
@@ -59,14 +60,25 @@ function ModalSheetComponent({ children, eyebrow, title }: ModalSheetProps) {
               <Ionicons color={colors.graphite} name="close" size={20} />
             </Pressable>
           </View>
-          <ScrollView
-            alwaysBounceVertical={false}
-            contentContainerClassName="gap-4"
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-          >
-            {children}
-          </ScrollView>
+          <View className="flex-1 min-h-0 gap-4">
+            <ScrollView
+              alwaysBounceVertical={false}
+              className="flex-1 min-h-0"
+              contentContainerClassName="gap-4 pb-2"
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              {children}
+            </ScrollView>
+            {footer ? (
+              <View
+                className="border-t border-border bg-surface-raised/95 pt-3"
+                style={{ paddingBottom: Math.max(12, insets.bottom) }}
+              >
+                {footer}
+              </View>
+            ) : null}
+          </View>
         </GlassCard>
       </KeyboardAvoidingView>
     </ScreenContainer>
