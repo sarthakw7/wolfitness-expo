@@ -2,6 +2,7 @@ import type { User } from "@supabase/supabase-js";
 
 import { supabase } from "@/src/lib/supabase";
 import type { ActivityLevelValue, GoalTypeValue } from "@/src/features/user-goals/constants";
+import type { SmartSyncProviderValue, SmartSyncStatusValue } from "@/src/features/smart-sync/types";
 
 export type PublicUserProfile = {
   avatar_url: string | null;
@@ -22,6 +23,8 @@ export type FitnessProfile = {
   injuries: string[] | null;
   goal_type: string | null;
   primary_goal: string | null;
+  smart_sync_provider: string | null;
+  smart_sync_status: string | null;
   target_goal: string | null;
   training_availability: string[] | null;
   user_id: string;
@@ -46,6 +49,8 @@ export type UpdateProfileInput = {
   weightKg?: number | null;
   goalType?: GoalTypeValue | null;
   primaryGoal?: string | null;
+  smartSyncProvider?: SmartSyncProviderValue | null;
+  smartSyncStatus?: SmartSyncStatusValue | null;
   targetGoal?: string | null;
   activityLevel?: ActivityLevelValue | null;
   experienceLevel?: string | null;
@@ -65,7 +70,7 @@ export async function fetchProfileBundle(userId: string): Promise<Pick<ProfileBu
     supabase
       .from("fitness_profiles")
       .select(
-        "user_id,gender,date_of_birth,height_cm,weight_kg,goal_type,target_goal,activity_level,primary_goal,experience_level,training_availability,equipment_access,injuries,vibe_type",
+        "user_id,gender,date_of_birth,height_cm,weight_kg,goal_type,target_goal,activity_level,primary_goal,smart_sync_provider,smart_sync_status,experience_level,training_availability,equipment_access,injuries,vibe_type",
       )
       .eq("user_id", userId)
       .maybeSingle(),
@@ -112,6 +117,8 @@ export async function updateProfile(userId: string, input: UpdateProfileInput): 
     }
   }
   if ("primaryGoal" in input) fitnessPatch.primary_goal = input.primaryGoal ?? null;
+  if ("smartSyncProvider" in input) fitnessPatch.smart_sync_provider = input.smartSyncProvider ?? null;
+  if ("smartSyncStatus" in input) fitnessPatch.smart_sync_status = input.smartSyncStatus ?? null;
   if ("targetGoal" in input) fitnessPatch.target_goal = input.targetGoal ?? null;
   if ("activityLevel" in input) fitnessPatch.activity_level = input.activityLevel ?? null;
   if ("experienceLevel" in input) fitnessPatch.experience_level = input.experienceLevel ?? null;

@@ -13,6 +13,8 @@ import {
   formatHeightCm,
   formatWeightKg,
 } from "@/src/features/user-goals/constants";
+import { SmartSyncCard } from "@/src/features/smart-sync/components/SmartSyncCard";
+import { useTodayHealthMetrics } from "@/src/features/smart-sync/hooks/useTodayHealthMetrics";
 import { colors } from "@/src/theme";
 
 const fallbackAvatar = require("@/assets/images/landing.png");
@@ -43,6 +45,7 @@ function AthleteProfileScreenComponent() {
   const { signOut, user } = useAuth();
   const profileQuery = useProfile();
   const macroTargetsQuery = useMacroTargets();
+  const todayHealthMetrics = useTodayHealthMetrics();
 
   useEffect(() => {
     if (profileQuery.error) {
@@ -338,6 +341,16 @@ function AthleteProfileScreenComponent() {
           </View>
         </EditorialCard>
       </View>
+
+        <View className="gap-4">
+          <Typography variant="headlineLg">Smart Sync</Typography>
+          <SmartSyncCard
+            onManage={() => router.push("/(modals)/smart-sync" as never)}
+            provider={fitnessProfile?.smart_sync_provider}
+            status={fitnessProfile?.smart_sync_status}
+            todayMetrics={todayHealthMetrics.todayMetrics}
+          />
+        </View>
 
       <View className="gap-4">
         <View className="flex-row items-end justify-between">

@@ -2,6 +2,7 @@ export const queryKeys = {
   dashboardOverview: (userId: string) => ["dashboard", "overview", userId] as const,
   enrollments: (userId: string) => ["enrollments", userId] as const,
   macroTargets: (userId: string) => ["nutrition", "targets", userId] as const,
+  healthMetricLog: (userId: string, logDate: string) => ["health", "metric-log", userId, logDate] as const,
   nutritionLogs: (userId: string, date: string) => ["nutrition", "logs", userId, date] as const,
   nutritionSummary: (userId: string) => ["nutrition", "summary", userId] as const,
   profile: (userId: string) => ["profile", userId] as const,

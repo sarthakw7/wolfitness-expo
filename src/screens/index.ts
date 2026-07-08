@@ -2,6 +2,7 @@ export * from "./AiNutritionAssistantScreen";
 export * from "./AthleteDashboardScreen";
 export * from "./AthleteProfileScreen";
 export * from "./GoalProfileScreen";
+export * from "./SmartSyncScreen";
 export * from "./CoachDetailScreen";
 export * from "./MarketplaceScreen";
 export * from "./NutritionTrackerScreen";
