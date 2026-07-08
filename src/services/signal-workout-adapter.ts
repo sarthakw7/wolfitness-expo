@@ -911,6 +911,7 @@ function toWorkoutExercise(day: WorkoutProgramPayloadDay, block: WorkoutProgramP
   return {
     exercise: toLibraryRow(exercise),
     prescription: toPrescription(day, block, exercise),
+    source_exercise_key: exercise.sync_key,
   };
 }
 

@@ -291,8 +291,43 @@ function kgToLbs(kg: number) {
   return kg / 0.45359237;
 }
 
-function buildWorkoutLogKey(exerciseLibraryId: string, setNumber: number) {
-  return `${exerciseLibraryId}:${setNumber}`;
+function buildWorkoutLogKey(exerciseIdentityKey: string, setNumber: number) {
+  return `${exerciseIdentityKey}:${setNumber}`;
+}
+
+function getWorkoutExerciseIdentityKey(exercise: WorkoutExercise) {
+  return exercise.source_exercise_key ?? exercise.exercise.id;
+}
+
+function getWorkoutLogIdentityKey(log: Pick<WorkoutLogSet, "exercise_library_id" | "source_exercise_key">) {
+  return log.source_exercise_key ?? log.exercise_library_id ?? "";
+}
+
+function normalizeCompletedSetPayload(input: {
+  draft: { lbs: string; reps: string; rpe: string };
+  exercise: WorkoutExercise;
+  isSignalWorkout: boolean;
+  setNumber: number;
+}) {
+  const repsCompletedRaw = input.draft.reps.trim() ? Number(input.draft.reps) : getSignalFallbackReps(input.exercise);
+  const rpeActualRaw = input.draft.rpe.trim() ? Number(input.draft.rpe) : null;
+  const weightLbsRaw = input.draft.lbs.trim() ? Number(input.draft.lbs) : NaN;
+  const repsCompleted = Number.isFinite(repsCompletedRaw as number) ? (repsCompletedRaw as number) : null;
+  const rpeActualValue = Number.isFinite(rpeActualRaw as number) ? (rpeActualRaw as number) : null;
+  const rpeActual =
+    rpeActualValue != null && rpeActualValue >= 1 && rpeActualValue <= 10 ? rpeActualValue : null;
+  const weightKg = Number.isFinite(weightLbsRaw) ? lbsToKg(weightLbsRaw) : null;
+  const exerciseIdentityKey = getWorkoutExerciseIdentityKey(input.exercise);
+
+  return {
+    exerciseLibraryId: input.isSignalWorkout ? null : exerciseIdentityKey,
+    exerciseName: input.isSignalWorkout ? input.exercise.exercise.name : null,
+    repsCompleted,
+    rpeActual,
+    setNumber: input.setNumber,
+    sourceExerciseKey: input.isSignalWorkout ? exerciseIdentityKey : null,
+    weightKg,
+  };
 }
 
 function WorkoutSkeleton() {
@@ -978,7 +1013,7 @@ function WorkoutPlayerScreenComponent() {
   const normalizedLogs = useMemo(() => {
     const byKey = new Map<string, WorkoutLogSet>();
     logs.forEach((log) => {
-      const key = buildWorkoutLogKey(log.exercise_library_id, log.set_number);
+      const key = buildWorkoutLogKey(getWorkoutLogIdentityKey(log), log.set_number);
       const existing = byKey.get(key);
       if (!existing) {
         byKey.set(key, log);
@@ -992,7 +1027,7 @@ function WorkoutPlayerScreenComponent() {
       }
     });
     return Array.from(byKey.values()).sort((a, b) => {
-      if (a.exercise_library_id === b.exercise_library_id) {
+      if (getWorkoutLogIdentityKey(a) === getWorkoutLogIdentityKey(b)) {
         return a.set_number - b.set_number;
       }
       return a.logged_at.localeCompare(b.logged_at);
@@ -1001,9 +1036,10 @@ function WorkoutPlayerScreenComponent() {
   const completedSetNumbersByExercise = useMemo(() => {
     const map = new Map<string, Set<number>>();
     normalizedLogs.forEach((log) => {
-      const current = map.get(log.exercise_library_id) ?? new Set<number>();
+      const identityKey = getWorkoutLogIdentityKey(log);
+      const current = map.get(identityKey) ?? new Set<number>();
       current.add(log.set_number);
-      map.set(log.exercise_library_id, current);
+      map.set(identityKey, current);
     });
     return map;
   }, [normalizedLogs]);
@@ -1081,7 +1117,7 @@ function WorkoutPlayerScreenComponent() {
   const completedExerciseCount = useMemo(() => {
     if (!workoutPlan?.exercises?.length) return 0;
     return workoutPlan.exercises.filter((item) => {
-      const completed = exerciseProgress.get(item.exercise.id) ?? 0;
+      const completed = exerciseProgress.get(getWorkoutExerciseIdentityKey(item)) ?? 0;
       const target = parseSignalFallbackSetCount(item);
       return target > 0 && completed >= target;
     }).length;
@@ -1125,7 +1161,7 @@ function WorkoutPlayerScreenComponent() {
     setSetDrafts((current) => {
       const next = { ...current };
       normalizedLogs.forEach((log) => {
-        const draftKey = buildWorkoutLogKey(log.exercise_library_id, log.set_number);
+        const draftKey = buildWorkoutLogKey(getWorkoutLogIdentityKey(log), log.set_number);
         if (next[draftKey]) return;
         next[draftKey] = {
           lbs: log.weight_kg != null ? String(Math.round(kgToLbs(Number(log.weight_kg)))) : "",
@@ -1145,10 +1181,10 @@ function WorkoutPlayerScreenComponent() {
       let changed = false;
 
       workoutPlan.exercises.forEach((exercise) => {
-        const exerciseId = exercise.exercise.id;
+        const exerciseId = getWorkoutExerciseIdentityKey(exercise);
         const targetSets = getTargetSets(exercise);
         const inferredExtraSets = normalizedLogs.reduce((max, log) => {
-          if (log.exercise_library_id !== exerciseId) return max;
+          if (getWorkoutLogIdentityKey(log) !== exerciseId) return max;
           return Math.max(max, log.set_number - targetSets);
         }, 0);
         const currentExtraSets = next[exerciseId] ?? 0;
@@ -1168,7 +1204,7 @@ function WorkoutPlayerScreenComponent() {
     setPendingCompletedSetKeys((current) => {
       const next = new Set(current);
       normalizedLogs.forEach((log) => {
-        next.delete(buildWorkoutLogKey(log.exercise_library_id, log.set_number));
+        next.delete(buildWorkoutLogKey(getWorkoutLogIdentityKey(log), log.set_number));
       });
       return next.size === current.size ? current : next;
     });
@@ -1252,9 +1288,11 @@ function WorkoutPlayerScreenComponent() {
       const workoutExercise =
         workoutPlan.exercises.find(
           (exercise) =>
-            exercise.prescription.id === payloadExercise.id || exercise.exercise.id === payloadExercise.exerciseId,
+            exercise.prescription.id === payloadExercise.id ||
+            exercise.source_exercise_key === payloadExercise.sync_key ||
+            exercise.exercise.id === payloadExercise.exerciseId,
         ) ?? null;
-      const exerciseId = workoutExercise?.exercise.id ?? payloadExercise.exerciseId;
+      const exerciseId = workoutExercise ? getWorkoutExerciseIdentityKey(workoutExercise) : payloadExercise.sync_key;
       const completedSetNumbers = completedSetNumbersByExercise.get(exerciseId) ?? new Set<number>();
       const targetSets = Math.max(1, getSignalPrescribedSetCount(workoutExercise, payloadExercise));
       const prescribedReps = getSignalPrescribedRepsValue(workoutExercise, payloadExercise);
@@ -1343,32 +1381,41 @@ function WorkoutPlayerScreenComponent() {
 
   const handleCompleteSet = async (exercise: WorkoutExercise, setNumber: number) => {
     if (!sessionId || completeSetMutation.isPending || sessionComplete) return;
-    const completedSetNumbers = completedSetNumbersByExercise.get(exercise.exercise.id) ?? new Set<number>();
+    const exerciseIdentityKey = getWorkoutExerciseIdentityKey(exercise);
+    const completedSetNumbers = completedSetNumbersByExercise.get(exerciseIdentityKey) ?? new Set<number>();
     const targetSets = getTargetSets(exercise);
     const isExerciseComplete = targetSets > 0 && completedSetNumbers.size >= targetSets;
-    const logKey = buildWorkoutLogKey(exercise.exercise.id, setNumber);
+    const logKey = buildWorkoutLogKey(exerciseIdentityKey, setNumber);
     if (isExerciseComplete || completedSetNumbers.has(setNumber) || pendingCompletedSetKeys.has(logKey)) {
       return;
     }
     const draft = setDrafts[logKey] ?? { lbs: "", reps: "", rpe: "" };
     const totalSets = targetSets;
     const willCompleteExercise = totalSets > 0 && setNumber >= totalSets;
-    const repsFallback = getSignalFallbackReps(exercise);
-    const repsCompleted = draft.reps.trim() ? Number(draft.reps) : repsFallback;
-    const rpeActual = draft.rpe.trim() ? Number(draft.rpe) : null;
-    const weightLbs = draft.lbs.trim() ? Number(draft.lbs) : NaN;
-    const weightKg = Number.isFinite(weightLbs) ? lbsToKg(weightLbs) : null;
+    const normalized = normalizeCompletedSetPayload({ draft, exercise, isSignalWorkout: isSignalExecution, setNumber });
+    const payload = {
+      exerciseLibraryId: normalized.exerciseLibraryId,
+      exerciseName: normalized.exerciseName,
+      repsCompleted: normalized.repsCompleted,
+      rpeActual: normalized.rpeActual,
+      sessionId,
+      setNumber: normalized.setNumber,
+      sourceExerciseKey: normalized.sourceExerciseKey,
+      weightKg: normalized.weightKg,
+    };
 
     if (__DEV__ && isSignalExecution) {
-      console.log("[signal-workout-player]", {
-        activeExerciseId: exercise.exercise.id,
-        activeExerciseName: exercise.exercise.name,
-        completedSetCount: completedSetNumbers.size,
-        nextSetNumber: setNumber,
-        repsCompleted,
-        rpeActual,
+      console.log("[CompleteSet] draft", draft);
+      console.log("[CompleteSet] payload", payload);
+        console.log("[signal-workout-player]", {
+          activeExerciseId: exerciseIdentityKey,
+          activeExerciseName: exercise.exercise.name,
+          completedSetCount: completedSetNumbers.size,
+          nextSetNumber: setNumber,
+        repsCompleted: normalized.repsCompleted,
+        rpeActual: normalized.rpeActual,
         sessionId,
-        weightKg,
+        weightKg: normalized.weightKg,
       });
     }
 
@@ -1378,22 +1425,24 @@ function WorkoutPlayerScreenComponent() {
         next.add(logKey);
         return next;
       });
-      await completeSetMutation.mutateAsync({
-        exerciseLibraryId: exercise.exercise.id,
-        repsCompleted: Number.isFinite(repsCompleted as number) ? (repsCompleted as number) : null,
-        rpeActual: Number.isFinite(rpeActual as number) ? (rpeActual as number) : null,
-        sessionId,
-        setNumber,
-        weightKg,
-      });
+      const result = await completeSetMutation.mutateAsync(payload);
+      if (__DEV__ && isSignalExecution) {
+        console.log("[CompleteSet] success", result);
+      }
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
 
       if (!willCompleteExercise) {
         setTimeout(() => {
-          setInputRefs.current[buildWorkoutLogKey(exercise.exercise.id, setNumber + 1)]?.focus();
+          setInputRefs.current[buildWorkoutLogKey(exerciseIdentityKey, setNumber + 1)]?.focus();
         }, 150);
       }
     } catch (error) {
+      if (__DEV__ && isSignalExecution) {
+        console.log("[CompleteSet] error", {
+          error: error instanceof Error ? error.message : String(error),
+          sessionId,
+        });
+      }
       setPendingCompletedSetKeys((current) => {
         const next = new Set(current);
         next.delete(logKey);
@@ -1705,6 +1754,7 @@ function WorkoutPlayerScreenComponent() {
   async function flushWorkoutDraftsBeforeExit() {
     if (!sessionId || !workoutPlan || !isSignalExecution) return 0;
 
+    console.log("[SaveExit] drafts", setDrafts);
     console.log("[SaveExit] requested", {
       draftCount: Object.keys(setDrafts ?? {}).length,
       extraSetsByExercise,
@@ -1714,7 +1764,7 @@ function WorkoutPlayerScreenComponent() {
     let savedCount = 0;
 
     for (const exercise of workoutPlan.exercises ?? []) {
-      const exerciseId = exercise.exercise.id;
+      const exerciseId = getWorkoutExerciseIdentityKey(exercise);
       const exerciseName = exercise.exercise.name;
       const targetSets = getTargetSets(exercise);
       const extraSets = extraSetsByExercise[exerciseId] ?? 0;
@@ -1730,32 +1780,33 @@ function WorkoutPlayerScreenComponent() {
         if (isAlreadyCompleted && !isPending) continue;
         if (!hasMeaningfulDraft && !isPending) continue;
 
-        console.log("[SaveExit] flushing draft set", {
+        console.log("[SaveExit] flushing draft", {
           draft,
           exerciseName,
           sessionId,
           setNumber,
         });
 
-        const repsCompletedRaw = draft.reps.trim() ? Number(draft.reps) : getSignalFallbackReps(exercise);
-        const rpeActualRaw = draft.rpe.trim() ? Number(draft.rpe) : null;
-        const weightLbsRaw = draft.lbs.trim() ? Number(draft.lbs) : NaN;
-        const repsCompleted = Number.isFinite(repsCompletedRaw as number) ? (repsCompletedRaw as number) : null;
-        const rpeActual = Number.isFinite(rpeActualRaw as number) ? (rpeActualRaw as number) : null;
-        const weightKg = Number.isFinite(weightLbsRaw) ? lbsToKg(weightLbsRaw) : null;
+        const normalized = normalizeCompletedSetPayload({ draft, exercise, isSignalWorkout: isSignalExecution, setNumber });
+        const payload = {
+          exerciseLibraryId: normalized.exerciseLibraryId,
+          exerciseName: normalized.exerciseName,
+          repsCompleted: normalized.repsCompleted,
+          rpeActual: normalized.rpeActual,
+          sessionId,
+          setNumber: normalized.setNumber,
+          sourceExerciseKey: normalized.sourceExerciseKey,
+          weightKg: normalized.weightKg,
+        };
+
+        console.log("[SaveExit] payload", payload);
 
         try {
-          await workoutService.completeSet({
-            exerciseLibraryId: exerciseId,
-            repsCompleted,
-            rpeActual,
-            sessionId,
-            setNumber,
-            weightKg,
-          });
+          const result = await workoutService.completeSet(payload);
+          console.log("[SaveExit] success", result);
           savedCount += 1;
         } catch (error) {
-          console.log("[SaveExit] flush error", {
+          console.log("[SaveExit] error", {
             error: error instanceof Error ? error.message : String(error),
             sessionId,
           });
@@ -1809,6 +1860,8 @@ function WorkoutPlayerScreenComponent() {
       const invalidatePromises = scopedQueries.map((queryKey) =>
         queryClient.invalidateQueries({ exact: true, queryKey }),
       );
+      invalidatePromises.push(queryClient.invalidateQueries({ queryKey: ["workout", "signal-session-plan"] }));
+      invalidatePromises.push(queryClient.invalidateQueries({ queryKey: ["workout", "signal-session-status"] }));
       if (sessionId) {
         invalidatePromises.push(queryClient.invalidateQueries({ exact: true, queryKey: queryKeys.workoutSession(sessionId) }));
       }

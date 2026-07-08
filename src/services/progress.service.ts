@@ -92,9 +92,11 @@ type CompletedWorkoutSessionRow = {
 
 type WorkoutLogSetRow = {
   logged_at: string;
-  exercise_library_id: string;
+  exercise_library_id: string | null;
+  exercise_name: string | null;
   reps_completed: number | null;
   session_id: string;
+  source_exercise_key: string | null;
   weight_kg: number | null;
 };
 
@@ -305,6 +307,14 @@ function formatExerciseFallback(exerciseId: string) {
   return `Exercise ${shortId}`;
 }
 
+function isUuidLike(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+}
+
+function getWorkoutLogIdentityKey(log: Pick<WorkoutLogSetRow, "exercise_library_id" | "source_exercise_key">) {
+  return log.source_exercise_key ?? log.exercise_library_id ?? "";
+}
+
 export async function fetchWorkoutHistory(userId: string, limit = 20): Promise<WorkoutHistoryRow[]> {
   try {
     assertSupabaseConfigured();
@@ -325,7 +335,7 @@ export async function fetchWorkoutHistory(userId: string, limit = 20): Promise<W
     const sessionIds = sessions.map((session) => session.id);
     const allLogsRes = await supabase
       .from("workout_log_sets")
-      .select("session_id,exercise_library_id")
+      .select("session_id,exercise_library_id,source_exercise_key")
       .in("session_id", sessionIds);
 
     if (allLogsRes.error) throw allLogsRes.error;
@@ -365,7 +375,7 @@ export async function fetchWorkoutHistory(userId: string, limit = 20): Promise<W
     const dayTitles = new Map(
       ((dayTitlesRes.data ?? []) as WorkoutHistoryTitleRow[]).map((row) => [row.id, row.title ?? "Day unavailable"]),
     );
-    const logs = (allLogsRes.data ?? []) as Pick<WorkoutLogSetRow, "exercise_library_id" | "session_id">[];
+    const logs = (allLogsRes.data ?? []) as Pick<WorkoutLogSetRow, "exercise_library_id" | "session_id" | "source_exercise_key">[];
     const logsBySession = new Map<string, { exerciseIds: Set<string>; setCount: number }>();
 
     sessionIds.forEach((sessionId) => {
@@ -376,7 +386,7 @@ export async function fetchWorkoutHistory(userId: string, limit = 20): Promise<W
       const bucket = logsBySession.get(log.session_id);
       if (!bucket) return;
       bucket.setCount += 1;
-      bucket.exerciseIds.add(log.exercise_library_id);
+      bucket.exerciseIds.add(getWorkoutLogIdentityKey(log));
     });
 
     return sessions.map((session) => {
@@ -438,8 +448,9 @@ export async function fetchWorkoutSessionDetail(
 
     const logsRes = await supabase
       .from("workout_log_sets")
-      .select("id,session_id,exercise_library_id,set_number,reps_completed,weight_kg,rpe_actual,logged_at")
+      .select("id,session_id,exercise_library_id,source_exercise_key,exercise_name,set_number,reps_completed,weight_kg,rpe_actual,logged_at")
       .eq("session_id", sessionId)
+      .order("source_exercise_key", { ascending: true })
       .order("exercise_library_id", { ascending: true })
       .order("set_number", { ascending: true })
       .order("logged_at", { ascending: true });
@@ -461,7 +472,7 @@ export async function fetchWorkoutSessionDetail(
     const logs = (logsRes.data ?? []) as (
       WorkoutLogSetRow & { id: string; rpe_actual: number | null; set_number: number }
     )[];
-    const exerciseIds = Array.from(new Set(logs.map((log) => log.exercise_library_id)));
+    const exerciseIds = Array.from(new Set(logs.map((log) => getWorkoutLogIdentityKey(log)))).filter(isUuidLike);
     const exerciseLibraryRes = exerciseIds.length
       ? await supabase.from("exercises_library").select("id,name").in("id", exerciseIds)
       : { data: [], error: null };
@@ -477,7 +488,8 @@ export async function fetchWorkoutSessionDetail(
 
     const groupedExercises = new Map<string, WorkoutSessionDetailExerciseGroup>();
     logs.forEach((log) => {
-      const existing = groupedExercises.get(log.exercise_library_id);
+      const exerciseId = getWorkoutLogIdentityKey(log);
+      const existing = groupedExercises.get(exerciseId);
       const nextSet = {
         id: log.id,
         loggedAt: log.logged_at,
@@ -492,10 +504,12 @@ export async function fetchWorkoutSessionDetail(
         return;
       }
 
-      groupedExercises.set(log.exercise_library_id, {
-        exerciseId: log.exercise_library_id,
+      groupedExercises.set(exerciseId, {
+        exerciseId,
         exerciseLabel:
-          exerciseTitles.get(log.exercise_library_id) ?? formatExerciseFallback(log.exercise_library_id),
+          log.exercise_name ??
+          exerciseTitles.get(log.exercise_library_id ?? "") ??
+          formatExerciseFallback(exerciseId),
         sets: [nextSet],
       });
     });

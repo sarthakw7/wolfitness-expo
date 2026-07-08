@@ -5,13 +5,19 @@ import { workoutService } from "@/src/services";
 import type { WorkoutLogSet } from "@/src/services/workout.service";
 
 type CompleteSetInput = {
-  exerciseLibraryId: string;
+  exerciseLibraryId: string | null;
+  exerciseName?: string | null;
   repsCompleted?: number | null;
   rpeActual?: number | null;
   sessionId: string;
   setNumber: number;
+  sourceExerciseKey?: string | null;
   weightKg?: number | null;
 };
+
+function getWorkoutLogIdentityKey(input: { exerciseLibraryId: string | null; sourceExerciseKey?: string | null }) {
+  return input.sourceExerciseKey?.trim() || input.exerciseLibraryId || "";
+}
 
 export function useCompleteSet() {
   const queryClient = useQueryClient();
@@ -20,10 +26,12 @@ export function useCompleteSet() {
     mutationFn: async (input: CompleteSetInput) => {
       return workoutService.completeSet({
         exerciseLibraryId: input.exerciseLibraryId,
+        exerciseName: input.exerciseName ?? null,
         repsCompleted: input.repsCompleted ?? null,
         rpeActual: input.rpeActual ?? null,
         sessionId: input.sessionId,
         setNumber: input.setNumber,
+        sourceExerciseKey: input.sourceExerciseKey ?? null,
         weightKg: input.weightKg ?? null,
       });
     },
@@ -31,16 +39,19 @@ export function useCompleteSet() {
       const sessionKey = queryKeys.workoutSession(input.sessionId);
       await queryClient.cancelQueries({ queryKey: sessionKey });
       const previous = queryClient.getQueryData<{ logs: WorkoutLogSet[]; session: unknown }>(sessionKey);
+      const identityKey = getWorkoutLogIdentityKey(input);
 
       if (previous) {
         const optimisticRow: WorkoutLogSet = {
-          exercise_library_id: input.exerciseLibraryId,
-          id: `optimistic-${input.sessionId}-${input.exerciseLibraryId}-${input.setNumber}`,
+          exercise_library_id: input.sourceExerciseKey ? null : input.exerciseLibraryId,
+          exercise_name: input.exerciseName ?? null,
+          id: `optimistic-${input.sessionId}-${identityKey}-${input.setNumber}`,
           logged_at: new Date().toISOString(),
           reps_completed: input.repsCompleted ?? null,
           rpe_actual: input.rpeActual ?? null,
           session_id: input.sessionId,
           set_number: input.setNumber,
+          source_exercise_key: input.sourceExerciseKey ?? null,
           weight_kg: input.weightKg ?? null,
         };
         queryClient.setQueryData(sessionKey, {
@@ -80,12 +91,13 @@ export function useCompleteSet() {
       const current = queryClient.getQueryData<{ logs: WorkoutLogSet[]; session: unknown }>(sessionKey);
       if (current) {
         // Replace optimistic row or append if no optimistic exists.
+        const identityKey = getWorkoutLogIdentityKey(input);
         const withoutOptimistic = current.logs.filter(
           (log) =>
             !(
               log.id.startsWith("optimistic-") &&
               log.session_id === input.sessionId &&
-              log.exercise_library_id === input.exerciseLibraryId &&
+              (log.source_exercise_key ?? log.exercise_library_id) === identityKey &&
               log.set_number === input.setNumber
             ),
         );
@@ -103,7 +115,7 @@ export function useCompleteSet() {
                 !(
                   log.id.startsWith("optimistic-") &&
                   log.session_id === input.sessionId &&
-                  log.exercise_library_id === input.exerciseLibraryId &&
+                  (log.source_exercise_key ?? log.exercise_library_id) === identityKey &&
                   log.set_number === input.setNumber
                 ),
             );
@@ -118,6 +130,8 @@ export function useCompleteSet() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.workoutSession(input.sessionId) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.workoutSessionPlans() }),
+        queryClient.invalidateQueries({ queryKey: ["workout", "signal-session-plan"] }),
+        queryClient.invalidateQueries({ queryKey: ["workout", "signal-session-status"] }),
       ]);
     },
   });
