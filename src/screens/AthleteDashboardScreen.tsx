@@ -91,6 +91,33 @@ function formatStartedAgo(value: string | null | undefined) {
   return `Started ${hours}h ${minutes}m ago`;
 }
 
+function formatActiveSignalWorkoutTitle(
+  programTitle: string | null | undefined,
+  weeks: {
+    days: { position: number; sync_key: string; title: string }[];
+    position: number;
+    sync_key: string;
+    title: string;
+  }[] | null | undefined,
+  sourceWeekKey: string | null | undefined,
+  sourceDayKey: string | null | undefined,
+) {
+  const resolvedProgramTitle = programTitle?.trim() || "Signal Workout";
+  const week = weeks?.find((candidate) => candidate.sync_key === sourceWeekKey || candidate.title === sourceWeekKey) ?? null;
+  const day = week?.days.find((candidate) => candidate.sync_key === sourceDayKey || candidate.title === sourceDayKey) ?? null;
+
+  if (week && day) {
+    const weekNumber = Number.isFinite(week.position) ? week.position + 1 : null;
+    const dayNumber = Number.isFinite(day.position) ? day.position + 1 : null;
+
+    if (weekNumber && dayNumber) {
+      return `${resolvedProgramTitle} · Week ${weekNumber} · Day ${dayNumber}`;
+    }
+  }
+
+  return `${resolvedProgramTitle} · Active Session`;
+}
+
 function DashboardSkeleton() {
   return (
     <View className="gap-gutter">
@@ -353,7 +380,12 @@ function AthleteDashboardScreenComponent() {
           signalProgramId: activeWorkoutSession.source_program_id,
           signalWeekId: activeWorkoutSession.source_week_key,
         },
-        subtitle: `Signal Workout · Week ${activeWorkoutSession.source_week_key} · Day ${activeWorkoutSession.source_day_key}`,
+        subtitle: formatActiveSignalWorkoutTitle(
+          signalProgramQuery.data?.program.title ?? signalReadyState?.programTitle ?? null,
+          signalProgramQuery.data?.weeks ?? null,
+          activeWorkoutSession.source_week_key,
+          activeWorkoutSession.source_day_key,
+        ),
         title: "Workout in Progress",
       };
     }
@@ -376,6 +408,9 @@ function AthleteDashboardScreenComponent() {
     activeWorkoutSessionQuery.error,
     activeWorkoutSessionQuery.isLoading,
     signalLifecycleRow,
+    signalProgramQuery.data?.program.title,
+    signalProgramQuery.data?.weeks,
+    signalReadyState?.programTitle,
     workoutPlan?.day.title,
     workoutPlan?.program.title,
   ]);
