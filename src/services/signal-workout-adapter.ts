@@ -197,6 +197,13 @@ function addSignalDays(date: Date, days: number) {
   return next;
 }
 
+function startOfSundayWeek(date: Date) {
+  const weekStart = new Date(date);
+  weekStart.setHours(0, 0, 0, 0);
+  weekStart.setDate(date.getDate() - date.getDay());
+  return weekStart;
+}
+
 function toCalendarIsoDate(date: Date) {
   const yyyy = date.getFullYear();
   const mm = String(date.getMonth() + 1).padStart(2, "0");
@@ -259,23 +266,25 @@ export function buildSignalWeekCalendarDays(
 
   const completedSet = new Set(Array.isArray(completedDayKeys) ? completedDayKeys : Array.from(completedDayKeys));
   const weekAnchor = parseSignalDate(programStartedAt) ?? new Date();
-  const weekStart = addSignalDays(weekAnchor, (typeof selectedWeek.position === "number" ? selectedWeek.position : 0) * 7);
+  const programWeekStart = addSignalDays(weekAnchor, (typeof selectedWeek.position === "number" ? selectedWeek.position : 0) * 7);
+  const visibleWeekStart = selectedDateIso
+    ? startOfSundayWeek(parseSignalDate(selectedDateIso) ?? programWeekStart)
+    : startOfSundayWeek(programWeekStart);
   const selectedIso = selectedDateIso ? selectedDateIso.slice(0, 10) : null;
-  const weekDayMap = new Map<number, WorkoutProgramPayloadDay>();
+  const dayByDateIso = new Map<string, WorkoutProgramPayloadDay>();
   selectedWeek.days.forEach((day) => {
-    if (typeof day.position === "number") {
-      weekDayMap.set(day.position, day);
-    }
+    const dayDateIso = toCalendarIsoDate(resolveSignalDayDate(programStartedAt, selectedWeek, day));
+    dayByDateIso.set(dayDateIso, day);
   });
-  const monthYearLabel = formatMonthYearLabel(weekStart);
+  const monthYearLabel = formatMonthYearLabel(visibleWeekStart);
   const todayIso = toCalendarIsoDate(new Date());
 
   return {
     monthYearLabel,
     days: Array.from({ length: 7 }).map((_, dayOffset) => {
-      const date = addSignalDays(weekStart, dayOffset);
+      const date = addSignalDays(visibleWeekStart, dayOffset);
       const dateIso = toCalendarIsoDate(date);
-      const assignedDay = weekDayMap.get(dayOffset) ?? null;
+      const assignedDay = dayByDateIso.get(dateIso) ?? null;
       return {
         date,
         dayKey: assignedDay?.sync_key ?? null,
@@ -285,7 +294,7 @@ export function buildSignalWeekCalendarDays(
         isPlayable: isSignalPlayableDay(assignedDay),
         isSelected: selectedIso ? dateIso === selectedIso : false,
         isToday: dateIso === todayIso,
-        monthYearLabel: formatMonthYearLabel(weekStart),
+        monthYearLabel: formatMonthYearLabel(visibleWeekStart),
         weekdayLabel: toCalendarWeekdayLabel(date),
         title: assignedDay?.title ?? "Rest",
         weekKey: selectedWeek.sync_key,
