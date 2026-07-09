@@ -5,6 +5,7 @@ import { Pressable, View } from "react-native";
 import { AppTopBar, EditorialCard, ScreenScaffold } from "@/src/components/layout";
 import { AppButton, Typography } from "@/src/components/primitives";
 import { useWorkoutHistory } from "@/src/hooks/queries";
+import { formatSummaryLine } from "@/src/features/workout-summary/lib/formatWorkoutSummary";
 
 function formatCompletedAt(value: string) {
   const date = new Date(value);
@@ -97,6 +98,9 @@ function WorkoutHistoryScreenComponent() {
                     <Typography variant="headlineLg">{session.title}</Typography>
                     <Typography tone="secondary" variant="bodyMd">
                       {session.subtitle}
+                    </Typography>
+                    <Typography tone="secondary" variant="labelSm">
+                      {formatSummaryLine(session.summary)}
                     </Typography>
                   </View>
 

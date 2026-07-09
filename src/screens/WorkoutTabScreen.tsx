@@ -11,7 +11,7 @@ import {
   useActiveProgram,
   useWorkoutActiveSession,
 } from "@/src/hooks/queries";
-import { useResetSignalEnrollment, useUpdateSignalProgramVersion } from "@/src/hooks/mutations";
+import { useUpdateSignalProgramVersion } from "@/src/hooks/mutations";
 import { useSignalProgramProgress } from "@/src/hooks/queries/useSignalProgramProgress";
 import { useAuth } from "@/src/hooks/useAuth";
 import { useWorkoutProgram } from "@/src/hooks/useWorkoutProgram";
@@ -28,6 +28,17 @@ import {
 import type { ActiveProgramRow } from "@/src/services/active-program.service";
 import type { WorkoutProgramPayloadExercise, WorkoutProgramPayloadWeek } from "@/src/services/programs";
 import { colors } from "@/src/theme";
+
+import { ActiveProgramActions } from "@/src/features/program-lifecycle/components/ActiveProgramActions";
+import { ProgramLifecycleCard } from "@/src/features/program-lifecycle/components/ProgramLifecycleCard";
+import { SignalProgramLifecycleHome } from "@/src/features/program-lifecycle/components/SignalProgramLifecycleHome";
+import { SignalSessionPrimaryAction } from "@/src/features/program-lifecycle/components/SignalSessionPrimaryAction";
+import { SIGNAL_LIFECYCLE_ACTION_COPY } from "@/src/features/program-lifecycle/constants";
+import { resolveSignalCompletedSessionId } from "@/src/features/program-lifecycle/lib/resolveSignalCompletedSessionId";
+import { findFirstPlayableSignalStartPoint } from "@/src/features/program-lifecycle/services/signalProgramLifecycle.service";
+import { useResetSignalProgram } from "@/src/features/program-lifecycle/hooks/useResetSignalProgram";
+import { useSignalProgramLifecycle } from "@/src/features/program-lifecycle/hooks/useSignalProgramLifecycle";
+import { useUnjoinSignalProgram } from "@/src/features/program-lifecycle/hooks/useUnjoinSignalProgram";
 
 import { WorkoutPlayerScreen } from "./WorkoutPlayerScreen";
 
@@ -111,10 +122,19 @@ function WorkoutTabHome() {
   const { user } = useAuth();
   const activeProgramQuery = useActiveProgram(user?.id);
   const activeProgram = activeProgramQuery.data ?? null;
-  const isActiveSignalProgram = activeProgram?.source === "signal" && activeProgram.status === "active";
+  const signalLifecycleQuery = useSignalProgramLifecycle(user?.id);
+  const signalLifecycle = signalLifecycleQuery.data ?? null;
+  const signalProgramRow =
+    activeProgram?.source === "signal"
+      ? activeProgram
+      : signalLifecycle?.source === "signal"
+        ? signalLifecycle
+        : null;
+  const isActiveSignalProgram = signalProgramRow?.status === "active";
+  const isSignalLifecycleState = Boolean(signalProgramRow && signalProgramRow.status !== "active");
 
-  if (activeProgramQuery.isLoading) {
-      return (
+  if (activeProgramQuery.isLoading || signalLifecycleQuery.isLoading) {
+    return (
       <ScreenScaffold
         contentClassName="gap-6"
         header={<AppTopBar centered subtitle="Training Home" title="Workouts" />}
@@ -127,16 +147,52 @@ function WorkoutTabHome() {
     );
   }
 
-  if (!isActiveSignalProgram) {
+  if (isActiveSignalProgram && signalProgramRow) {
+    return (
+      <SignalWorkoutHome
+        activeProgram={signalProgramRow}
+        isActiveProgramFetching={activeProgramQuery.isFetching || signalLifecycleQuery.isFetching}
+        refetchActiveProgram={async () => {
+          await Promise.all([activeProgramQuery.refetch(), signalLifecycleQuery.refetch()]);
+        }}
+      />
+    );
+  }
+
+  if (activeProgram && activeProgram.source !== "signal") {
     return <WorkoutPlayerScreen />;
   }
 
+  if (isSignalLifecycleState && signalProgramRow) {
+    return (
+      <SignalProgramLifecycleHome
+        lifecycle={signalProgramRow}
+        isLifecycleFetching={activeProgramQuery.isFetching || signalLifecycleQuery.isFetching}
+        refetchLifecycle={async () => {
+          await Promise.all([activeProgramQuery.refetch(), signalLifecycleQuery.refetch()]);
+        }}
+      />
+    );
+  }
+
   return (
-    <SignalWorkoutHome
-      activeProgram={activeProgram}
-      isActiveProgramFetching={activeProgramQuery.isFetching}
-      refetchActiveProgram={activeProgramQuery.refetch}
-    />
+    <ScreenScaffold
+      contentClassName="gap-6"
+      header={<AppTopBar centered subtitle="Training Home" title="Workouts" />}
+    >
+      <View className="gap-4 px-2">
+        <ProgramLifecycleCard
+          badge="No active program"
+          description="You are not currently joined to a Signal program."
+          onPrimaryAction={() => {
+            router.push("/(marketplace)" as never);
+          }}
+          primaryActionLabel="Browse Programs"
+          primaryActionVariant="secondary"
+          title="No active Signal program"
+        />
+      </View>
+    </ScreenScaffold>
   );
 }
 
@@ -151,13 +207,18 @@ function SignalWorkoutHome({
 }) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const resetSignalEnrollmentMutation = useResetSignalEnrollment();
+  const resetSignalProgramMutation = useResetSignalProgram(user?.id);
+  const unjoinSignalProgramMutation = useUnjoinSignalProgram(user?.id);
   const updateSignalProgramVersionMutation = useUpdateSignalProgramVersion();
   const activeContentVersionId = activeProgram.source_program_version ?? null;
   const workoutProgramQuery = useWorkoutProgram(activeProgram.source_program_id, activeContentVersionId);
   const latestWorkoutProgramQuery = useWorkoutProgram(activeProgram.source_program_id);
   const refetchWorkoutProgram = workoutProgramQuery.refetch;
   const signalProgressQuery = useSignalProgramProgress(user?.id, activeContentVersionId);
+  const firstPlayableStart = useMemo(
+    () => findFirstPlayableSignalStartPoint(latestWorkoutProgramQuery.data?.weeks ?? []),
+    [latestWorkoutProgramQuery.data?.weeks],
+  );
   const [selectedWeekKey, setSelectedWeekKey] = useState<string | null>(activeProgram.current_week_key);
   const [selectedDayKey, setSelectedDayKey] = useState<string | null>(activeProgram.current_day_key);
   const [selectedDateIso, setSelectedDateIso] = useState<string | null>(null);
@@ -254,6 +315,7 @@ function SignalWorkoutHome({
       sessions
         .filter(
           (session) =>
+            session.active_program_id === activeProgram.id &&
             session.source_program_id === activeProgram.source_program_id &&
             session.source_program_version === activeProgram.source_program_version &&
             session.source_week_key === selectedWeek?.sync_key,
@@ -263,6 +325,7 @@ function SignalWorkoutHome({
     );
   }, [
     activeProgram.source_program_id,
+    activeProgram.id,
     activeProgram.source_program_version,
     selectedWeek?.sync_key,
     signalProgressQuery.data?.completedSessions,
@@ -273,6 +336,7 @@ function SignalWorkoutHome({
       sessions
         .filter(
           (session) =>
+            session.active_program_id === activeProgram.id &&
             session.source_program_id === activeProgram.source_program_id &&
             session.source_program_version === activeProgram.source_program_version,
         )
@@ -280,6 +344,7 @@ function SignalWorkoutHome({
         .filter((value): value is string => Boolean(value)),
     );
   }, [
+    activeProgram.id,
     activeProgram.source_program_id,
     activeProgram.source_program_version,
     signalProgressQuery.data?.completedSessions,
@@ -296,14 +361,36 @@ function SignalWorkoutHome({
     isSameSignalVersion ||
     isUpdateVersionPending;
   const selectedDayCompleted = Boolean(selectedDay?.sync_key && completedDayKeys.has(selectedDay.sync_key));
+  const selectedDayCompletedSessionId = useMemo(
+    () =>
+      resolveSignalCompletedSessionId({
+        completedSessions: signalProgressQuery.data?.completedSessions,
+        fallbackSessionId: activeProgram.last_completed_session_id,
+        activeProgramId: activeProgram.id,
+        dayKey: selectedDay?.sync_key ?? null,
+        programId: activeProgram.source_program_id,
+        programVersion: activeProgram.source_program_version ?? null,
+        weekKey: selectedWeek?.sync_key ?? null,
+      }),
+    [
+      activeProgram.id,
+      activeProgram.last_completed_session_id,
+      activeProgram.source_program_id,
+      activeProgram.source_program_version,
+      selectedDay?.sync_key,
+      selectedWeek?.sync_key,
+      signalProgressQuery.data?.completedSessions,
+    ],
+  );
   const hasMatchingOpenSignalSession = Boolean(
     activeSession?.source === "signal" && activeSession.completed_at === null && activeSession.cancelled_at === null,
   );
-  const ctaLabel = selectedDayCompleted
-    ? "VIEW SUMMARY"
+  const isPlayableDay = Boolean(selectedWeek && selectedDay && selectedPreview.isPlayable);
+  const sessionActionType = selectedDayCompleted
+    ? "summary"
     : hasMatchingOpenSignalSession
-      ? "Resume Session"
-      : "Start Session";
+      ? "resume"
+      : "start";
   const ctaState = selectedDayCompleted ? "completed" : hasMatchingOpenSignalSession ? "in_progress" : "ready";
   const selectedSignalDay = selectedDay
     ? {
@@ -317,21 +404,12 @@ function SignalWorkoutHome({
   const canOpenSelectedWorkoutSections = Boolean(
     selectedWeek &&
       selectedDay &&
+      !selectedDayCompleted &&
       (selectedPreview.blocks.length > 0 || coachInstructionsText.trim().length > 0),
   );
   if (__DEV__) {
     console.log("[SignalHome] selected day", selectedSignalDay?.id, selectedSignalDay?.status);
     console.log("[WorkoutTab] coach instructions shown", selectedSignalDay?.coachInstructions);
-    console.log("[SignalHomeCTA] scoped decision", {
-      activeProgramId: activeProgram.id,
-      sourceProgramId: activeProgram.source_program_id,
-      sourceProgramVersion: activeContentVersionId,
-      sourceWeekKey: signalSessionScope?.sourceWeekKey ?? null,
-      sourceDayKey: signalSessionScope?.sourceDayKey ?? null,
-      scopedSessionId: activeSession?.id ?? null,
-      reason: selectedDayCompleted ? "completed" : hasMatchingOpenSignalSession ? "resume" : "start",
-      label: ctaLabel,
-    });
   }
   const calendarStrip = useMemo(
     () =>
@@ -386,57 +464,85 @@ function SignalWorkoutHome({
     workoutProgramQuery.isFetching ||
     signalProgressQuery.isFetching ||
     activeSessionQuery.isFetching;
-  const openSignalWorkout = ({
-    blockIndex = 0,
-    exerciseIndex,
-    stepType,
-  }: {
-    blockIndex?: number;
-    exerciseIndex?: number;
-    stepType?: "coach" | "summary";
-  } = {}) => {
-    if (!selectedWeek || !selectedDay) return;
-    router.push({
-      pathname: "/(tabs)/workouts",
-      params: {
-        signalBlockIndex: String(blockIndex),
-        signalDayId: selectedDay.sync_key,
-        signalExerciseIndex: typeof exerciseIndex === "number" ? String(exerciseIndex) : undefined,
-        signalProgramId: activeProgram.source_program_id,
-        signalStepType: stepType,
-        signalWeekId: selectedWeek.sync_key,
-      },
-    });
-  };
+  const openSignalWorkout = useCallback(
+    ({
+      blockIndex = 0,
+      exerciseIndex,
+      stepType,
+    }: {
+      blockIndex?: number;
+      exerciseIndex?: number;
+      stepType?: "coach" | "summary";
+    } = {}) => {
+      if (!selectedWeek || !selectedDay) return;
+      router.push({
+        pathname: "/(tabs)/workouts",
+        params: {
+          signalBlockIndex: String(blockIndex),
+          signalDayId: selectedDay.sync_key,
+          signalExerciseIndex: typeof exerciseIndex === "number" ? String(exerciseIndex) : undefined,
+          signalProgramId: activeProgram.source_program_id,
+          signalStepType: stepType,
+          signalWeekId: selectedWeek.sync_key,
+        },
+      });
+    },
+    [activeProgram.source_program_id, selectedDay, selectedWeek],
+  );
 
-  const handleResetEnrollment = useCallback(() => {
+  const handleSelectedDayPrimaryAction = useCallback(() => {
+    if (selectedDayCompleted) {
+      if (selectedDayCompletedSessionId) {
+        router.push(`/(tabs)/history/${selectedDayCompletedSessionId}` as never);
+        return;
+      }
+
+      router.push("/(tabs)/history" as never);
+      return;
+    }
+
+    openSignalWorkout({ stepType: "coach" });
+  }, [openSignalWorkout, selectedDayCompleted, selectedDayCompletedSessionId]);
+
+  const handleResetProgram = useCallback(() => {
+    if (!firstPlayableStart) {
+      Alert.alert(
+        "Reset unavailable",
+        "This program does not have a playable starting workout.",
+      );
+      return;
+    }
+
     Alert.alert(
-      "Reset enrollment?",
-      "This will remove your current active Signal enrollment for this program. You can enroll again into the latest coach-published version.",
+      SIGNAL_LIFECYCLE_ACTION_COPY.reset.confirmationTitle,
+      SIGNAL_LIFECYCLE_ACTION_COPY.reset.confirmationBody,
       [
         { style: "cancel", text: "Cancel" },
         {
           style: "destructive",
-          text: "Reset Enrollment",
+          text: SIGNAL_LIFECYCLE_ACTION_COPY.reset.label,
           onPress: () => {
-            resetSignalEnrollmentMutation
+            resetSignalProgramMutation
               .mutateAsync({
                 activeProgramId: activeProgram.id,
+                firstPlayableStart,
                 signalProgramId: activeProgram.source_program_id,
-                signalProgramVersion: activeProgram.source_program_version ?? null,
+                signalProgramVersion: latestPublishedVersionId ?? activeProgram.source_program_version ?? null,
               })
-              .then(() => {
-                router.replace({
-                  pathname: "/(signal)/program/[programId]",
-                  params: {
-                    programId: activeProgram.source_program_id,
-                  },
-                });
+              .then(async () => {
+                await Promise.all([
+                  refetchActiveProgram(),
+                  workoutProgramQuery.refetch(),
+                  latestWorkoutProgramQuery.refetch(),
+                  signalProgressQuery.refetch(),
+                  activeSessionQuery.refetch(),
+                ]);
+                router.replace("/(tabs)/workouts");
               })
               .catch((error) => {
                 const message = error instanceof Error && error.message.trim().length > 0
                   ? error.message
-                  : "Unable to reset this Signal enrollment.";
+                  : "Unable to reset this Signal program.";
                 Alert.alert("Reset unavailable", message);
               });
           },
@@ -447,8 +553,45 @@ function SignalWorkoutHome({
     activeProgram.id,
     activeProgram.source_program_id,
     activeProgram.source_program_version,
-    resetSignalEnrollmentMutation,
+    activeSessionQuery,
+    firstPlayableStart,
+    latestPublishedVersionId,
+    latestWorkoutProgramQuery,
+    resetSignalProgramMutation,
+    refetchActiveProgram,
+    signalProgressQuery,
+    workoutProgramQuery,
   ]);
+
+  const handleUnjoinProgram = useCallback(() => {
+    Alert.alert(
+      SIGNAL_LIFECYCLE_ACTION_COPY.unjoin.confirmationTitle,
+      SIGNAL_LIFECYCLE_ACTION_COPY.unjoin.confirmationBody,
+      [
+        { style: "cancel", text: "Cancel" },
+        {
+          style: "destructive",
+          text: SIGNAL_LIFECYCLE_ACTION_COPY.unjoin.label,
+          onPress: () => {
+            unjoinSignalProgramMutation
+              .mutateAsync({
+                activeProgramId: activeProgram.id,
+                signalProgramId: activeProgram.source_program_id,
+              })
+              .then(() => {
+                router.replace("/(tabs)/workouts");
+              })
+              .catch((error) => {
+                const message = error instanceof Error && error.message.trim().length > 0
+                  ? error.message
+                  : "Unable to leave this Signal program.";
+                Alert.alert("Leave unavailable", message);
+              });
+          },
+        },
+      ],
+    );
+  }, [activeProgram.id, activeProgram.source_program_id, unjoinSignalProgramMutation]);
 
   const handleUpdateToLatest = useCallback(() => {
     if (updateBannerButtonDisabled) {
@@ -682,22 +825,12 @@ function SignalWorkoutHome({
               </EditorialCard>
             ) : null}
 
-            <EditorialCard className="gap-2.5 overflow-hidden">
+            <EditorialCard className="gap-2.5">
               <View className="gap-1.5">
                 <View className="flex-row items-center justify-between gap-3">
                   <Typography tone="secondary" variant="labelSm">
                     TRAINING
                   </Typography>
-                  <Pressable
-                    accessibilityRole="button"
-                    className="rounded-full border border-border px-3 py-1.5 active:bg-surface-muted"
-                    disabled={resetSignalEnrollmentMutation.isPending}
-                    onPress={handleResetEnrollment}
-                  >
-                    <Typography tone="secondary" variant="labelSm">
-                      {resetSignalEnrollmentMutation.isPending ? "Resetting..." : "Reset Enrollment"}
-                    </Typography>
-                  </Pressable>
                 </View>
                 <Typography variant="headlineLg">{program?.title ?? "Signal Program"}</Typography>
                 <Typography tone="secondary" variant="bodyMd">
@@ -735,6 +868,14 @@ function SignalWorkoutHome({
                     <Typography variant="bodyMd">--</Typography>
                   </View>
                 </View>
+                <View className="gap-3 pt-4">
+                  <SignalSessionPrimaryAction
+                    actionType={sessionActionType}
+                    disabled={!isPlayableDay}
+                    isLoading={false}
+                    onPress={handleSelectedDayPrimaryAction}
+                  />
+                </View>
                 {hasUpdateToLatest ? (
                   <View className="mt-3 flex-row items-center gap-3 rounded-2xl border border-emerald/25 bg-emerald/8 px-3 py-3">
                     <View className="flex-1 gap-0.5">
@@ -760,25 +901,24 @@ function SignalWorkoutHome({
                     </Pressable>
                   </View>
                 ) : null}
-                <View className="pt-6">
-                  <Pressable
-                    accessibilityRole="button"
-                    className={cn(
-                      "w-full items-center justify-center rounded-2xl px-4",
-                      selectedDayCompleted ? "border border-border bg-background" : "bg-emerald",
-                    )}
-                    onPress={() => {
-                      console.log("[SignalHome] rendering CTA");
-                      openSignalWorkout({ stepType: "coach" });
-                    }}
-                    style={{ height: 52, marginTop: 24, borderRadius: 16 }}
-                  >
-                    <Typography tone={selectedDayCompleted ? "primary" : "inverse"} variant="labelMd">
-                      {ctaLabel}
-                    </Typography>
-                  </Pressable>
-                </View>
               </View>
+            </EditorialCard>
+
+            <EditorialCard className="gap-3">
+              <View className="gap-1">
+                <Typography tone="secondary" variant="labelSm">
+                  PROGRAM ACTIONS
+                </Typography>
+                <Typography tone="secondary" variant="bodyMd">
+                  Keep your current history, or restart the program from Week 1 Day 1.
+                </Typography>
+              </View>
+              <ActiveProgramActions
+                isResetting={resetSignalProgramMutation.isPending}
+                isUnjoining={unjoinSignalProgramMutation.isPending}
+                onReset={handleResetProgram}
+                onUnjoin={handleUnjoinProgram}
+              />
             </EditorialCard>
 
             {selectedDay && selectedWeek ? (

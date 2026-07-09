@@ -8,6 +8,7 @@ import { useStartSignalProgram } from "@/src/hooks/mutations/useStartSignalProgr
 
 import { AppTopBar, EditorialCard, ProgressBar, ScreenScaffold } from "@/src/components/layout";
 import { AppButton, Typography } from "@/src/components/primitives";
+import { useSignalProgramLifecycle } from "@/src/features/program-lifecycle/hooks/useSignalProgramLifecycle";
 import { useWorkoutProgram } from "@/src/hooks/useWorkoutProgram";
 import { getSignalProgramOverview, resolveSignalWorkoutSelection } from "@/src/services/signal-workout-adapter";
 import type { WorkoutProgramPayloadDay, WorkoutProgramPayloadWeek } from "@/src/services/programs";
@@ -86,6 +87,7 @@ function SignalProgramDetailScreenComponent() {
   const programId = singleParam(params.programId);
   const workoutProgramQuery = useWorkoutProgram(programId);
   const activeProgramQuery = useActiveProgram(user?.id);
+  const signalLifecycleQuery = useSignalProgramLifecycle(user?.id);
   const startSignalProgramMutation = useStartSignalProgram();
   const program = workoutProgramQuery.data?.program ?? null;
   const publishedVersionId = workoutProgramQuery.data?.versionId ?? null;
@@ -94,6 +96,7 @@ function SignalProgramDetailScreenComponent() {
   const invalidRoute = !programId;
   const firstPlayableSelection = useMemo(() => findFirstPlayableSignalSelection(weeks), [weeks]);
   const activeProgram = activeProgramQuery.data ?? null;
+  const signalLifecycle = signalLifecycleQuery.data ?? null;
   const activeProgramSelection = useMemo(() => {
     if (!workoutProgramQuery.data || !activeProgram || activeProgram.source_program_id !== program?.id) return null;
     return resolveSignalWorkoutSelection(workoutProgramQuery.data, {
@@ -106,6 +109,12 @@ function SignalProgramDetailScreenComponent() {
     Boolean(user?.id) && Boolean(activeProgram && activeProgram.source === "signal" && activeProgram.source_program_id === program?.id);
   const isDifferentActiveProgram =
     Boolean(user?.id) && Boolean(activeProgram && activeProgram.source === "signal" && activeProgram.source_program_id !== program?.id);
+  const currentSignalLifecycle =
+    activeProgram && activeProgram.source === "signal" && activeProgram.source_program_id === program?.id
+      ? activeProgram
+      : signalLifecycle && signalLifecycle.source === "signal" && signalLifecycle.source_program_id === program?.id
+        ? signalLifecycle
+        : null;
   const isActivePointerInvalid = Boolean(
     isSameActiveProgram &&
       (!activeProgram?.current_week_key ||
@@ -253,6 +262,10 @@ function SignalProgramDetailScreenComponent() {
       ? "Program unavailable"
       : isSameActiveProgram
         ? "Continue Program"
+        : currentSignalLifecycle?.status === "completed"
+          ? "Restart Program"
+          : currentSignalLifecycle?.status === "replaced"
+            ? "Rejoin Program"
         : isDifferentActiveProgram
           ? "Replace Current Program"
           : "Start Program";
@@ -312,6 +325,10 @@ function SignalProgramDetailScreenComponent() {
                   ? "Your active program pointer is invalid. Do not guess a start point."
                   : isSameActiveProgram
                     ? "You're currently enrolled in this program."
+                    : currentSignalLifecycle?.status === "completed"
+                      ? "You completed this program. Restart to begin from Week 1 Day 1."
+                      : currentSignalLifecycle?.status === "replaced"
+                        ? "You left this program. Rejoin to begin again from Week 1 Day 1."
                     : isDifferentActiveProgram
                       ? "This will replace your current program."
                       : "Ready to start this program."}
@@ -458,6 +475,10 @@ function SignalProgramDetailScreenComponent() {
                   ? "Your active program pointer is invalid. Do not guess a start point."
                   : isSameActiveProgram
                     ? "You're currently enrolled in this program."
+                    : currentSignalLifecycle?.status === "completed"
+                      ? "You completed this program. Restart to begin from Week 1 Day 1."
+                      : currentSignalLifecycle?.status === "replaced"
+                        ? "You left this program. Rejoin to begin again from Week 1 Day 1."
                     : isDifferentActiveProgram
                       ? "Starting this will replace your current program."
                       : "Ready to start this program."}

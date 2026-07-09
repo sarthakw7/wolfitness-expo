@@ -4,6 +4,7 @@ import { View } from "react-native";
 
 import { AppTopBar, EditorialCard, ScreenScaffold } from "@/src/components/layout";
 import { AppButton, Typography } from "@/src/components/primitives";
+import { WorkoutSummaryCard } from "@/src/features/workout-summary/components/WorkoutSummaryCard";
 import { useWorkoutSessionDetail } from "@/src/hooks/queries";
 
 function singleParam(value: string | string[] | undefined) {
@@ -145,6 +146,8 @@ function WorkoutSessionDetailScreenComponent() {
                 </View>
               </View>
             </EditorialCard>
+
+            <WorkoutSummaryCard summary={workoutSessionDetailQuery.data.summary} />
 
             {workoutSessionDetailQuery.data.groupedExercises.length === 0 ? (
               <EditorialCard className="gap-3">

@@ -34,6 +34,7 @@ export function useStartSignalProgram() {
         queryClient.invalidateQueries({ queryKey: queryKeys.progressOverview(userId, "7d") }),
         queryClient.invalidateQueries({ queryKey: queryKeys.progressOverview(userId, "30d") }),
         queryClient.invalidateQueries({ queryKey: ["signal", "program-progress", userId] }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.signalProgramLifecycle(userId) }),
         queryClient.invalidateQueries({ queryKey: ["signal", "programs", "workout", variables.signalProgramId] }),
         queryClient.invalidateQueries({ queryKey: queryKeys.enrollments(userId) }),
       ]);

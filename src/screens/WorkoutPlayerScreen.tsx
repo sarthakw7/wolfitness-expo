@@ -17,6 +17,10 @@ import { useRestTimer } from "@/src/hooks/useRestTimer";
 import { useWorkoutProgram } from "@/src/hooks/useWorkoutProgram";
 import { workoutService } from "@/src/services";
 import { cn } from "@/src/lib/cn";
+import { WorkoutSummaryCard } from "@/src/features/workout-summary/components/WorkoutSummaryCard";
+import { calculateWorkoutSummary } from "@/src/features/workout-summary/lib/calculateWorkoutSummary";
+import { formatSummaryLine } from "@/src/features/workout-summary/lib/formatWorkoutSummary";
+import type { WorkoutSummary } from "@/src/features/workout-summary/types";
 import {
   buildYouTubeEmbedUrl,
   buildYouTubeThumbnailUrl,
@@ -179,6 +183,7 @@ type WorkoutCompletionSummary = {
   } | null;
   progressUpdateNeedsRefresh: boolean;
   programTitle: string;
+  summary: WorkoutSummary;
 };
 
 function isMatchingSignalActiveProgram(
@@ -1122,22 +1127,15 @@ function WorkoutPlayerScreenComponent() {
       return target > 0 && completed >= target;
     }).length;
   }, [exerciseProgress, workoutPlan?.exercises]);
-  const completedSetCount = normalizedLogs.length;
-  const signalLiveTotals = useMemo(
+  const workoutSummary = useMemo(
     () =>
-      normalizedLogs.reduce(
-        (acc, log) => {
-          const reps = log.reps_completed ?? 0;
-          const weightLbs = log.weight_kg != null ? kgToLbs(Number(log.weight_kg)) : 0;
-          return {
-            reps: acc.reps + reps,
-            sets: acc.sets + 1,
-            volumeLbs: acc.volumeLbs + reps * weightLbs,
-          };
-        },
-        { reps: 0, sets: 0, volumeLbs: 0 },
-      ),
-    [normalizedLogs],
+      sessionQuery.data
+        ? calculateWorkoutSummary({
+            session: sessionQuery.data.session,
+            sets: normalizedLogs,
+          })
+        : null,
+    [normalizedLogs, sessionQuery.data],
   );
 
   const [setDrafts, setSetDrafts] = useState<Record<string, { lbs: string; reps: string; rpe: string }>>({});
@@ -1471,14 +1469,13 @@ function WorkoutPlayerScreenComponent() {
     router.replace(SIGNAL_WORKOUT_HOME_HREF);
   };
 
-  const handleSignalHeaderNext = () => {
+  const handleSignalHeaderNext = async () => {
     if (!isSignalExecution || !currentStep) return;
     setShowRestTimerOptions(false);
     setShowCustomTimerInput(false);
 
     if (isSummaryStep) {
-      restTimer.reset();
-      router.replace(SIGNAL_WORKOUT_HOME_HREF);
+      await handleSignalSummaryDone();
       return;
     }
 
@@ -1722,8 +1719,7 @@ function WorkoutPlayerScreenComponent() {
     }
 
     if (isSummaryStep) {
-      restTimer.reset();
-      router.replace(SIGNAL_WORKOUT_HOME_HREF);
+      await handleSignalSummaryDone();
       return;
     }
 
@@ -1749,6 +1745,18 @@ function WorkoutPlayerScreenComponent() {
     setShowRestTimerOptions(false);
     setShowCustomTimerInput(false);
     setCustomTimerInput("");
+  };
+
+  const handleSignalSummaryDone = async () => {
+    if (!isSignalExecution || !currentStep) return;
+
+    if (!completionSummary) {
+      await handleFinishWorkout();
+      return;
+    }
+
+    restTimer.reset();
+    router.replace(SIGNAL_WORKOUT_HOME_HREF);
   };
 
   async function flushWorkoutDraftsBeforeExit() {
@@ -1938,20 +1946,45 @@ function WorkoutPlayerScreenComponent() {
       const currentDayLabel = workoutPlan?.day.title ?? signalWorkoutPayload?.weeks
         .find((week) => week.id === signalWeekId || week.sync_key === signalWeekId)
         ?.days.find((day) => day.id === signalDayId || day.sync_key === signalDayId)?.title ?? "Workout";
+      const summary = workoutSummary ?? {
+        averageRpe: null,
+        completedAt: new Date().toISOString(),
+        durationMinutes: null,
+        notes: null,
+        startedAt: sessionQuery.data?.session.started_at ?? new Date().toISOString(),
+        totalExercises: completedExerciseCount,
+        totalReps: normalizedLogs.reduce((total, log) => total + (log.reps_completed ?? 0), 0),
+        totalSets: normalizedLogs.length,
+        totalVolumeKg: normalizedLogs.reduce((total, log) => {
+          const reps = log.reps_completed ?? 0;
+          const weightKg = log.weight_kg ?? 0;
+          return total + reps * weightKg;
+        }, 0),
+        totalWeightMovedKg: normalizedLogs.reduce((total, log) => {
+          const reps = log.reps_completed ?? 0;
+          const weightKg = log.weight_kg ?? 0;
+          return total + reps * weightKg;
+        }, 0),
+      };
       const summarySnapshot: Omit<WorkoutCompletionSummary, "nextWorkout" | "progressUpdateNeedsRefresh" | "isProgramCompleted"> = {
         completedDayTitle: currentDayLabel,
-        completedExercises: completedExerciseCount,
-        completedSets: completedSetCount,
+        completedExercises: summary.totalExercises,
+        completedSets: summary.totalSets,
         completedWeekLabel: currentWeekLabel,
         programTitle: workoutPlan?.program.title ?? signalWorkoutPayload?.program.title ?? "Workout",
+        summary,
       };
 
       await finishWorkoutMutation.mutateAsync(sessionId);
 
       if (!isSignalWorkout) {
         restTimer.reset();
-        await new Promise((resolve) => setTimeout(resolve, 750));
-        router.replace("/(tabs)");
+        setCompletionSummary({
+          ...summarySnapshot,
+          isProgramCompleted: false,
+          nextWorkout: null,
+          progressUpdateNeedsRefresh: false,
+        });
         return;
       }
 
@@ -2135,9 +2168,9 @@ function WorkoutPlayerScreenComponent() {
   const signalFooter = showSignalFooter ? (
     isSummaryStep ? (
       <SignalFooterPrimaryButton
+        isLoading={finishWorkoutMutation.isPending}
         onPress={() => {
-          restTimer.reset();
-          router.replace("/(tabs)/workouts");
+          void handleSignalSummaryDone();
         }}
       >
         Done
@@ -2398,87 +2431,78 @@ function WorkoutPlayerScreenComponent() {
     >
       <View className="gap-gutter px-container">
         {completionSummary && !isSignalExecution ? (
-          <EditorialCard className="gap-5 py-5">
-          <View className="items-center gap-2">
-            <View className="h-14 w-14 items-center justify-center rounded-full bg-emerald/10">
-              <Ionicons color={colors.emerald} name="checkmark-circle" size={34} />
-            </View>
-            <Typography tone="secondary" variant="labelSm">
-              Workout Complete
-            </Typography>
-            <Typography variant="headlineXl">{completionSummary.programTitle}</Typography>
-          </View>
-
-          <ProgressBar progress={1} tone="accent" className="h-2" />
-
-          <View className="gap-2 rounded-2xl bg-surface-muted p-4">
-            <Typography variant="headlineLg">{completionSummary.completedWeekLabel}</Typography>
-              <Typography tone="secondary" variant="bodyMd">
-                {completionSummary.completedDayTitle}
-              </Typography>
-            </View>
-
-            <View className="gap-3">
-              <View className="flex-row items-center justify-between">
-                <Typography tone="secondary" variant="bodyMd">
-                  Exercises completed
+          <View className="gap-4">
+            <EditorialCard className="gap-5 py-5">
+              <View className="items-center gap-2">
+                <View className="h-14 w-14 items-center justify-center rounded-full bg-emerald/10">
+                  <Ionicons color={colors.emerald} name="checkmark-circle" size={34} />
+                </View>
+                <Typography tone="secondary" variant="labelSm">
+                  Workout Complete
                 </Typography>
-                <Typography variant="headlineLg">{completionSummary.completedExercises}</Typography>
+                <Typography variant="headlineXl">{completionSummary.programTitle}</Typography>
               </View>
-              <View className="flex-row items-center justify-between">
+
+              <ProgressBar progress={1} tone="accent" className="h-2" />
+
+              <View className="gap-2 rounded-2xl bg-surface-muted p-4">
+                <Typography variant="headlineLg">{completionSummary.completedWeekLabel}</Typography>
                 <Typography tone="secondary" variant="bodyMd">
-                  Sets completed
+                  {completionSummary.completedDayTitle}
                 </Typography>
-                <Typography variant="headlineLg">{completionSummary.completedSets}</Typography>
               </View>
-            </View>
+            </EditorialCard>
 
-            <View className="gap-2">
-              <Typography tone="secondary" variant="labelSm">
-                {completionSummary.progressUpdateNeedsRefresh
-                  ? "Workout saved, but progress update needs refresh"
-                  : completionSummary.isProgramCompleted
-                    ? "Program completed"
-                    : "Next workout"}
-              </Typography>
-              <Typography variant="bodyMd">
-                {completionSummary.progressUpdateNeedsRefresh
-                  ? "Please return to the dashboard to refresh your active program state."
-                  : completionSummary.isProgramCompleted
-                    ? "You completed every playable workout in this program."
-                    : completionSummary.nextWorkout
-                      ? `${completionSummary.nextWorkout.weekLabel} · ${completionSummary.nextWorkout.dayLabel}`
-                      : "Next workout unavailable."}
-              </Typography>
-            </View>
+            <WorkoutSummaryCard summary={completionSummary.summary} />
 
-            <View className="gap-3 pt-2">
-              {completionSummary.nextWorkout && !completionSummary.progressUpdateNeedsRefresh && !completionSummary.isProgramCompleted ? (
+            <EditorialCard className="gap-3">
+              <View className="gap-2">
+                <Typography tone="secondary" variant="labelSm">
+                  {completionSummary.progressUpdateNeedsRefresh
+                    ? "Workout saved, but progress update needs refresh"
+                    : completionSummary.isProgramCompleted
+                      ? "Program completed"
+                      : "Next workout"}
+                </Typography>
+                <Typography variant="bodyMd">
+                  {completionSummary.progressUpdateNeedsRefresh
+                    ? "Please return to the dashboard to refresh your active program state."
+                    : completionSummary.isProgramCompleted
+                      ? "You completed every playable workout in this program."
+                      : completionSummary.nextWorkout
+                        ? `${completionSummary.nextWorkout.weekLabel} · ${completionSummary.nextWorkout.dayLabel}`
+                        : "Next workout unavailable."}
+                </Typography>
+              </View>
+
+              <View className="gap-3 pt-2">
+                {completionSummary.nextWorkout && !completionSummary.progressUpdateNeedsRefresh && !completionSummary.isProgramCompleted ? (
+                  <AppButton
+                    onPress={() => {
+                      router.push({
+                        pathname: "/(signal)/program/[programId]/week/[weekId]/day/[dayId]",
+                        params: {
+                          dayId: completionSummary.nextWorkout?.dayId ?? "",
+                          programId: completionSummary.nextWorkout?.programId ?? "",
+                          weekId: completionSummary.nextWorkout?.weekId ?? "",
+                        },
+                      });
+                    }}
+                  >
+                    View Next Workout
+                  </AppButton>
+                ) : null}
                 <AppButton
                   onPress={() => {
-                    router.push({
-                      pathname: "/(signal)/program/[programId]/week/[weekId]/day/[dayId]",
-                      params: {
-                        dayId: completionSummary.nextWorkout?.dayId ?? "",
-                        programId: completionSummary.nextWorkout?.programId ?? "",
-                        weekId: completionSummary.nextWorkout?.weekId ?? "",
-                      },
-                    });
+                    router.replace("/(tabs)");
                   }}
+                  variant={completionSummary.nextWorkout && !completionSummary.progressUpdateNeedsRefresh && !completionSummary.isProgramCompleted ? "secondary" : "primary"}
                 >
-                  View Next Workout
+                  Back to Dashboard
                 </AppButton>
-              ) : null}
-              <AppButton
-                onPress={() => {
-                  router.replace("/(tabs)");
-                }}
-                variant={completionSummary.nextWorkout && !completionSummary.progressUpdateNeedsRefresh && !completionSummary.isProgramCompleted ? "secondary" : "primary"}
-              >
-                Back to Dashboard
-              </AppButton>
-            </View>
-          </EditorialCard>
+              </View>
+            </EditorialCard>
+          </View>
         ) : null}
 
         {signalExecutionIssue ? (
@@ -2599,39 +2623,7 @@ function WorkoutPlayerScreenComponent() {
               </Typography>
             </View>
 
-            <View className="items-center gap-2 rounded-[28px] border border-white/10 bg-white/[0.04] px-5 py-6">
-              <Typography className="tracking-[1px] opacity-75" tone="inverse" variant="labelSm">
-                TOTAL VOLUME
-              </Typography>
-              <Typography align="center" tone="inverse" variant="headlineXl">
-                {Math.round(signalLiveTotals.volumeLbs) > 0 ? `${Math.round(signalLiveTotals.volumeLbs)} LB` : "0 LB"}
-              </Typography>
-            </View>
-
-            <View className="flex-row flex-wrap gap-3">
-              {[
-                { label: "Blocks completed", value: `${signalWorkoutBlockCount} / ${signalWorkoutBlockCount}` },
-                { label: "Exercises", value: `${signalCompletionSummary.completedExercises}` },
-                { label: "Sets", value: `${signalCompletionSummary.completedSets}` },
-                { label: "Reps", value: `${signalLiveTotals.reps > 0 ? Math.round(signalLiveTotals.reps) : 0}` },
-                { label: "Volume", value: `${Math.round(signalLiveTotals.volumeLbs)} LB` },
-                { label: "Minutes", value: reflectionDurationMinutes.trim().length > 0 ? reflectionDurationMinutes.trim() : "--" },
-                { label: "Intensity", value: `${reflectionIntensity}/10` },
-              ].map((stat) => (
-                <View
-                  className="gap-1 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-4"
-                  style={{ width: "48%" }}
-                  key={stat.label}
-                >
-                  <Typography className="opacity-75" tone="inverse" variant="labelSm">
-                    {stat.label}
-                  </Typography>
-                  <Typography tone="inverse" variant="headlineLg">
-                    {stat.value}
-                  </Typography>
-                </View>
-              ))}
-            </View>
+            <WorkoutSummaryCard summary={signalCompletionSummary.summary} />
 
             {signalCompletionSummary.progressUpdateNeedsRefresh ? (
               <Typography className="opacity-85" tone="inverse" variant="bodyMd">
@@ -2665,7 +2657,7 @@ function WorkoutPlayerScreenComponent() {
                   {currentStepLabel ?? "STEP"}
                 </Typography>
                 <Typography className="opacity-90" tone="inverse" variant="labelSm">
-                  {signalLiveTotals.sets > 0 ? `${signalLiveTotals.sets} ${signalLiveTotals.sets === 1 ? "SET" : "SETS"} · ` : ""}{Math.round(signalLiveTotals.reps)} REPS · {Math.round(signalLiveTotals.volumeLbs)} LB
+                  {workoutSummary ? formatSummaryLine(workoutSummary) : "Workout in progress"}
                 </Typography>
               </View>
               <ProgressBar className="h-1.5" progress={signalStepProgress} tone="accent" />

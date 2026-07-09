@@ -63,10 +63,12 @@ export type SignalProgramLifecycleRow = {
 
 export type SignalCompletedWorkoutSessionRow = {
   completed_at: string | null;
+  active_program_id: string | null;
   id: string;
   source: "legacy" | "signal" | null;
   source_day_key: string | null;
   source_program_id: string | null;
+  source_program_version: string | null;
   source_week_key: string | null;
 };
 
@@ -537,6 +539,7 @@ export function getSignalProgramProgress(
     (session) =>
       session.source === "signal" &&
       session.completed_at !== null &&
+      session.active_program_id === lifecycle.id &&
       session.source_program_id === lifecycle.source_program_id,
   );
   const completedWorkouts =

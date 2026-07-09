@@ -69,6 +69,38 @@ export async function getActiveProgram(userId: string): Promise<ActiveProgramRow
   return (data as ActiveProgramRow | null) ?? null;
 }
 
+export async function getLatestSignalProgramLifecycle(userId: string): Promise<ActiveProgramRow | null> {
+  const activeRes = await supabase
+    .from("active_programs")
+    .select(
+      "id,user_id,source,source_program_id,source_program_version,current_week_key,current_day_key,status,started_at,last_completed_session_id,completed_at,replaced_at,updated_at,legacy_program_id,legacy_week_id,legacy_day_id",
+    )
+    .eq("user_id", userId)
+    .eq("source", "signal")
+    .eq("status", "active")
+    .order("started_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (activeRes.error && activeRes.status !== 406) throw activeRes.error;
+  if (activeRes.data) return activeRes.data as ActiveProgramRow;
+
+  const { data, error, status } = await supabase
+    .from("active_programs")
+    .select(
+      "id,user_id,source,source_program_id,source_program_version,current_week_key,current_day_key,status,started_at,last_completed_session_id,completed_at,replaced_at,updated_at,legacy_program_id,legacy_week_id,legacy_day_id",
+    )
+    .eq("user_id", userId)
+    .eq("source", "signal")
+    .in("status", ["completed", "replaced", "paused"])
+    .order("started_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error && status !== 406) throw error;
+  return (data as ActiveProgramRow | null) ?? null;
+}
+
 export async function startSignalProgram(input: StartSignalProgramInput): Promise<ActiveProgramRow> {
   const { data, error } = await supabase.rpc("start_signal_program", {
     p_current_day_key: input.firstDayKey,
@@ -155,6 +187,37 @@ export async function resetSignalEnrollment(input: ResetSignalEnrollmentInput): 
     .eq("status", "active");
 
   if (error) throw error;
+}
+
+export async function leaveSignalProgram(input: {
+  activeProgramId: string;
+  signalProgramId: string;
+  userId: string;
+}): Promise<ActiveProgramRow> {
+  const now = new Date().toISOString();
+
+  const { data, error } = await supabase
+    .from("active_programs")
+    .update({
+      completed_at: null,
+      current_day_key: null,
+      current_week_key: null,
+      replaced_at: now,
+      status: "replaced",
+      updated_at: now,
+    })
+    .eq("id", input.activeProgramId)
+    .eq("user_id", input.userId)
+    .eq("source", "signal")
+    .eq("source_program_id", input.signalProgramId)
+    .in("status", ["active", "completed"])
+    .select(
+      "id,user_id,source,source_program_id,source_program_version,current_week_key,current_day_key,status,started_at,last_completed_session_id,completed_at,replaced_at,updated_at,legacy_program_id,legacy_week_id,legacy_day_id",
+    )
+    .single();
+
+  if (error) throw error;
+  return data as ActiveProgramRow;
 }
 
 export async function updateSignalProgramVersion(input: UpdateSignalProgramVersionInput): Promise<ActiveProgramRow> {

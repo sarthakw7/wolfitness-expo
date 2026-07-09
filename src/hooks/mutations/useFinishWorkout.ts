@@ -32,7 +32,8 @@ export function useFinishWorkout() {
           queryClient.invalidateQueries({ queryKey: queryKeys.enrollments(userId) }),
           queryClient.invalidateQueries({ queryKey: queryKeys.progressOverview(userId, "7d") }),
           queryClient.invalidateQueries({ queryKey: queryKeys.progressOverview(userId, "30d") }),
-          queryClient.invalidateQueries({ queryKey: queryKeys.signalProgramProgress(userId) }),
+          queryClient.invalidateQueries({ queryKey: queryKeys.signalProgramLifecycle(userId) }),
+          queryClient.invalidateQueries({ queryKey: ["signal", "program-progress", userId] }),
         ]);
       }
     },

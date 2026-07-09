@@ -58,6 +58,7 @@ export function useUpdateSignalProgramVersion() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["active-program", userId] }),
         queryClient.invalidateQueries({ queryKey: ["signal", "program-progress", userId] }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.signalProgramLifecycle(userId) }),
         queryClient.invalidateQueries({ queryKey: ["signal", "programs", "workout", variables.signalProgramId] }),
         queryClient.invalidateQueries({ queryKey: queryKeys.dashboardOverview(userId) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.workout(userId) }),

@@ -8,6 +8,7 @@ export const queryKeys = {
   profile: (userId: string) => ["profile", userId] as const,
   progressOverview: (userId: string, range: string) => ["progress", "overview", userId, range] as const,
   workoutHistory: (userId: string) => ["workout-history", userId] as const,
+  signalProgramLifecycle: (userId: string) => ["signal", "program-lifecycle", userId] as const,
   signalProgramProgress: (userId: string, versionId?: string | null) =>
     ["signal", "program-progress", userId, versionId ?? "latest"] as const,
   program: (programId: string) => ["programs", "detail", programId] as const,

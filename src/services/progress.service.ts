@@ -1,4 +1,6 @@
 import { assertSupabaseConfigured, supabase } from "@/src/lib/supabase";
+import { calculateWorkoutSummary } from "@/src/features/workout-summary/lib/calculateWorkoutSummary";
+import type { WorkoutSummary } from "@/src/features/workout-summary/types";
 
 export type ProgressRange = "7d" | "30d";
 
@@ -19,6 +21,7 @@ export type SignalProgramLifecycleProgressRow = {
 
 export type SignalCompletedWorkoutSessionRow = {
   completed_at: string | null;
+  active_program_id: string | null;
   id: string;
   source: "legacy" | "signal" | null;
   source_day_key: string | null;
@@ -40,6 +43,7 @@ export type WorkoutHistoryRow = {
   id: string;
   programId: string | null;
   programLabel: string;
+  summary: WorkoutSummary;
   setCount: number;
   source: "legacy" | "signal" | null;
   sourceDayKey: string | null;
@@ -73,6 +77,7 @@ export type WorkoutSessionDetail = {
   groupedExercises: WorkoutSessionDetailExerciseGroup[];
   id: string;
   programLabel: string;
+  summary: WorkoutSummary;
   setCount: number;
   source: "legacy" | "signal" | null;
   sourceDayKey: string | null;
@@ -91,11 +96,14 @@ type CompletedWorkoutSessionRow = {
 };
 
 type WorkoutLogSetRow = {
+  exercise_name: string | null;
   logged_at: string;
   exercise_library_id: string | null;
-  exercise_name: string | null;
+  id: string;
   reps_completed: number | null;
+  rpe_actual: number | null;
   session_id: string;
+  set_number: number;
   source_exercise_key: string | null;
   weight_kg: number | null;
 };
@@ -104,6 +112,7 @@ type WorkoutHistorySessionRow = {
   completed_at: string | null;
   day_id: string | null;
   id: string;
+  notes: string | null;
   program_id: string | null;
   source: "legacy" | "signal" | null;
   source_day_key: string | null;
@@ -311,8 +320,10 @@ function isUuidLike(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 }
 
-function getWorkoutLogIdentityKey(log: Pick<WorkoutLogSetRow, "exercise_library_id" | "source_exercise_key">) {
-  return log.source_exercise_key ?? log.exercise_library_id ?? "";
+function getWorkoutLogIdentityKey(
+  log: Pick<WorkoutLogSetRow, "exercise_library_id" | "exercise_name" | "id" | "source_exercise_key">,
+) {
+  return log.source_exercise_key?.trim() || log.exercise_library_id?.trim() || log.exercise_name?.trim() || log.id;
 }
 
 export async function fetchWorkoutHistory(userId: string, limit = 20): Promise<WorkoutHistoryRow[]> {
@@ -321,7 +332,7 @@ export async function fetchWorkoutHistory(userId: string, limit = 20): Promise<W
 
     const sessionsRes = await supabase
       .from("workout_sessions")
-      .select("id,program_id,day_id,source,source_program_id,source_week_key,source_day_key,started_at,completed_at")
+      .select("id,program_id,day_id,source,source_program_id,source_week_key,source_day_key,started_at,completed_at,notes")
       .eq("user_id", userId)
       .not("completed_at", "is", null)
       .order("completed_at", { ascending: false })
@@ -335,7 +346,7 @@ export async function fetchWorkoutHistory(userId: string, limit = 20): Promise<W
     const sessionIds = sessions.map((session) => session.id);
     const allLogsRes = await supabase
       .from("workout_log_sets")
-      .select("session_id,exercise_library_id,source_exercise_key")
+      .select("id,session_id,exercise_library_id,source_exercise_key,exercise_name,reps_completed,rpe_actual,weight_kg,set_number,logged_at")
       .in("session_id", sessionIds);
 
     if (allLogsRes.error) throw allLogsRes.error;
@@ -375,11 +386,11 @@ export async function fetchWorkoutHistory(userId: string, limit = 20): Promise<W
     const dayTitles = new Map(
       ((dayTitlesRes.data ?? []) as WorkoutHistoryTitleRow[]).map((row) => [row.id, row.title ?? "Day unavailable"]),
     );
-    const logs = (allLogsRes.data ?? []) as Pick<WorkoutLogSetRow, "exercise_library_id" | "session_id" | "source_exercise_key">[];
-    const logsBySession = new Map<string, { exerciseIds: Set<string>; setCount: number }>();
+    const logs = (allLogsRes.data ?? []) as WorkoutLogSetRow[];
+    const logsBySession = new Map<string, { exerciseIds: Set<string>; logs: WorkoutLogSetRow[]; setCount: number }>();
 
     sessionIds.forEach((sessionId) => {
-      logsBySession.set(sessionId, { exerciseIds: new Set<string>(), setCount: 0 });
+      logsBySession.set(sessionId, { exerciseIds: new Set<string>(), logs: [], setCount: 0 });
     });
 
     logs.forEach((log) => {
@@ -387,10 +398,19 @@ export async function fetchWorkoutHistory(userId: string, limit = 20): Promise<W
       if (!bucket) return;
       bucket.setCount += 1;
       bucket.exerciseIds.add(getWorkoutLogIdentityKey(log));
+      bucket.logs.push(log);
     });
 
     return sessions.map((session) => {
       const bucket = logsBySession.get(session.id) ?? { exerciseIds: new Set<string>(), setCount: 0 };
+      const summary = calculateWorkoutSummary({
+        session: {
+          completed_at: session.completed_at,
+          notes: session.notes ?? null,
+          started_at: session.started_at,
+        },
+        sets: (logsBySession.get(session.id)?.logs ?? []) as WorkoutLogSetRow[],
+      });
       const isSignal = session.source === "signal";
 
       return {
@@ -405,6 +425,7 @@ export async function fetchWorkoutHistory(userId: string, limit = 20): Promise<W
         programLabel: isSignal
           ? "Signal Program"
           : formatLegacyWorkoutTitle(session, programTitles, dayTitles),
+        summary,
         setCount: bucket.setCount,
         source: session.source,
         sourceDayKey: session.source_day_key,
@@ -435,7 +456,7 @@ export async function fetchWorkoutSessionDetail(
 
     const sessionRes = await supabase
       .from("workout_sessions")
-      .select("id,program_id,day_id,source,source_program_id,source_week_key,source_day_key,started_at,completed_at")
+      .select("id,program_id,day_id,source,source_program_id,source_week_key,source_day_key,started_at,completed_at,notes")
       .eq("id", sessionId)
       .eq("user_id", userId)
       .not("completed_at", "is", null)
@@ -469,9 +490,7 @@ export async function fetchWorkoutSessionDetail(
     if (programRes.error && programRes.status !== 406) throw programRes.error;
     if (dayRes.error && dayRes.status !== 406) throw dayRes.error;
 
-    const logs = (logsRes.data ?? []) as (
-      WorkoutLogSetRow & { id: string; rpe_actual: number | null; set_number: number }
-    )[];
+    const logs = (logsRes.data ?? []) as WorkoutLogSetRow[];
     const exerciseIds = Array.from(new Set(logs.map((log) => getWorkoutLogIdentityKey(log)))).filter(isUuidLike);
     const exerciseLibraryRes = exerciseIds.length
       ? await supabase.from("exercises_library").select("id,name").in("id", exerciseIds)
@@ -532,6 +551,14 @@ export async function fetchWorkoutSessionDetail(
       groupedExercises: Array.from(groupedExercises.values()),
       id: session.id,
       programLabel: isSignal ? "Signal Program" : programTitle,
+      summary: calculateWorkoutSummary({
+        session: {
+          completed_at: session.completed_at,
+          notes: session.notes ?? null,
+          started_at: session.started_at,
+        },
+        sets: logs,
+      }),
       setCount: logs.length,
       source: session.source,
       sourceDayKey: session.source_day_key,
@@ -687,20 +714,36 @@ export async function fetchSignalProgramProgress(userId: string): Promise<Signal
   try {
     assertSupabaseConfigured();
 
-    const lifecycleRes = await supabase
+    const activeLifecycleRes = await supabase
       .from("active_programs")
       .select(
         "id,user_id,source,source_program_id,source_program_version,current_week_key,current_day_key,status,started_at,completed_at,replaced_at,updated_at",
       )
       .eq("user_id", userId)
       .eq("source", "signal")
-      .in("status", ["active", "completed"])
+      .eq("status", "active")
       .order("started_at", { ascending: false })
       .limit(1)
       .maybeSingle();
 
-    if (lifecycleRes.error && lifecycleRes.status !== 406) throw lifecycleRes.error;
-    const lifecycle = (lifecycleRes.data as SignalProgramLifecycleProgressRow | null) ?? null;
+    if (activeLifecycleRes.error && activeLifecycleRes.status !== 406) throw activeLifecycleRes.error;
+    const fallbackLifecycleRes = activeLifecycleRes.data
+      ? null
+      : await supabase
+          .from("active_programs")
+          .select(
+            "id,user_id,source,source_program_id,source_program_version,current_week_key,current_day_key,status,started_at,completed_at,replaced_at,updated_at",
+          )
+          .eq("user_id", userId)
+          .eq("source", "signal")
+          .in("status", ["completed", "replaced", "paused"])
+          .order("started_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+    if (fallbackLifecycleRes?.error && fallbackLifecycleRes.status !== 406) throw fallbackLifecycleRes.error;
+
+    const lifecycle = (activeLifecycleRes.data ?? fallbackLifecycleRes?.data ?? null) as SignalProgramLifecycleProgressRow | null;
     if (!lifecycle) return null;
 
     if (__DEV__) {
@@ -709,9 +752,10 @@ export async function fetchSignalProgramProgress(userId: string): Promise<Signal
 
     let sessionsQuery = supabase
       .from("workout_sessions")
-      .select("id,completed_at,source,source_program_id,source_program_version,source_week_key,source_day_key")
+      .select("id,completed_at,active_program_id,source,source_program_id,source_program_version,source_week_key,source_day_key")
       .eq("user_id", userId)
       .eq("source", "signal")
+      .eq("active_program_id", lifecycle.id)
       .eq("source_program_id", lifecycle.source_program_id)
       .not("completed_at", "is", null)
       .order("completed_at", { ascending: false });
@@ -731,6 +775,7 @@ export async function fetchSignalProgramProgress(userId: string): Promise<Signal
         "[SignalProgress] completed sessions version-filtered",
         completedSessions.map((session) => ({
           id: session.id,
+          active_program_id: session.active_program_id,
           source_day_key: session.source_day_key,
           source_program_id: session.source_program_id,
           source_program_version: session.source_program_version,

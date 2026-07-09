@@ -92,11 +92,16 @@ function SignalDayScreenComponent() {
     const sessions = signalProgressQuery.data?.completedSessions ?? [];
     return new Set(
       sessions
-        .filter((session) => session.source_program_id === program?.id && session.source_week_key === week?.sync_key)
+        .filter(
+          (session) =>
+            session.active_program_id === activeProgram?.id &&
+            session.source_program_id === program?.id &&
+            session.source_week_key === week?.sync_key,
+        )
         .map((session) => session.source_day_key)
         .filter((value): value is string => Boolean(value)),
     );
-  }, [program?.id, signalProgressQuery.data?.completedSessions, week?.sync_key]);
+  }, [activeProgram?.id, program?.id, signalProgressQuery.data?.completedSessions, week?.sync_key]);
   const selectedDayCompleted = Boolean(day?.sync_key && completedDayKeys.has(day.sync_key));
   const activeSession = activeSessionQuery.data ?? null;
   const selectedDayMatchesActiveProgram = Boolean(
