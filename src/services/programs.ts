@@ -1,5 +1,6 @@
 import type { WorkoutExerciseMedia } from "@/src/lib/youtube-media";
 import { normalizeWorkoutExerciseMediaList } from "@/src/lib/youtube-media";
+import { buildSignalApiUrl } from "@/src/config/apiUrls";
 
 export type ProgramSummary = {
   coverImage: string | null;
@@ -70,23 +71,6 @@ export class ProgramsError extends Error {
     this.code = code;
     this.name = "ProgramsError";
   }
-}
-
-function getExpoApiBaseUrl() {
-  return process.env.EXPO_PUBLIC_API_URL?.trim() ?? "";
-}
-
-function resolveSignalApiUrl(path: string) {
-  const baseUrl = getExpoApiBaseUrl();
-
-  if (!baseUrl) {
-    throw new ProgramsError(
-      "API URL is not configured. Set EXPO_PUBLIC_API_URL to your Signal backend.",
-      "CONFIGURATION_ERROR",
-    );
-  }
-
-  return `${baseUrl.replace(/\/$/, "")}${path}`;
 }
 
 function normalizeError(error: unknown, fallbackMessage: string) {
@@ -284,7 +268,7 @@ function normalizeWorkoutProgramPayload(value: unknown): WorkoutProgramPayload {
 
 export async function getPrograms(): Promise<ProgramSummary[]> {
   try {
-    const response = await fetch(resolveSignalApiUrl("/api/programs"), {
+    const response = await fetch(buildSignalApiUrl("/api/programs"), {
       headers: {
         Accept: "application/json",
       },
@@ -310,7 +294,7 @@ export async function getWorkoutProgram(programId: string, versionId?: string | 
 
     const versionQuery = versionId?.trim() ? `?versionId=${encodeURIComponent(versionId.trim())}` : "";
     const response = await fetch(
-      resolveSignalApiUrl(`/api/workout-programs/${encodeURIComponent(programId)}${versionQuery}`),
+      buildSignalApiUrl(`/api/workout-programs/${encodeURIComponent(programId)}${versionQuery}`),
       {
         headers: {
           Accept: "application/json",

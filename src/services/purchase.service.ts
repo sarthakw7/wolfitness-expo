@@ -1,4 +1,5 @@
 import { assertSupabaseConfigured, supabase } from "@/src/lib/supabase";
+import { buildWolfitnessApiUrl } from "@/src/config/apiUrls";
 
 export type InitPurchaseResponse = {
   checkoutUrl: string;
@@ -27,22 +28,6 @@ function logPurchase(level: "error" | "warn" | "info", message: string, context?
   console[level]("[purchase]", message, context ?? {});
 }
 
-function getExpoApiBaseUrl() {
-  return process.env.EXPO_PUBLIC_API_URL?.trim() ?? "";
-}
-
-function resolvePurchaseApiUrl(path: string) {
-  const baseUrl = getExpoApiBaseUrl();
-  if (!baseUrl) {
-    throw new PurchaseError(
-      "Purchase API URL is not configured. Set EXPO_PUBLIC_API_URL for marketplace purchases.",
-      "CONFIGURATION_ERROR",
-    );
-  }
-
-  return `${baseUrl.replace(/\/$/, "")}${path}`;
-}
-
 function normalizePurchaseError(error: unknown, fallbackMessage: string): PurchaseError {
   if (error instanceof PurchaseError) return error;
   if (error instanceof Error) return new PurchaseError(error.message || fallbackMessage);
@@ -69,7 +54,7 @@ export async function initPurchase(input: { cancelUrl?: string; programId: strin
 
     logPurchase("info", "Purchase init request started.", { programId: input.programId });
 
-    const response = await fetch(resolvePurchaseApiUrl("/api/purchase/init"), {
+    const response = await fetch(buildWolfitnessApiUrl("/api/purchase/init"), {
       method: "POST",
       headers: {
         Authorization: `Bearer ${session.access_token}`,

@@ -1,4 +1,5 @@
 import { assertSupabaseConfigured, supabase } from "@/src/lib/supabase";
+import { WOLFITNESS_API_URL, buildWolfitnessApiUrl } from "@/src/config/apiUrls";
 
 export type NutritionLog = {
   barcode_upc: string | null;
@@ -128,10 +129,6 @@ function logNutrition(level: "error" | "warn", message: string, context?: Record
   console[level]("[nutrition]", message, context ?? {});
 }
 
-function logNutritionAi(level: "error" | "warn" | "info", message: string, context?: Record<string, unknown>) {
-  console[level]("[nutrition-ai]", message, context ?? {});
-}
-
 function toIsoDate(date = new Date()) {
   const yyyy = date.getFullYear();
   const mm = String(date.getMonth() + 1).padStart(2, "0");
@@ -145,50 +142,8 @@ function normalizeNutritionError(error: unknown, fallbackMessage: string): Nutri
   return new NutritionError(fallbackMessage);
 }
 
-function getExpoApiBaseUrl() {
-  return process.env.EXPO_PUBLIC_API_URL?.trim() ?? "";
-}
-
 export function validateNutritionApiConfiguration() {
-  const baseUrl = getExpoApiBaseUrl();
-
-  if (!baseUrl) {
-    logNutritionAi(
-      "warn",
-      "Nutrition API URL is not configured. Set EXPO_PUBLIC_API_URL to your Wolfitness web backend.",
-      {
-        localExample: "http://192.168.1.16:3000",
-        productionExample: "https://wolfitness.vercel.app",
-        reason: "Expo devices cannot call localhost on your Mac.",
-      },
-    );
-    return false;
-  }
-
-  if (baseUrl.includes("localhost") || baseUrl.includes("127.0.0.1")) {
-    logNutritionAi(
-      "warn",
-      "EXPO_PUBLIC_API_URL points to localhost. Physical devices need your Mac local network IP.",
-      {
-        configuredUrl: baseUrl,
-        localExample: "http://192.168.1.16:3000",
-      },
-    );
-  }
-
-  return true;
-}
-
-function resolveNutritionApiUrl(path: string) {
-  const baseUrl = getExpoApiBaseUrl();
-  if (!baseUrl) {
-    throw new NutritionError(
-      "Nutrition API URL is not configured. Set EXPO_PUBLIC_API_URL for AI requests.",
-      "CONFIGURATION_ERROR",
-    );
-  }
-
-  return `${baseUrl.replace(/\/$/, "")}${path}`;
+  return Boolean(WOLFITNESS_API_URL);
 }
 
 export async function fetchNutritionLogs(userId: string, date = toIsoDate()): Promise<NutritionLog[]> {
@@ -367,7 +322,7 @@ export async function estimateMeal(input: EstimateMealInput): Promise<EstimatedM
       throw new NutritionError("You must be signed in to estimate meal macros.", "UNAUTHORIZED");
     }
 
-    const response = await fetch(resolveNutritionApiUrl("/api/ai/nutrition/estimate"), {
+    const response = await fetch(buildWolfitnessApiUrl("/api/ai/nutrition/estimate"), {
       method: "POST",
       headers: {
         Authorization: `Bearer ${session.access_token}`,
@@ -433,7 +388,7 @@ export async function askNutritionCoach(input: NutritionCoachInput): Promise<Nut
       throw new NutritionError("You must be signed in to use Wolf AI Coach.", "UNAUTHORIZED");
     }
 
-    const response = await fetch(resolveNutritionApiUrl("/api/ai/nutrition/coach"), {
+    const response = await fetch(buildWolfitnessApiUrl("/api/ai/nutrition/coach"), {
       method: "POST",
       headers: {
         Authorization: `Bearer ${session.access_token}`,

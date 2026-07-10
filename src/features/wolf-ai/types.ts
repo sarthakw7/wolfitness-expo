@@ -11,6 +11,41 @@ export type WolfAIUsageState = {
   used: number;
 };
 
+export type WolfAISafetyCategory =
+  | "allowed"
+  | "dehydration"
+  | "eating_disorder"
+  | "emergency"
+  | "extreme_diet"
+  | "injury"
+  | "medical"
+  | "ped";
+
+export type WolfAIRecoverySuggestion = {
+  actions: string[];
+  reasons: string[];
+  status: "moderate" | "ready" | "recovery_first";
+  summary: string;
+  title: string;
+};
+
+export type WolfAINutritionSuggestion = {
+  calorieDirection: string;
+  carbohydrateGuidance: string;
+  hydrationGuidance: string;
+  postWorkoutAction: string | null;
+  proteinGuidance: string;
+  summary: string;
+  title: string;
+};
+
+export type WolfAIDailyGoalInsight = {
+  action: string;
+  message: string;
+  title: string;
+  tone: "consistency" | "motivating" | "recovery";
+};
+
 export type WolfAIErrorCode =
   | "BAD_REQUEST"
   | "GUARDRAIL"
@@ -31,20 +66,36 @@ export class WolfAIError extends Error {
 }
 
 export type WolfAIUsageResponse = {
+  isLimitReached: boolean;
   limit: number;
   remaining: number;
   tier: WolfAITier;
   used: number;
 };
 
+export type WolfAISuggestionHookResult<TData> = {
+  cached: boolean;
+  data: TData | null;
+  error: WolfAIError | null;
+  isLoading: boolean;
+  isLimitReached: boolean;
+  isRefreshing: boolean;
+  refresh: () => Promise<void>;
+  safetyCategory: WolfAISafetyCategory | null;
+  usedFallback: boolean;
+  usage: WolfAIUsageResponse | null;
+};
+
 export type WolfAIGenerateResponse<TData> = {
+  code?: "LIMIT_REACHED" | "OK";
   cached: boolean;
   data: TData;
   feature: WolfAIFeature;
   generatedForDate: string;
-  safetyCategory: string;
+  safetyCategory: WolfAISafetyCategory;
   usedFallback: boolean;
   usage: {
+    isLimitReached: boolean;
     limit: number;
     remaining: number;
     tier: WolfAITier;

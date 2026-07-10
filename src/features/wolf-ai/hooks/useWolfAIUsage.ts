@@ -4,7 +4,7 @@ import { supabase } from "@/src/lib/supabase";
 import { useAuth } from "@/src/hooks/useAuth";
 
 import { WOLF_AI_QUERY_KEYS, WOLF_AI_TIER_LIMITS } from "../constants";
-import type { WolfAIFeature, WolfAITier, WolfAIUsageState } from "../types";
+import type { WolfAIFeature, WolfAIError, WolfAITier, WolfAIUsageState } from "../types";
 
 function resolveTierLimit(tier: string | null | undefined): { limit: number; tier: WolfAITier } {
   switch (tier) {
@@ -39,18 +39,20 @@ function getLocalIsoDate(timeZone: string | null | undefined) {
   }
 }
 
-export function useWolfAIUsage(feature: WolfAIFeature) {
+export function useWolfAIUsage(feature?: WolfAIFeature) {
   const { user } = useAuth();
+  const userId = user?.id ?? null;
+  const queryKey = userId ? WOLF_AI_QUERY_KEYS.usage(userId, feature ?? "all") : ["wolf-ai", "usage", "anonymous", feature ?? "all"];
 
-  return useQuery<WolfAIUsageState>({
-    enabled: Boolean(user?.id),
-    queryKey: user?.id ? WOLF_AI_QUERY_KEYS.usage(user.id, feature) : ["wolf-ai", "usage", "anonymous", feature],
+  const query = useQuery<WolfAIUsageState>({
+    enabled: Boolean(userId),
+    queryKey,
     queryFn: async () => {
-      if (!user?.id) {
+      if (!userId) {
         throw new Error("Not authenticated.");
       }
 
-      const entitlementRes = await supabase.from("ai_entitlements").select("tier,status,timezone").eq("user_id", user.id).maybeSingle();
+      const entitlementRes = await supabase.from("ai_entitlements").select("tier,status,timezone").eq("user_id", userId).maybeSingle();
       if (entitlementRes.error && entitlementRes.status !== 406) throw entitlementRes.error;
 
       const tierResult = resolveTierLimit(
@@ -58,35 +60,56 @@ export function useWolfAIUsage(feature: WolfAIFeature) {
       );
       const usageDate = getLocalIsoDate(entitlementRes.data?.timezone ?? null);
 
-      const usageRes = await supabase
+      let usageQuery = supabase
         .from("ai_usage_daily")
         .select("consumed_count,limit_count,tier")
-        .eq("user_id", user.id)
-        .eq("usage_date", usageDate)
-        .eq("feature", feature)
-        .maybeSingle();
+        .eq("user_id", userId)
+        .eq("usage_date", usageDate);
+
+      if (feature) {
+        usageQuery = usageQuery.eq("feature", feature);
+      }
+
+      const usageRes = await usageQuery;
 
       if (usageRes.error && usageRes.status !== 406) throw usageRes.error;
 
-      const rowTier = resolveTierLimit(usageRes.data?.tier ?? tierResult.tier);
-      const used = typeof usageRes.data?.consumed_count === "number" ? usageRes.data.consumed_count : 0;
-      const limit = Math.max(
-        typeof usageRes.data?.limit_count === "number" && usageRes.data.limit_count > 0
-          ? usageRes.data.limit_count
-          : rowTier.limit,
-        rowTier.limit,
-      );
+      const rows = (usageRes.data ?? []) as {
+        consumed_count: number | null;
+        limit_count: number | null;
+        tier: string | null;
+      }[];
+      const used = rows.reduce((sum, row) => sum + (typeof row.consumed_count === "number" ? row.consumed_count : 0), 0);
+      const rowLimit = rows.reduce((max, row) => {
+        const value = typeof row.limit_count === "number" && row.limit_count > 0 ? row.limit_count : 0;
+        return Math.max(max, value);
+      }, tierResult.limit);
+      const tier = rows.find((row) => row.tier === "pro" || row.tier === "elite" || row.tier === "free")?.tier ?? tierResult.tier;
+      const resolvedTier = resolveTierLimit(tier).tier;
+      const limit = Math.max(rowLimit, resolveTierLimit(tier).limit);
 
       return {
-        feature,
+        feature: feature ?? "daily_goal",
         isLimitReached: used >= limit,
         limit,
         remaining: Math.max(limit - used, 0),
-        tier: rowTier.tier,
+        tier: resolvedTier,
         usageDate,
         used,
       };
     },
     staleTime: 30_000,
   });
+
+  return {
+    error: (query.error as WolfAIError | null) ?? null,
+    isLimitReached: query.data?.isLimitReached ?? false,
+    isLoading: query.isLoading,
+    limit: query.data?.limit ?? 0,
+    queryKey,
+    remaining: query.data?.remaining ?? 0,
+    refetch: query.refetch,
+    tier: query.data?.tier ?? "free",
+    used: query.data?.used ?? 0,
+  };
 }

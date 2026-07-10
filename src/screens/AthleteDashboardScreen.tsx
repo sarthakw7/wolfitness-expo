@@ -31,6 +31,7 @@ import {
 } from "@/src/hooks/queries";
 import { useWorkoutProgram } from "@/src/hooks/useWorkoutProgram";
 import { normalizeGoalType } from "@/src/features/user-goals/constants";
+import { WolfAIDashboardSection } from "@/src/features/wolf-ai/components/WolfAIDashboardSection";
 import type { Program } from "@/src/services/programs.service";
 import { getSignalProgramProgress } from "@/src/services/signal-workout-adapter";
 import { colors } from "@/src/theme";
@@ -760,6 +761,8 @@ function AthleteDashboardScreenComponent() {
             </Link>
           </EditorialCard>
         ) : null}
+
+        <WolfAIDashboardSection />
 
         <EditorialCard className="gap-3">
           <View className="gap-1">

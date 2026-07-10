@@ -1,24 +1,9 @@
 import { supabase } from "@/src/lib/supabase";
+import { buildWolfitnessApiUrl } from "@/src/config/apiUrls";
 
 import { WOLF_AI_ERROR_MESSAGES } from "../constants";
 import { WolfAIError } from "../types";
 import type { WolfAIFeature, WolfAIGenerateResponse, WolfAIErrorCode, WolfAIUsageResponse } from "../types";
-
-function getWolfAiApiBaseUrl() {
-  return process.env.EXPO_PUBLIC_API_URL?.trim() ?? "";
-}
-
-function resolveWolfAiApiUrl(path: string) {
-  const baseUrl = getWolfAiApiBaseUrl();
-  if (!baseUrl) {
-    throw new WolfAIError(
-      "Wolf AI API URL is not configured. Set EXPO_PUBLIC_API_URL for AI requests.",
-      "INTERNAL_ERROR",
-    );
-  }
-
-  return `${baseUrl.replace(/\/$/, "")}${path}`;
-}
 
 function normalizeWolfAIError(error: unknown): WolfAIError {
   if (error instanceof WolfAIError) return error;
@@ -29,6 +14,41 @@ function normalizeWolfAIError(error: unknown): WolfAIError {
     return new WolfAIError(error.message || WOLF_AI_ERROR_MESSAGES.unknown, "INTERNAL_ERROR");
   }
   return new WolfAIError(WOLF_AI_ERROR_MESSAGES.unknown, "INTERNAL_ERROR");
+}
+
+async function resolveWolfAiSession() {
+  const firstSession = await supabase.auth.getSession();
+  if (firstSession.error) {
+    throw firstSession.error;
+  }
+
+  if (firstSession.data.session?.access_token) {
+    return firstSession.data.session;
+  }
+
+  if (__DEV__) {
+    console.info("[Wolf AI]", "No access token found. Attempting session refresh.");
+  }
+
+  const refreshedSession = await supabase.auth.refreshSession();
+  if (refreshedSession.error) {
+    throw refreshedSession.error;
+  }
+
+  if (refreshedSession.data.session?.access_token) {
+    return refreshedSession.data.session;
+  }
+
+  const secondSession = await supabase.auth.getSession();
+  if (secondSession.error) {
+    throw secondSession.error;
+  }
+
+  if (secondSession.data.session?.access_token) {
+    return secondSession.data.session;
+  }
+
+  throw new WolfAIError(WOLF_AI_ERROR_MESSAGES.authentication, "UNAUTHORIZED");
 }
 
 function parseUsage(input: unknown): WolfAIUsageResponse | null {
@@ -45,6 +65,7 @@ function parseUsage(input: unknown): WolfAIUsageResponse | null {
   }
 
   return {
+    isLimitReached: Boolean((candidate as { isLimitReached?: boolean }).isLimitReached) || candidate.remaining <= 0,
     limit: candidate.limit,
     remaining: candidate.remaining,
     tier: candidate.tier as WolfAIUsageResponse["tier"],
@@ -57,17 +78,19 @@ export async function generateWolfAI<TData = unknown>(input: {
   forceRefresh?: boolean;
 }): Promise<WolfAIGenerateResponse<TData>> {
   try {
-    const {
-      data: { session },
-      error: sessionError,
-    } = await supabase.auth.getSession();
+    const session = await resolveWolfAiSession();
+    const requestUrl = buildWolfitnessApiUrl("/api/wolf-ai/generate");
 
-    if (sessionError) throw sessionError;
-    if (!session?.access_token) {
-      throw new WolfAIError(WOLF_AI_ERROR_MESSAGES.authentication, "UNAUTHORIZED");
+    if (__DEV__) {
+      console.info("[Wolf AI]", "Request start", {
+        feature: input.feature,
+        forceRefresh: Boolean(input.forceRefresh),
+        hasAccessToken: Boolean(session.access_token),
+        requestUrl,
+      });
     }
 
-    const response = await fetch(resolveWolfAiApiUrl("/api/wolf-ai/generate"), {
+    const response = await fetch(requestUrl, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${session.access_token}`,
@@ -83,21 +106,32 @@ export async function generateWolfAI<TData = unknown>(input: {
       | Partial<WolfAIGenerateResponse<TData>> & { code?: WolfAIErrorCode; error?: string }
       | null;
 
+    if (__DEV__) {
+      console.info("[Wolf AI]", "Response received", {
+        backendCode: payload?.code ?? null,
+        feature: input.feature,
+        message: (payload as { message?: string } | null)?.message ?? payload?.error ?? null,
+        responseStatus: response.status,
+      });
+    }
+
     if (!response.ok) {
-      const code = payload?.code ?? (response.status === 429 ? "LIMIT_REACHED" : "INTERNAL_ERROR");
-      if (code === "LIMIT_REACHED") {
-        throw new WolfAIError(payload?.error || WOLF_AI_ERROR_MESSAGES.limitReached, code);
+      const code = payload?.code;
+      const message = (payload as { message?: string } | null)?.message ?? payload?.error ?? WOLF_AI_ERROR_MESSAGES.unknown;
+
+      if (code === "LIMIT_REACHED" || response.status === 429) {
+        throw new WolfAIError(message || WOLF_AI_ERROR_MESSAGES.limitReached, "LIMIT_REACHED");
       }
 
       if (code === "UNAUTHORIZED") {
-        throw new WolfAIError(payload?.error || WOLF_AI_ERROR_MESSAGES.authentication, code);
+        throw new WolfAIError(message || WOLF_AI_ERROR_MESSAGES.authentication, "UNAUTHORIZED");
       }
 
       if (code === "GUARDRAIL") {
-        throw new WolfAIError(payload?.error || "Wolf AI returned a safety response.", code);
+        throw new WolfAIError(message || "Wolf AI returned a safety response.", "GUARDRAIL");
       }
 
-      throw new WolfAIError(payload?.error || WOLF_AI_ERROR_MESSAGES.unknown, code);
+      throw new WolfAIError(message, "INTERNAL_ERROR");
     }
 
     if (
@@ -121,6 +155,7 @@ export async function generateWolfAI<TData = unknown>(input: {
     }
 
     return {
+      code: payload.code === "LIMIT_REACHED" ? "LIMIT_REACHED" : "OK",
       cached: payload.cached,
       data: payload.data as TData,
       feature: payload.feature as WolfAIFeature,
@@ -128,6 +163,7 @@ export async function generateWolfAI<TData = unknown>(input: {
       safetyCategory: payload.safetyCategory,
       usedFallback: payload.usedFallback,
       usage: {
+        isLimitReached: payload.usage.isLimitReached ?? usage.remaining <= 0,
         limit: usage.limit,
         remaining: usage.remaining,
         tier: usage.tier,

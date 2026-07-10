@@ -11,7 +11,8 @@ export const WOLF_AI_TIER_LIMITS = {
 } as const;
 
 export const WOLF_AI_QUERY_KEYS = {
-  usage: (userId: string, feature: string) => ["wolf-ai", "usage", userId, feature] as const,
+  suggestion: (userId: string, feature: string) => ["wolf-ai", "suggestion", userId, feature] as const,
+  usage: (userId: string, feature: string = "all") => ["wolf-ai", "usage", userId, feature] as const,
 } as const;
 
 export const WOLF_AI_USAGE_MESSAGE = {
