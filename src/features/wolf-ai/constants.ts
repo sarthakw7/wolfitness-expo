@@ -1,5 +1,6 @@
 export const WOLF_AI_FEATURES = {
   dailyGoal: "daily_goal",
+  mealAnalysis: "meal_analysis",
   nutrition: "nutrition",
   recovery: "recovery",
 } as const;

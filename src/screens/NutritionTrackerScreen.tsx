@@ -244,7 +244,10 @@ function NutritionTrackerScreenComponent() {
   const summaryDate = nutritionSummaryQuery.data?.date ?? null;
   const summary = nutritionSummaryQuery.data?.summary ?? null;
   const macroTargets = macroTargetsQuery.data ?? nutritionSummaryQuery.data?.macroTargets ?? null;
-  const nutritionLogs = nutritionLogsQuery.data ?? nutritionSummaryQuery.data?.logs ?? [];
+  const nutritionLogs = useMemo(
+    () => nutritionLogsQuery.data ?? nutritionSummaryQuery.data?.logs ?? [],
+    [nutritionLogsQuery.data, nutritionSummaryQuery.data?.logs],
+  );
 
   const caloriesConsumed = summary?.total_calories ?? 0;
   const proteinConsumed = summary?.total_protein ?? 0;
@@ -297,6 +300,16 @@ function NutritionTrackerScreenComponent() {
             variant="ghost"
           >
             Ask Nutrition Assistant
+          </AppButton>
+        </Link>
+
+        <Link href={"/(modals)/meal-photo-ai" as never} asChild>
+          <AppButton
+            className="border-borderStrong bg-surface-raised"
+            iconLeft={<Ionicons color={colors.graphite} name="camera-outline" size={16} />}
+            variant="ghost"
+          >
+            Scan Meal
           </AppButton>
         </Link>
 

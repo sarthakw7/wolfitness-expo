@@ -1,4 +1,4 @@
-export type WolfAIFeature = "daily_goal" | "nutrition" | "recovery";
+export type WolfAIFeature = "daily_goal" | "meal_analysis" | "nutrition" | "recovery";
 export type WolfAITier = "elite" | "free" | "pro";
 
 export type WolfAIUsageState = {
