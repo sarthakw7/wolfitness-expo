@@ -2,13 +2,12 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { Link, router, useLocalSearchParams } from "expo-router";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Alert, Image, Linking, Modal, Pressable, StyleSheet, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, Image, Linking, Pressable, StyleSheet, TextInput, View } from "react-native";
 import { useQueryClient } from "@tanstack/react-query";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { WebView } from "react-native-webview";
 
 import { AppTopBar, EditorialCard, ProgressBar, ScreenScaffold } from "@/src/components/layout";
-import { AppButton, GlassCard, Typography } from "@/src/components/primitives";
+import { AppButton, Typography } from "@/src/components/primitives";
 import { useAdvanceActiveProgramAfterWorkout, useCompleteSet, useFinishWorkout, useDiscardWorkoutSession } from "@/src/hooks/mutations";
 import { useActiveProgram, useEnrollments, useWorkout, useWorkoutSession } from "@/src/hooks/queries";
 import { queryKeys } from "@/src/hooks/queries/queryKeys";
@@ -18,7 +17,9 @@ import { useWorkoutProgram } from "@/src/hooks/useWorkoutProgram";
 import { workoutService } from "@/src/services";
 import { cn } from "@/src/lib/cn";
 import { parseIndexParam, singleParam } from "@/src/lib/routing";
-import { WorkoutSummaryCard } from "@/src/features/workout-summary/components/WorkoutSummaryCard";
+import { CoachMediaModal } from "@/src/features/workout/components/CoachMediaModal";
+import { SIGNAL_SET_TABLE_COLUMNS, WorkoutSetRow } from "@/src/features/workout/components/WorkoutSetRow";
+import { WorkoutCompletionSummary as WorkoutCompletionSummaryView } from "@/src/features/workout/components/WorkoutCompletionSummary";
 import { calculateWorkoutSummary } from "@/src/features/workout-summary/lib/calculateWorkoutSummary";
 import { formatSummaryLine } from "@/src/features/workout-summary/lib/formatWorkoutSummary";
 import type { WorkoutSummary } from "@/src/features/workout-summary/types";
@@ -42,10 +43,6 @@ import {
 import { colors, spacing } from "@/src/theme";
 
 const SIGNAL_WORKOUT_HOME_HREF = "/(tabs)/workouts" as const;
-const SIGNAL_SET_TABLE_COLUMNS = {
-  done: 48,
-  label: 40,
-} as const;
 
 type SignalCoachMediaPreview = {
   thumbnailUrl: string | null;
@@ -384,260 +381,6 @@ function getSignalPrescribedRpeValue(
   return "";
 }
 
-function SetRowVariantD({
-  completed,
-  index,
-  isActive,
-  lbsValue,
-  repsValue,
-  rpeValue,
-  setLabel,
-  onChangeLbs,
-  onChangeReps,
-  onChangeRpe,
-  onToggleComplete,
-  isEditable = true,
-  signalMode,
-  weightInputRef,
-}: {
-  completed: boolean;
-  index: number;
-  isActive: boolean;
-  lbsValue: string;
-  repsValue: string;
-  rpeValue: string;
-  setLabel: string;
-  onChangeLbs: (next: string) => void;
-  onChangeReps: (next: string) => void;
-  onChangeRpe: (next: string) => void;
-  onToggleComplete: () => void;
-  isEditable?: boolean;
-  signalMode?: boolean;
-  weightInputRef?: (node: TextInput | null) => void;
-}) {
-  const isEnabled = isEditable && !completed;
-  const cardTone = completed
-    ? signalMode
-      ? "opacity-60"
-      : "opacity-70"
-      : isActive
-      ? signalMode
-        ? "bg-white/[0.03]"
-        : "bg-white/90 border-white shadow-luxury"
-      : signalMode
-        ? ""
-        : "bg-white/60 border-white/70";
-
-  const indicator = isActive ? (
-    <View className={`absolute left-0 top-1/2 h-8 w-1 -translate-y-1/2 rounded-r-full ${signalMode ? "bg-emerald" : "bg-graphite"}`} />
-  ) : null;
-
-  return signalMode ? (
-    <View
-      className={cn(
-        "relative flex-row items-center gap-2 border-b border-white/10 py-2.5",
-        completed ? "bg-emerald/8" : isActive ? "bg-white/[0.04]" : "bg-transparent",
-        !isEditable ? "opacity-70" : "",
-      )}
-    >
-      {indicator}
-      <View className="items-center justify-center pr-1" style={{ width: SIGNAL_SET_TABLE_COLUMNS.label }}>
-        <Typography tone={completed ? "accent" : "inverse"} variant="bodyLg">
-          {index}
-        </Typography>
-      </View>
-      <View className="flex-1">
-        <View
-          className={cn(
-            "h-10 items-center justify-center rounded-sm border px-1.5",
-            completed
-              ? "border-emerald/40 bg-emerald/12"
-              : isActive
-                ? "border-emerald/40 bg-white/[0.04]"
-                : "border-white/10 bg-transparent",
-          )}
-        >
-          <TextInput
-            editable={isEnabled}
-            keyboardType="numeric"
-            onChangeText={onChangeReps}
-            placeholder="-"
-            placeholderTextColor="rgba(255,255,255,0.62)"
-            selectionColor={colors.emerald}
-            style={[
-              styles.setFieldInput,
-              styles.setFieldInputSignal,
-              completed ? styles.setFieldInputCompleted : null,
-              isActive ? styles.setFieldInputActive : null,
-            ]}
-            value={repsValue}
-          />
-        </View>
-      </View>
-      <View className="flex-1">
-        <View
-          className={cn(
-            "h-10 items-center justify-center rounded-sm border px-1.5",
-            completed
-              ? "border-emerald/40 bg-emerald/12"
-              : isActive
-                ? "border-emerald/40 bg-white/[0.04]"
-                : "border-white/10 bg-transparent",
-          )}
-        >
-          <TextInput
-            editable={isEnabled}
-            keyboardType="numeric"
-            onChangeText={onChangeLbs}
-            placeholder="-"
-            placeholderTextColor="rgba(255,255,255,0.62)"
-            ref={weightInputRef}
-            selectionColor={colors.emerald}
-            style={[
-              styles.setFieldInput,
-              styles.setFieldInputSignal,
-              completed ? styles.setFieldInputCompleted : null,
-              isActive ? styles.setFieldInputActive : null,
-            ]}
-            value={lbsValue}
-          />
-        </View>
-      </View>
-      <View className="flex-1">
-        <View
-          className={cn(
-            "h-10 items-center justify-center rounded-sm border px-1.5",
-            completed
-              ? "border-emerald/40 bg-emerald/12"
-              : isActive
-                ? "border-emerald/40 bg-white/[0.04]"
-                : "border-white/10 bg-transparent",
-          )}
-        >
-          <TextInput
-            editable={isEnabled}
-            keyboardType="numeric"
-            onChangeText={onChangeRpe}
-            placeholder="-"
-            placeholderTextColor="rgba(255,255,255,0.62)"
-            selectionColor={colors.emerald}
-            style={[
-              styles.setFieldInput,
-              styles.setFieldInputSignal,
-              completed ? styles.setFieldInputCompleted : null,
-              isActive ? styles.setFieldInputActive : null,
-            ]}
-            value={rpeValue}
-          />
-        </View>
-      </View>
-      <View className="items-center justify-center" style={{ width: SIGNAL_SET_TABLE_COLUMNS.done }}>
-        <Pressable
-          accessibilityLabel={completed ? "Set complete" : "Mark set complete"}
-          accessibilityRole="button"
-          className={cn(
-            "h-10 w-10 items-center justify-center rounded-md border",
-            completed
-              ? "border-emerald bg-emerald"
-              : isEnabled && isActive
-                ? "border-white/30 bg-white/[0.08]"
-                : "border-white/12 bg-white/[0.03] opacity-70",
-          )}
-          disabled={!isEnabled || !isActive}
-          hitSlop={8}
-          onPress={onToggleComplete}
-        >
-          <Ionicons color={colors.white} name={completed ? "checkmark-circle" : "checkmark"} size={15} />
-        </Pressable>
-      </View>
-    </View>
-  ) : (
-    <GlassCard className={`relative overflow-hidden rounded-2xl border p-4 ${cardTone}`}>
-      {indicator}
-      <View className={isActive ? "flex-row items-center justify-between gap-3 pl-3" : "flex-row items-center justify-between gap-3"}>
-        <View className="flex-row items-center gap-4">
-          <Typography tone="secondary" variant="headlineLg">
-            {index}
-          </Typography>
-          <Typography className="uppercase tracking-widest" tone="secondary" variant="labelSm">
-            {setLabel}
-          </Typography>
-        </View>
-
-        <View className="flex-row items-center gap-6">
-          <TextInput
-            editable={isEditable && !completed}
-            keyboardType="numeric"
-            onChangeText={onChangeReps}
-            placeholder="-"
-            placeholderTextColor={signalMode ? "rgba(255,255,255,0.35)" : colors.graphiteSubtle}
-            selectionColor={colors.emerald}
-            style={[
-              styles.setInput,
-              signalMode ? styles.setInputSignal : null,
-              completed ? styles.setInputCompleted : null,
-              isActive ? styles.setInputActive : null,
-            ]}
-            value={repsValue}
-          />
-          <TextInput
-            editable={isEditable && !completed}
-            keyboardType="numeric"
-            onChangeText={onChangeLbs}
-            placeholder="-"
-            placeholderTextColor={signalMode ? "rgba(255,255,255,0.35)" : colors.graphiteSubtle}
-            ref={weightInputRef}
-            selectionColor={colors.emerald}
-            style={[
-              styles.setInput,
-              signalMode ? styles.setInputSignal : null,
-              completed ? styles.setInputCompleted : null,
-              isActive ? styles.setInputActive : null,
-            ]}
-            value={lbsValue}
-          />
-          <TextInput
-            editable={isEditable && !completed}
-            keyboardType="numeric"
-            onChangeText={onChangeRpe}
-            placeholder="-"
-            placeholderTextColor={signalMode ? "rgba(255,255,255,0.35)" : colors.graphiteSubtle}
-            selectionColor={colors.emerald}
-            style={[
-              styles.setInput,
-              signalMode ? styles.setInputSignal : null,
-              completed ? styles.setInputCompleted : null,
-              isActive ? styles.setInputActive : null,
-            ]}
-            value={rpeValue}
-          />
-
-          <Pressable
-            accessibilityLabel={completed ? "Set complete" : "Mark set complete"}
-            accessibilityRole="button"
-            className={
-              completed
-                ? "h-10 w-10 items-center justify-center rounded-full bg-emerald"
-                : isActive
-                  ? signalMode
-                    ? "h-10 w-10 items-center justify-center rounded-full border-2 border-white/20 bg-white/10"
-                    : "h-9 w-9 items-center justify-center rounded-full border-2 border-border bg-white/50"
-                  : signalMode
-                    ? "h-10 w-10 items-center justify-center rounded-full border-2 border-white/10 bg-white/5 opacity-60"
-                    : "h-9 w-9 items-center justify-center rounded-full border-2 border-border/50 bg-transparent opacity-60"
-            }
-            disabled={completed || !isActive || !isEditable}
-            hitSlop={8}
-            onPress={onToggleComplete}
-          >
-            <Ionicons color={completed ? colors.white : signalMode ? colors.white : colors.graphiteMuted} name="checkmark" size={16} />
-          </Pressable>
-        </View>
-      </View>
-    </GlassCard>
-  );
-}
-
 const styles = StyleSheet.create({
   signalHeaderWrap: {
     left: 0,
@@ -652,56 +395,6 @@ const styles = StyleSheet.create({
     minHeight: 38,
     paddingHorizontal: 10,
     paddingVertical: 8,
-  },
-  setFieldInput: {
-    fontSize: 14,
-    fontFamily: "Manrope_600SemiBold",
-    height: 22,
-    includeFontPadding: false,
-    lineHeight: 18,
-    paddingHorizontal: 0,
-    paddingVertical: 0,
-    textAlign: "center",
-    textAlignVertical: "center",
-    width: "100%",
-  },
-  setFieldInputActive: {
-    color: colors.white,
-  },
-  setFieldInputCompleted: {
-    color: "rgba(255,255,255,0.85)",
-  },
-  setFieldInputSignal: {
-    color: colors.white,
-  },
-  setInput: {
-    borderBottomColor: colors.border,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    color: colors.graphite,
-    minWidth: 56,
-    paddingBottom: 4,
-    textAlign: "center",
-  },
-  setInputActive: {
-    borderBottomColor: colors.graphite,
-    borderBottomWidth: 2,
-  },
-  setInputCompleted: {
-    borderBottomColor: colors.border,
-    color: colors.graphiteMuted,
-  },
-  setInputSignal: {
-    borderBottomColor: "rgba(255,255,255,0.24)",
-    color: colors.white,
-  },
-  setInputSignalActive: {
-    borderBottomColor: colors.emerald,
-    borderBottomWidth: 2,
-    color: colors.white,
-  },
-  setInputSignalCompleted: {
-    borderBottomColor: "rgba(255,255,255,0.18)",
-    color: "rgba(255,255,255,0.72)",
   },
   noteInput: {
     borderRadius: 6,
@@ -1487,67 +1180,20 @@ function WorkoutPlayerScreenComponent() {
   };
 
   const coachMediaModalNode = activeCoachMedia ? (
-    <Modal animationType="slide" transparent visible onRequestClose={handleCloseCoachMedia}>
-      <View className="flex-1 bg-black/80 px-4 pb-4" style={{ paddingTop: insets.top + spacing[4] }}>
-        <View className="flex-1 overflow-hidden rounded-[28px] border border-white/10 bg-[#0f1316]">
-          <View className="flex-row items-center justify-between border-b border-white/10 px-4 py-3">
-            <View className="flex-1 pr-3">
-              <Typography className="tracking-[1px] opacity-70" tone="inverse" variant="labelSm">
-                COACH DEMO
-              </Typography>
-              <Typography numberOfLines={1} tone="inverse" variant="bodyLg">
-                {activeCoachMedia.title}
-              </Typography>
-            </View>
-            <Pressable
-              accessibilityLabel="Close demo"
-              accessibilityRole="button"
-              className="h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.04]"
-              hitSlop={8}
-              onPress={handleCloseCoachMedia}
-            >
-              <Ionicons color={colors.white} name="close" size={18} />
-            </Pressable>
-          </View>
-
-          <View className="flex-1 bg-black">
-            {activeCoachMedia.videoId && !coachMediaError ? (
-              <WebView
-                allowsFullscreenVideo
-                javaScriptEnabled
-                mediaPlaybackRequiresUserAction={false}
-                onError={() => setCoachMediaError(true)}
-                source={{ uri: buildYouTubeEmbedUrl(activeCoachMedia.videoId) }}
-                startInLoadingState
-                renderLoading={() => (
-                  <View className="flex-1 items-center justify-center bg-black">
-                    <ActivityIndicator color={colors.emerald} />
-                  </View>
-                )}
-              />
-            ) : (
-              <View className="flex-1 items-center justify-center px-6">
-                <Typography align="center" className="opacity-80" tone="inverse" variant="bodyMd">
-                  We could not play this video in-app.
-                </Typography>
-                <AppButton
-                  className="mt-4"
-                  onPress={() => {
-                    const fallbackUrl = activeCoachMedia.url ?? (activeCoachMedia.videoId ? buildYouTubeWatchUrl(activeCoachMedia.videoId) : null);
-                    if (fallbackUrl) {
-                      Linking.openURL(fallbackUrl).catch(() => {});
-                    }
-                  }}
-                  variant="secondary"
-                >
-                  Open original video
-                </AppButton>
-              </View>
-            )}
-          </View>
-        </View>
-      </View>
-    </Modal>
+    <CoachMediaModal
+      embedUrl={activeCoachMedia.videoId ? buildYouTubeEmbedUrl(activeCoachMedia.videoId) : null}
+      hasPlaybackError={coachMediaError}
+      onClose={handleCloseCoachMedia}
+      onOpenOriginalVideo={() => {
+        const fallbackUrl = activeCoachMedia.url ?? (activeCoachMedia.videoId ? buildYouTubeWatchUrl(activeCoachMedia.videoId) : null);
+        if (fallbackUrl) {
+          Linking.openURL(fallbackUrl).catch(() => {});
+        }
+      }}
+      onPlaybackError={() => setCoachMediaError(true)}
+      paddingTop={insets.top + spacing[4]}
+      title={activeCoachMedia.title}
+    />
   ) : null;
 
   const signalHeaderNode = isSignalExecution ? (
@@ -2420,78 +2066,32 @@ function WorkoutPlayerScreenComponent() {
     >
       <View className="gap-gutter px-container">
         {completionSummary && !isSignalExecution ? (
-          <View className="gap-4">
-            <EditorialCard className="gap-5 py-5">
-              <View className="items-center gap-2">
-                <View className="h-14 w-14 items-center justify-center rounded-full bg-emerald/10">
-                  <Ionicons color={colors.emerald} name="checkmark-circle" size={34} />
-                </View>
-                <Typography tone="secondary" variant="labelSm">
-                  Workout Complete
-                </Typography>
-                <Typography variant="headlineXl">{completionSummary.programTitle}</Typography>
-              </View>
-
-              <ProgressBar progress={1} tone="accent" className="h-2" />
-
-              <View className="gap-2 rounded-2xl bg-surface-muted p-4">
-                <Typography variant="headlineLg">{completionSummary.completedWeekLabel}</Typography>
-                <Typography tone="secondary" variant="bodyMd">
-                  {completionSummary.completedDayTitle}
-                </Typography>
-              </View>
-            </EditorialCard>
-
-            <WorkoutSummaryCard summary={completionSummary.summary} />
-
-            <EditorialCard className="gap-3">
-              <View className="gap-2">
-                <Typography tone="secondary" variant="labelSm">
-                  {completionSummary.progressUpdateNeedsRefresh
-                    ? "Workout saved, but progress update needs refresh"
-                    : completionSummary.isProgramCompleted
-                      ? "Program completed"
-                      : "Next workout"}
-                </Typography>
-                <Typography variant="bodyMd">
-                  {completionSummary.progressUpdateNeedsRefresh
-                    ? "Please return to the dashboard to refresh your active program state."
-                    : completionSummary.isProgramCompleted
-                      ? "You completed every playable workout in this program."
-                      : completionSummary.nextWorkout
-                        ? `${completionSummary.nextWorkout.weekLabel} · ${completionSummary.nextWorkout.dayLabel}`
-                        : "Next workout unavailable."}
-                </Typography>
-              </View>
-
-              <View className="gap-3 pt-2">
-                {completionSummary.nextWorkout && !completionSummary.progressUpdateNeedsRefresh && !completionSummary.isProgramCompleted ? (
-                  <AppButton
-                    onPress={() => {
-                      router.push({
-                        pathname: "/(signal)/program/[programId]/week/[weekId]/day/[dayId]",
-                        params: {
-                          dayId: completionSummary.nextWorkout?.dayId ?? "",
-                          programId: completionSummary.nextWorkout?.programId ?? "",
-                          weekId: completionSummary.nextWorkout?.weekId ?? "",
-                        },
-                      });
-                    }}
-                  >
-                    View Next Workout
-                  </AppButton>
-                ) : null}
-                <AppButton
-                  onPress={() => {
-                    router.replace("/(tabs)");
-                  }}
-                  variant={completionSummary.nextWorkout && !completionSummary.progressUpdateNeedsRefresh && !completionSummary.isProgramCompleted ? "secondary" : "primary"}
-                >
-                  Back to Dashboard
-                </AppButton>
-              </View>
-            </EditorialCard>
-          </View>
+          <WorkoutCompletionSummaryView
+            completedDayTitle={completionSummary.completedDayTitle}
+            completedWeekLabel={completionSummary.completedWeekLabel}
+            isProgramCompleted={completionSummary.isProgramCompleted}
+            nextWorkout={completionSummary.nextWorkout}
+            onBackToDashboard={() => {
+              router.replace("/(tabs)");
+            }}
+            onViewNextWorkout={
+              completionSummary.nextWorkout
+                ? () => {
+                    router.push({
+                      pathname: "/(signal)/program/[programId]/week/[weekId]/day/[dayId]",
+                      params: {
+                        dayId: completionSummary.nextWorkout?.dayId ?? "",
+                        programId: completionSummary.nextWorkout?.programId ?? "",
+                        weekId: completionSummary.nextWorkout?.weekId ?? "",
+                      },
+                    });
+                  }
+                : null
+            }
+            progressUpdateNeedsRefresh={completionSummary.progressUpdateNeedsRefresh}
+            programTitle={completionSummary.programTitle}
+            summary={completionSummary.summary}
+          />
         ) : null}
 
         {signalExecutionIssue ? (
@@ -2596,30 +2196,20 @@ function WorkoutPlayerScreenComponent() {
       ) : null}
 
         {!isLoading && !hasError && !signalExecutionIssue && isSignalExecution && signalCompletionSummary ? (
-          <View className="gap-4">
-            <View className="items-center gap-3 rounded-[32px] border border-white/10 bg-[#101417] px-5 py-6">
-              <View className="h-14 w-14 items-center justify-center rounded-full bg-emerald/10">
-                <Ionicons color={colors.emerald} name="checkmark-circle" size={34} />
-              </View>
-              <Typography tone="secondary" variant="labelSm">
-                Workout Complete
-              </Typography>
-              <Typography align="center" tone="inverse" variant="headlineXl">
-                {signalCompletionSummary.programTitle}
-              </Typography>
-              <Typography align="center" className="opacity-80" tone="inverse" variant="bodyMd">
-                {signalCompletionSummary.completedWeekLabel} · {signalCompletionSummary.completedDayTitle}
-              </Typography>
-            </View>
-
-            <WorkoutSummaryCard summary={signalCompletionSummary.summary} />
-
-            {signalCompletionSummary.progressUpdateNeedsRefresh ? (
-              <Typography className="opacity-85" tone="inverse" variant="bodyMd">
-                Workout saved, but progress update needs refresh.
-              </Typography>
-            ) : null}
-          </View>
+          <WorkoutCompletionSummaryView
+            completedDayTitle={signalCompletionSummary.completedDayTitle}
+            completedWeekLabel={signalCompletionSummary.completedWeekLabel}
+            isProgramCompleted={signalCompletionSummary.isProgramCompleted}
+            nextWorkout={signalCompletionSummary.nextWorkout}
+            onBackToDashboard={() => {
+              router.replace("/(tabs)");
+            }}
+            onViewNextWorkout={null}
+            progressUpdateNeedsRefresh={signalCompletionSummary.progressUpdateNeedsRefresh}
+            programTitle={signalCompletionSummary.programTitle}
+            signalMode
+            summary={signalCompletionSummary.summary}
+          />
         ) : null}
 
         {!completionSummary && !isLoading && !hasError && !signalExecutionIssue && isSignalExecution && workoutPlan && currentStep ? (
@@ -2844,7 +2434,7 @@ function WorkoutPlayerScreenComponent() {
                           const displayedReps = draft.reps.length > 0 ? draft.reps : exerciseSection.prescribedReps;
                           const displayedRpe = draft.rpe.length > 0 ? draft.rpe : exerciseSection.prescribedRpe;
                           return (
-                            <SetRowVariantD
+                            <WorkoutSetRow
                               completed={completed}
                               index={setNo}
                               isActive={isActiveSet}
