@@ -24,14 +24,32 @@ import { SignalWorkoutProgressHeader } from "@/src/features/workout/components/S
 import { WorkoutExerciseHeader } from "@/src/features/workout/components/WorkoutExerciseHeader";
 import { SIGNAL_SET_TABLE_COLUMNS, WorkoutSetRow } from "@/src/features/workout/components/WorkoutSetRow";
 import { WorkoutCompletionSummary as WorkoutCompletionSummaryView } from "@/src/features/workout/components/WorkoutCompletionSummary";
+import {
+  buildSignalDemoSearchUrl,
+  getSignalCoachMediaPreview,
+  isValidHttpUrl,
+  type SignalCoachMediaPreview,
+} from "@/src/features/workout/lib/coachMedia";
+import { normalizeCompletedSetPayload } from "@/src/features/workout/lib/normalizeCompletedSetPayload";
+import { kgToLbs } from "@/src/features/workout/lib/weightConversion";
+import {
+  buildWorkoutLogKey,
+  getWorkoutExerciseIdentityKey,
+  getWorkoutLogIdentityKey,
+} from "@/src/features/workout/lib/workoutLogIdentity";
+import {
+  formatSignalWorkoutPrescriptionSummary,
+  getSignalPrescribedRepsValue,
+  getSignalPrescribedRpeValue,
+  getSignalPrescribedSetCount,
+  getTargetSets,
+} from "@/src/features/workout/lib/workoutPrescription";
 import { calculateWorkoutSummary } from "@/src/features/workout-summary/lib/calculateWorkoutSummary";
 import { formatSummaryLine } from "@/src/features/workout-summary/lib/formatWorkoutSummary";
 import type { WorkoutSummary } from "@/src/features/workout-summary/types";
 import {
   buildYouTubeEmbedUrl,
-  buildYouTubeThumbnailUrl,
   buildYouTubeWatchUrl,
-  parseYouTubeVideoId,
 } from "@/src/lib/youtube-media";
 import type { WorkoutExercise, WorkoutLogSet } from "@/src/services/workout.service";
 import {
@@ -47,31 +65,6 @@ import {
 import { colors, spacing } from "@/src/theme";
 
 const SIGNAL_WORKOUT_HOME_HREF = "/(tabs)/workouts" as const;
-
-type SignalCoachMediaPreview = {
-  thumbnailUrl: string | null;
-  title: string;
-  url: string | null;
-  videoId: string | null;
-};
-
-function parseTargetReps(raw: string | null) {
-  if (!raw) return null;
-  const match = raw.match(/\d+/);
-  if (!match) return null;
-  const parsed = Number(match[0]);
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
-function isValidHttpUrl(value: string | null | undefined) {
-  if (!value) return false;
-  try {
-    const parsed = new URL(value);
-    return parsed.protocol === "https:" || parsed.protocol === "http:";
-  } catch {
-    return false;
-  }
-}
 
 function getProgramsErrorCode(error: unknown) {
   return error instanceof Error ? (error as { code?: string }).code ?? null : null;
@@ -121,129 +114,6 @@ function logSignalPointerMismatch(context: Record<string, unknown>) {
   }
 }
 
-function formatSignalWorkoutPrescriptionSummary(
-  prescription: WorkoutExercise["prescription"] | null | undefined,
-) {
-  if (!prescription) return null;
-
-  const summary = [
-    prescription.target_sets ? `${prescription.target_sets} sets` : null,
-    prescription.target_reps ? `${prescription.target_reps} reps` : null,
-    prescription.target_rpe ? `RPE ${prescription.target_rpe}` : null,
-    prescription.rest_seconds ? `${prescription.rest_seconds}s rest` : null,
-  ]
-    .filter(Boolean)
-    .join(" · ");
-
-  return summary.length > 0 ? summary : null;
-}
-
-function parseSignalFallbackSetCount(exercise: WorkoutExercise | null | undefined) {
-  const explicitSets = exercise?.prescription.target_sets ?? 0;
-  if (explicitSets > 0) return explicitSets;
-
-  const repsText = exercise?.prescription.target_reps?.trim() ?? "";
-  if (!repsText) return 1;
-
-  const xMatch = repsText.match(/(\d+)\s*(?:x|×)\s*(\d+)/i);
-  if (xMatch) {
-    const parsed = Number(xMatch[1]);
-    if (Number.isFinite(parsed) && parsed > 0) return parsed;
-  }
-
-  const setsMatch = repsText.match(/(\d+)\s*(?:sets?|rounds?|working sets?)/i);
-  if (setsMatch) {
-    const parsed = Number(setsMatch[1]);
-    if (Number.isFinite(parsed) && parsed > 0) return parsed;
-  }
-
-  return 1;
-}
-
-function getSignalFallbackReps(exercise: WorkoutExercise | null | undefined) {
-  const repsText = exercise?.prescription.target_reps?.trim() ?? "";
-  if (!repsText) return null;
-
-  const xMatch = repsText.match(/(\d+)\s*(?:x|×)\s*(\d+)/i);
-  if (xMatch) {
-    const parsed = Number(xMatch[2]);
-    if (Number.isFinite(parsed) && parsed > 0) return parsed;
-  }
-
-  return parseTargetReps(repsText);
-}
-
-function buildSignalDemoSearchUrl(exerciseName: string) {
-  return `https://www.youtube.com/results?search_query=${encodeURIComponent(`${exerciseName} exercise form`)}`;
-}
-
-function getSignalCoachMediaPreview(workoutExercise: WorkoutExercise | null | undefined, exerciseName: string): SignalCoachMediaPreview | null {
-  if (!workoutExercise) return null;
-
-  const library = workoutExercise.exercise;
-  const mediaItems = Array.isArray(library.media_items) ? library.media_items : [];
-  const firstMedia = mediaItems[0] ?? null;
-  const fallbackVideoId = firstMedia?.videoId ?? parseYouTubeVideoId(library.video_url);
-
-  if (!firstMedia && !fallbackVideoId && !library.video_url) {
-    return null;
-  }
-
-  return {
-    thumbnailUrl: firstMedia?.thumbnailUrl ?? (fallbackVideoId ? buildYouTubeThumbnailUrl(fallbackVideoId) : null),
-    title: firstMedia?.title?.trim() || library.video_title?.trim() || exerciseName,
-    url: firstMedia?.url ?? (fallbackVideoId ? buildYouTubeWatchUrl(fallbackVideoId) : library.video_url),
-    videoId: firstMedia?.videoId ?? fallbackVideoId,
-  };
-}
-
-function lbsToKg(lbs: number) {
-  return lbs * 0.45359237;
-}
-
-function kgToLbs(kg: number) {
-  return kg / 0.45359237;
-}
-
-function buildWorkoutLogKey(exerciseIdentityKey: string, setNumber: number) {
-  return `${exerciseIdentityKey}:${setNumber}`;
-}
-
-function getWorkoutExerciseIdentityKey(exercise: WorkoutExercise) {
-  return exercise.source_exercise_key ?? exercise.exercise.id;
-}
-
-function getWorkoutLogIdentityKey(log: Pick<WorkoutLogSet, "exercise_library_id" | "source_exercise_key">) {
-  return log.source_exercise_key ?? log.exercise_library_id ?? "";
-}
-
-function normalizeCompletedSetPayload(input: {
-  draft: { lbs: string; reps: string; rpe: string };
-  exercise: WorkoutExercise;
-  isSignalWorkout: boolean;
-  setNumber: number;
-}) {
-  const repsCompletedRaw = input.draft.reps.trim() ? Number(input.draft.reps) : getSignalFallbackReps(input.exercise);
-  const rpeActualRaw = input.draft.rpe.trim() ? Number(input.draft.rpe) : null;
-  const weightLbsRaw = input.draft.lbs.trim() ? Number(input.draft.lbs) : NaN;
-  const repsCompleted = Number.isFinite(repsCompletedRaw as number) ? (repsCompletedRaw as number) : null;
-  const rpeActualValue = Number.isFinite(rpeActualRaw as number) ? (rpeActualRaw as number) : null;
-  const rpeActual =
-    rpeActualValue != null && rpeActualValue >= 1 && rpeActualValue <= 10 ? rpeActualValue : null;
-  const weightKg = Number.isFinite(weightLbsRaw) ? lbsToKg(weightLbsRaw) : null;
-  const exerciseIdentityKey = getWorkoutExerciseIdentityKey(input.exercise);
-
-  return {
-    exerciseLibraryId: input.isSignalWorkout ? null : exerciseIdentityKey,
-    exerciseName: input.isSignalWorkout ? input.exercise.exercise.name : null,
-    repsCompleted,
-    rpeActual,
-    setNumber: input.setNumber,
-    sourceExerciseKey: input.isSignalWorkout ? exerciseIdentityKey : null,
-    weightKg,
-  };
-}
-
 function WorkoutSkeleton() {
   return (
     <View className="gap-gutter">
@@ -252,56 +122,6 @@ function WorkoutSkeleton() {
       <EditorialCard className="min-h-56 bg-surface-muted" />
     </View>
   );
-}
-
-function getTargetSets(exercise: WorkoutExercise | null | undefined) {
-  return parseSignalFallbackSetCount(exercise);
-}
-
-function parsePositiveIntegerLike(value: string | number | null | undefined) {
-  if (typeof value === "number") {
-    return Number.isFinite(value) && value > 0 ? Math.floor(value) : null;
-  }
-
-  if (typeof value !== "string") return null;
-  const match = value.trim().match(/\d+/);
-  if (!match) return null;
-  const parsed = Number(match[0]);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
-}
-
-function getSignalPrescribedSetCount(
-  exercise: WorkoutExercise | null | undefined,
-  payloadExercise: { sets?: string | number | null } | null | undefined,
-) {
-  const payloadSets = parsePositiveIntegerLike(payloadExercise?.sets);
-  if (payloadSets) return payloadSets;
-
-  const targetSets = getTargetSets(exercise);
-  return targetSets > 0 ? targetSets : 1;
-}
-
-function getSignalPrescribedRepsValue(
-  exercise: WorkoutExercise | null | undefined,
-  payloadExercise: { reps?: string | null } | null | undefined,
-) {
-  const payloadReps = typeof payloadExercise?.reps === "string" ? payloadExercise.reps.trim() : "";
-  if (payloadReps) return payloadReps;
-
-  const repsFallback = getSignalFallbackReps(exercise);
-  return Number.isFinite(repsFallback as number) ? String(repsFallback) : "";
-}
-
-function getSignalPrescribedRpeValue(
-  exercise: WorkoutExercise | null | undefined,
-  payloadExercise: { rpe?: string | null } | null | undefined,
-) {
-  const payloadRpe = typeof payloadExercise?.rpe === "string" ? payloadExercise.rpe.trim() : "";
-  if (payloadRpe) return payloadRpe;
-
-  const targetRpe = exercise?.prescription.target_rpe;
-  if (typeof targetRpe === "number" && Number.isFinite(targetRpe)) return String(targetRpe);
-  return "";
 }
 
 const styles = StyleSheet.create({
@@ -721,7 +541,7 @@ function WorkoutPlayerScreenComponent() {
     if (!workoutPlan?.exercises?.length) return 0;
     return workoutPlan.exercises.filter((item) => {
       const completed = exerciseProgress.get(getWorkoutExerciseIdentityKey(item)) ?? 0;
-      const target = parseSignalFallbackSetCount(item);
+      const target = getTargetSets(item);
       return target > 0 && completed >= target;
     }).length;
   }, [exerciseProgress, workoutPlan?.exercises]);
