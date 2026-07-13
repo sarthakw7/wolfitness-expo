@@ -20,6 +20,7 @@ import {
   parseYouTubeVideoId,
   type WorkoutExerciseMedia,
 } from "@/src/lib/youtube-media";
+import { toCalendarIsoDate } from "@/src/lib/date";
 
 export type SignalWorkoutSelection = {
   dayId?: string | null;
@@ -204,13 +205,6 @@ function startOfSundayWeek(date: Date) {
   weekStart.setHours(0, 0, 0, 0);
   weekStart.setDate(date.getDate() - date.getDay());
   return weekStart;
-}
-
-function toCalendarIsoDate(date: Date) {
-  const yyyy = date.getFullYear();
-  const mm = String(date.getMonth() + 1).padStart(2, "0");
-  const dd = String(date.getDate()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd}`;
 }
 
 function toCalendarDateLabel(date: Date) {

@@ -10,14 +10,10 @@ import { useSignalProgramProgress } from "@/src/hooks/queries/useSignalProgramPr
 import { useWorkoutActiveSession } from "@/src/hooks/queries/useWorkoutActiveSession";
 import { useAuth } from "@/src/hooks/useAuth";
 import { useWorkoutProgram } from "@/src/hooks/useWorkoutProgram";
+import { singleParam } from "@/src/lib/routing";
 import { getSignalWorkoutDayPreview, isSignalPlayableDay } from "@/src/services/signal-workout-adapter";
 import type { WorkoutProgramPayloadBlock, WorkoutProgramPayloadWeek } from "@/src/services/programs";
 import { colors } from "@/src/theme";
-
-function singleParam(value: string | string[] | undefined) {
-  if (Array.isArray(value)) return value[0] ?? null;
-  return value ?? null;
-}
 
 function findWeek(weeks: WorkoutProgramPayloadWeek[], weekKey: string | null) {
   if (!weekKey) return null;

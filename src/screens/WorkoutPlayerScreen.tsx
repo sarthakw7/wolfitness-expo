@@ -17,6 +17,7 @@ import { useRestTimer } from "@/src/hooks/useRestTimer";
 import { useWorkoutProgram } from "@/src/hooks/useWorkoutProgram";
 import { workoutService } from "@/src/services";
 import { cn } from "@/src/lib/cn";
+import { parseIndexParam, singleParam } from "@/src/lib/routing";
 import { WorkoutSummaryCard } from "@/src/features/workout-summary/components/WorkoutSummaryCard";
 import { calculateWorkoutSummary } from "@/src/features/workout-summary/lib/calculateWorkoutSummary";
 import { formatSummaryLine } from "@/src/features/workout-summary/lib/formatWorkoutSummary";
@@ -140,18 +141,6 @@ function parseTargetReps(raw: string | null) {
   if (!match) return null;
   const parsed = Number(match[0]);
   return Number.isFinite(parsed) ? parsed : null;
-}
-
-function singleParam(value: string | string[] | undefined) {
-  if (Array.isArray(value)) return value[0] ?? null;
-  return value ?? null;
-}
-
-function parseIndexParam(value: string | string[] | undefined) {
-  const raw = singleParam(value);
-  if (!raw) return null;
-  const parsed = Number.parseInt(raw, 10);
-  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
 }
 
 function isValidHttpUrl(value: string | null | undefined) {

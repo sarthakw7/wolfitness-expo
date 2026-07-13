@@ -16,6 +16,8 @@ import { useSignalProgramProgress } from "@/src/hooks/queries/useSignalProgramPr
 import { useAuth } from "@/src/hooks/useAuth";
 import { useWorkoutProgram } from "@/src/hooks/useWorkoutProgram";
 import { cn } from "@/src/lib/cn";
+import { toCalendarIsoDate } from "@/src/lib/date";
+import { singleParam } from "@/src/lib/routing";
 import {
   buildSignalWeekCalendarDays,
   getSignalWorkoutDayPreview,
@@ -41,11 +43,6 @@ import { useSignalProgramLifecycle } from "@/src/features/program-lifecycle/hook
 import { useUnjoinSignalProgram } from "@/src/features/program-lifecycle/hooks/useUnjoinSignalProgram";
 
 import { WorkoutPlayerScreen } from "./WorkoutPlayerScreen";
-
-function singleParam(value: string | string[] | undefined) {
-  if (Array.isArray(value)) return value[0] ?? null;
-  return value ?? null;
-}
 
 function getProgramsErrorCode(error: unknown) {
   return error instanceof Error ? (error as { code?: string }).code ?? null : null;
@@ -83,13 +80,6 @@ function getDisplayCompletedState(selectedDayCompleted: boolean, activeSessionMa
   if (selectedDayCompleted) return "Completed";
   if (activeSessionMatchesSelection) return "In Progress";
   return "Ready";
-}
-
-function toCalendarIsoDate(date: Date) {
-  const yyyy = date.getFullYear();
-  const mm = String(date.getMonth() + 1).padStart(2, "0");
-  const dd = String(date.getDate()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd}`;
 }
 
 function isWorkoutPlayerRoute(params: {

@@ -1,4 +1,5 @@
 import { supabase } from "@/src/lib/supabase";
+import { toIsoDate } from "@/src/lib/date";
 import type { WorkoutExerciseMedia } from "@/src/lib/youtube-media";
 
 import type { Enrollment } from "./enrollment.service";
@@ -146,13 +147,6 @@ export type ProgramWeekPreview = {
   week_number: number;
   days: ProgramDayPreview[];
 };
-
-function toIsoDate(d: Date) {
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd}`;
-}
 
 function mondayBasedDayNumber(date: Date) {
   const day = date.getDay(); // 0=Sun .. 6=Sat

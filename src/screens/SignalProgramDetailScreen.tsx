@@ -10,14 +10,10 @@ import { AppTopBar, EditorialCard, ProgressBar, ScreenScaffold } from "@/src/com
 import { AppButton, Typography } from "@/src/components/primitives";
 import { useSignalProgramLifecycle } from "@/src/features/program-lifecycle/hooks/useSignalProgramLifecycle";
 import { useWorkoutProgram } from "@/src/hooks/useWorkoutProgram";
+import { singleParam } from "@/src/lib/routing";
 import { getSignalProgramOverview, resolveSignalWorkoutSelection } from "@/src/services/signal-workout-adapter";
 import type { WorkoutProgramPayloadDay, WorkoutProgramPayloadWeek } from "@/src/services/programs";
 import { colors } from "@/src/theme";
-
-function singleParam(value: string | string[] | undefined) {
-  if (Array.isArray(value)) return value[0] ?? null;
-  return value ?? null;
-}
 
 function getProgramsErrorCode(error: unknown) {
   return error instanceof Error ? (error as { code?: string }).code ?? null : null;
