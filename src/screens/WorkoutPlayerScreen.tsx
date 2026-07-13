@@ -2,11 +2,11 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { Link, router, useLocalSearchParams } from "expo-router";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Alert, Image, Linking, Pressable, StyleSheet, TextInput, View } from "react-native";
+import { Alert, Image, Linking, Pressable, StyleSheet, TextInput, View } from "react-native";
 import { useQueryClient } from "@tanstack/react-query";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { AppTopBar, EditorialCard, ProgressBar, ScreenScaffold } from "@/src/components/layout";
+import { AppTopBar, EditorialCard, ScreenScaffold } from "@/src/components/layout";
 import { AppButton, Typography } from "@/src/components/primitives";
 import { useAdvanceActiveProgramAfterWorkout, useCompleteSet, useFinishWorkout, useDiscardWorkoutSession } from "@/src/hooks/mutations";
 import { useActiveProgram, useEnrollments, useWorkout, useWorkoutSession } from "@/src/hooks/queries";
@@ -18,6 +18,10 @@ import { workoutService } from "@/src/services";
 import { cn } from "@/src/lib/cn";
 import { parseIndexParam, singleParam } from "@/src/lib/routing";
 import { CoachMediaModal } from "@/src/features/workout/components/CoachMediaModal";
+import { SignalWorkoutFooter } from "@/src/features/workout/components/SignalWorkoutFooter";
+import { SignalWorkoutHeader } from "@/src/features/workout/components/SignalWorkoutHeader";
+import { SignalWorkoutProgressHeader } from "@/src/features/workout/components/SignalWorkoutProgressHeader";
+import { WorkoutExerciseHeader } from "@/src/features/workout/components/WorkoutExerciseHeader";
 import { SIGNAL_SET_TABLE_COLUMNS, WorkoutSetRow } from "@/src/features/workout/components/WorkoutSetRow";
 import { WorkoutCompletionSummary as WorkoutCompletionSummaryView } from "@/src/features/workout/components/WorkoutCompletionSummary";
 import { calculateWorkoutSummary } from "@/src/features/workout-summary/lib/calculateWorkoutSummary";
@@ -50,87 +54,6 @@ type SignalCoachMediaPreview = {
   url: string | null;
   videoId: string | null;
 };
-
-function SignalFooterSecondaryButton({
-  children,
-  disabled,
-  onPress,
-}: {
-  children: string;
-  disabled?: boolean;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      className={cn(
-        "min-h-12 flex-row items-center justify-center rounded-lg border border-white/12 bg-white/[0.03] px-3",
-        disabled ? "opacity-45" : "active:bg-white/[0.06]",
-      )}
-      disabled={disabled}
-      onPress={onPress}
-    >
-      <Typography align="center" tone="inverse" variant="labelSm">
-        {children}
-      </Typography>
-    </Pressable>
-  );
-}
-
-function SignalFooterPrimaryButton({
-  children,
-  disabled,
-  isLoading,
-  onPress,
-}: {
-  children: string;
-  disabled?: boolean;
-  isLoading?: boolean;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      className={cn(
-        "min-h-12 flex-row items-center justify-center rounded-lg px-3",
-        disabled || isLoading ? "opacity-50" : "active:opacity-90",
-      )}
-      disabled={disabled || isLoading}
-      onPress={onPress}
-      style={{
-        backgroundColor: colors.emerald,
-        borderColor: colors.emerald,
-        borderWidth: StyleSheet.hairlineWidth,
-      }}
-    >
-      {isLoading ? <ActivityIndicator color={colors.white} /> : null}
-      <Typography align="center" tone="inverse" variant="labelSm">
-        {children}
-      </Typography>
-    </Pressable>
-  );
-}
-
-function SignalFooterTimerButton({
-  children,
-  onPress,
-}: {
-  children: string;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      className="min-h-12 flex-row items-center justify-center gap-2 rounded-lg border border-emerald/35 bg-emerald/10 px-4 active:bg-emerald/15"
-      onPress={onPress}
-    >
-      <Ionicons color={colors.white} name="timer-outline" size={16} />
-      <Typography align="center" tone="inverse" variant="labelMd">
-        {children}
-      </Typography>
-    </Pressable>
-  );
-}
 
 function parseTargetReps(raw: string | null) {
   if (!raw) return null;
@@ -382,13 +305,6 @@ function getSignalPrescribedRpeValue(
 }
 
 const styles = StyleSheet.create({
-  signalHeaderWrap: {
-    left: 0,
-    position: "absolute",
-    right: 0,
-    top: 0,
-    zIndex: 20,
-  },
   noteInputCompact: {
     borderRadius: 6,
     fontSize: 14,
@@ -1197,128 +1113,83 @@ function WorkoutPlayerScreenComponent() {
   ) : null;
 
   const signalHeaderNode = isSignalExecution ? (
-    <View
-      className="absolute inset-x-0 z-20 border-b border-white/10 bg-[#0f1316]"
-      style={[styles.signalHeaderWrap, { paddingTop: insets.top + spacing[1] }]}
-    >
-      <View className="px-container pb-3">
-        <View className="flex-row items-center justify-between">
-          <Pressable
-            accessibilityLabel="Close workout"
-            accessibilityRole="button"
-            className="h-10 w-10 items-center justify-center rounded-sm border border-white/10 bg-white/[0.04]"
-            disabled={isSavingAndExiting}
-            hitSlop={8}
-            onPress={() => {
-              if (isSavingAndExiting) return;
-              if (hasStartedSession) {
-                console.log("[WorkoutPlayer] exit requested", { hasStartedSession, sessionId });
-                Alert.alert(
-                  "Leave workout?",
-                  "Your progress is saved. You can resume this workout later.",
-                  [
-                    { text: "Continue Workout", style: "cancel" },
-                    {
-                      text: "Discard Session",
-                      style: "destructive",
-                      onPress: () => {
-                        console.log("[WorkoutPlayer] discard session requested", { sessionId });
-                        Alert.alert(
-                          "Discard session?",
-                          "This will delete this in-progress workout session and any sets logged in it. This cannot be undone.",
-                          [
-                            { text: "Cancel", style: "cancel" },
-                            {
-                              text: "Discard",
-                              style: "destructive",
-                              onPress: () => handleDiscardSession(),
-                            }
-                          ]
-                        );
-                      },
-                    },
-                    {
-                      text: "Save & Exit",
-                      style: "default",
-                      onPress: () => {
-                        console.log("[WorkoutPlayer] save and exit", { sessionId });
-                        void handleSaveAndExit();
-                      },
-                    },
-                  ]
-                );
-              } else {
-                console.log("[WorkoutPlayer] exit requested", { hasStartedSession, sessionId });
-                restTimer.reset();
-                router.replace(SIGNAL_WORKOUT_HOME_HREF);
-              }
-            }}
-          >
-            <Ionicons color={colors.white} name="close" size={18} />
-          </Pressable>
-          <View className="flex-1 px-4">
-            <View className="flex-row items-center justify-center gap-1.5">
-              <Typography align="center" className="tracking-[1px] opacity-70" tone="inverse" variant="labelSm">
-                STEP {Math.min(safeStepIndex + 1, Math.max(1, signalStepCount))} OF {Math.max(1, signalStepCount)}
-              </Typography>
-              {hasStartedSession ? (
-                <View className="rounded bg-emerald/20 px-1 py-0.5">
-                  <Typography className="text-[9px] tracking-[1px] text-emerald" variant="labelSm" style={{ fontSize: 9, lineHeight: 11 }}>
-                    LIVE
-                  </Typography>
-                </View>
-              ) : null}
-            </View>
-            <Typography align="center" numberOfLines={1} tone="inverse" variant="bodyLg">
-              {currentStepTitle ?? workoutPlan?.day.title ?? "Workout"}
-            </Typography>
-          </View>
-          <View className="flex-row items-center gap-2">
-            {hasStartedSession && !isSummaryStep && !isReflectionStep && !isDoneTrainingStep ? (
-              <Pressable
-                accessibilityLabel="Finish early"
-                accessibilityRole="button"
-                className="h-10 items-center justify-center px-2"
-                hitSlop={8}
-                onPress={() => {
-                  console.log("[WorkoutPlayer] finish early requested", { sessionId });
+    <SignalWorkoutHeader
+      currentStepTitle={currentStepTitle ?? workoutPlan?.day.title ?? "Workout"}
+      hasStartedSession={hasStartedSession}
+      isSavingAndExiting={isSavingAndExiting}
+      onClose={() => {
+        if (isSavingAndExiting) return;
+        if (hasStartedSession) {
+          console.log("[WorkoutPlayer] exit requested", { hasStartedSession, sessionId });
+          Alert.alert(
+            "Leave workout?",
+            "Your progress is saved. You can resume this workout later.",
+            [
+              { text: "Continue Workout", style: "cancel" },
+              {
+                text: "Discard Session",
+                style: "destructive",
+                onPress: () => {
+                  console.log("[WorkoutPlayer] discard session requested", { sessionId });
                   Alert.alert(
-                    "Finish workout early?",
-                    "This will save your logged sets and take you to reflection.",
+                    "Discard session?",
+                    "This will delete this in-progress workout session and any sets logged in it. This cannot be undone.",
                     [
                       { text: "Cancel", style: "cancel" },
                       {
-                        text: "Finish Early",
+                        text: "Discard",
                         style: "destructive",
-                        onPress: () => {
-                          const reflectionStepIndex = signalOrderedSteps.findIndex((step) => step.type === "reflection");
-                          if (reflectionStepIndex >= 0) {
-                            setCurrentStepIndex(reflectionStepIndex);
-                          }
-                        },
+                        onPress: () => handleDiscardSession(),
                       },
-                    ]
+                    ],
                   );
-                }}
-              >
-                <Typography className="opacity-70" tone="inverse" variant="labelSm">
-                  Finish
-                </Typography>
-              </Pressable>
-            ) : null}
-            <Pressable
-              accessibilityLabel="Next step"
-              accessibilityRole="button"
-              className="h-10 w-10 items-center justify-center rounded-sm border border-white/10 bg-white/[0.04]"
-              hitSlop={8}
-              onPress={handleSignalHeaderNext}
-            >
-              <Ionicons color={colors.white} name="arrow-forward" size={18} />
-            </Pressable>
-          </View>
-        </View>
-      </View>
-    </View>
+                },
+              },
+              {
+                text: "Save & Exit",
+                style: "default",
+                onPress: () => {
+                  console.log("[WorkoutPlayer] save and exit", { sessionId });
+                  void handleSaveAndExit();
+                },
+              },
+            ],
+          );
+        } else {
+          console.log("[WorkoutPlayer] exit requested", { hasStartedSession, sessionId });
+          restTimer.reset();
+          router.replace(SIGNAL_WORKOUT_HOME_HREF);
+        }
+      }}
+      onFinishEarly={
+        hasStartedSession && !isSummaryStep && !isReflectionStep && !isDoneTrainingStep
+          ? () => {
+              console.log("[WorkoutPlayer] finish early requested", { sessionId });
+              Alert.alert(
+                "Finish workout early?",
+                "This will save your logged sets and take you to reflection.",
+                [
+                  { text: "Cancel", style: "cancel" },
+                  {
+                    text: "Finish Early",
+                    style: "destructive",
+                    onPress: () => {
+                      const reflectionStepIndex = signalOrderedSteps.findIndex((step) => step.type === "reflection");
+                      if (reflectionStepIndex >= 0) {
+                        setCurrentStepIndex(reflectionStepIndex);
+                      }
+                    },
+                  },
+                ],
+              );
+            }
+          : null
+      }
+      onNext={handleSignalHeaderNext}
+      paddingTop={insets.top + spacing[1]}
+      stepCount={signalStepCount}
+      stepIndex={safeStepIndex}
+    />
   ) : null;
 
   const handleSignalStepPrimary = async () => {
@@ -1801,222 +1672,56 @@ function WorkoutPlayerScreenComponent() {
   const showSignalFooter =
     isSignalExecution && !isLoading && !hasError && !signalExecutionIssue && Boolean(workoutPlan) && Boolean(currentStep);
   const signalFooter = showSignalFooter ? (
-    isSummaryStep ? (
-      <SignalFooterPrimaryButton
-        isLoading={finishWorkoutMutation.isPending}
-        onPress={() => {
-          void handleSignalSummaryDone();
-        }}
-      >
-        Done
-      </SignalFooterPrimaryButton>
-    ) : isReflectionStep ? (
-      <View className="flex-row gap-3">
-        <View className="flex-[0.42]">
-          <SignalFooterSecondaryButton disabled={finishWorkoutMutation.isPending} onPress={handleSignalStepBack}>
-            Back
-          </SignalFooterSecondaryButton>
-        </View>
-        <View className="flex-1">
-          <SignalFooterPrimaryButton
-            isLoading={finishWorkoutMutation.isPending}
-            onPress={handleFinishWorkout}
-          >
-            Finish Session
-          </SignalFooterPrimaryButton>
-        </View>
-      </View>
-    ) : isDoneTrainingStep ? (
-      <View className="flex-row gap-3">
-        <View className="flex-[0.52]">
-          <SignalFooterSecondaryButton disabled={!canGoToPreviousSignalStep} onPress={handleSignalStepBack}>
-            Back to Training
-          </SignalFooterSecondaryButton>
-        </View>
-        <View className="flex-1">
-          <SignalFooterPrimaryButton onPress={handleSignalStepPrimary}>
-            Continue
-          </SignalFooterPrimaryButton>
-        </View>
-      </View>
-    ) : isWorkoutProgressStep ? (
-      <View className="gap-3">
-        {showRestTimerOptions && hasStartedSession ? (
-          <View className="rounded-xl border border-white/10 bg-white/[0.04] p-2">
-            {restTimer.isIdle || restTimer.isCompleted ? (
-              <View className="gap-2">
-                <View className="flex-row flex-wrap gap-2">
-                  {[
-                    { label: "30 sec", seconds: 30 },
-                    { label: "60 sec", seconds: 60 },
-                    { label: "90 sec", seconds: 90 },
-                    { label: "2 min", seconds: 120 },
-                  ].map((option) => (
-                    <Pressable
-                      accessibilityRole="button"
-                      className="min-h-10 min-w-[72px] items-center justify-center rounded-lg border border-white/12 bg-white/[0.03] px-3"
-                      key={option.seconds}
-                      onPress={() => handleSignalTimerSelect(option.seconds)}
-                    >
-                      <Typography align="center" tone="inverse" variant="labelSm">
-                        {option.label}
-                      </Typography>
-                    </Pressable>
-                  ))}
-                  <Pressable
-                    accessibilityRole="button"
-                    className="min-h-10 items-center justify-center rounded-lg border border-white/12 bg-white/[0.03] px-3"
-                    onPress={() => setShowCustomTimerInput((current) => !current)}
-                  >
-                    <Typography align="center" tone="inverse" variant="labelSm">
-                      Custom
-                    </Typography>
-                  </Pressable>
-                  <Pressable
-                    accessibilityRole="button"
-                    className="min-h-10 items-center justify-center rounded-lg border border-white/12 bg-transparent px-3"
-                    onPress={() => {
-                      setShowCustomTimerInput(false);
-                      setShowRestTimerOptions(false);
-                    }}
-                  >
-                    <Typography align="center" tone="secondary" variant="labelSm">
-                      Cancel
-                    </Typography>
-                  </Pressable>
-                </View>
-                {showCustomTimerInput ? (
-                  <View className="gap-2 rounded-lg border border-white/10 bg-white/[0.03] p-2.5">
-                    <Typography tone="secondary" variant="labelSm">
-                      CUSTOM TIMER IN SECONDS
-                    </Typography>
-                    <TextInput
-                      keyboardType="number-pad"
-                      onChangeText={setCustomTimerInput}
-                      placeholder="Enter seconds (5-1800)"
-                      placeholderTextColor="rgba(255,255,255,0.42)"
-                      selectionColor={colors.emerald}
-                      style={[styles.noteInputCompact, styles.noteInputSignal]}
-                      value={customTimerInput}
-                    />
-                    <View className="flex-row gap-2">
-                      <View className="flex-1">
-                        <SignalFooterPrimaryButton
-                          disabled={
-                            !Number.isFinite(Number.parseInt(customTimerInput.trim(), 10)) ||
-                            Number.parseInt(customTimerInput.trim(), 10) < 5 ||
-                            Number.parseInt(customTimerInput.trim(), 10) > 60 * 30
-                          }
-                          onPress={handleStartCustomTimer}
-                        >
-                          Start Custom Timer
-                        </SignalFooterPrimaryButton>
-                      </View>
-                      <View className="flex-[0.38]">
-                        <SignalFooterSecondaryButton
-                          onPress={() => {
-                            setShowCustomTimerInput(false);
-                            setCustomTimerInput("");
-                          }}
-                        >
-                          Cancel
-                        </SignalFooterSecondaryButton>
-                      </View>
-                    </View>
-                  </View>
-                ) : null}
-              </View>
-            ) : (
-              <View className="flex-row flex-wrap gap-2">
-                <Pressable
-                  accessibilityRole="button"
-                  className="min-h-10 min-w-[88px] items-center justify-center rounded-lg border border-white/12 bg-white/[0.03] px-3"
-                  onPress={() => {
-                    if (restTimer.isRunning) {
-                      restTimer.pause();
-                    } else if (restTimer.isPaused) {
-                      restTimer.resume();
-                    }
-                    setShowRestTimerOptions(false);
-                  }}
-                >
-                  <Typography align="center" tone="inverse" variant="labelSm">
-                    {restTimer.isPaused ? "Resume" : "Pause"}
-                  </Typography>
-                </Pressable>
-                <Pressable
-                  accessibilityRole="button"
-                  className="min-h-10 min-w-[72px] items-center justify-center rounded-lg border border-white/12 bg-white/[0.03] px-3"
-                  onPress={() => restTimer.addSeconds(30)}
-                >
-                  <Typography align="center" tone="inverse" variant="labelSm">
-                    +30 sec
-                  </Typography>
-                </Pressable>
-                <Pressable
-                  accessibilityRole="button"
-                  className="min-h-10 min-w-[72px] items-center justify-center rounded-lg border border-white/12 bg-white/[0.03] px-3"
-                  onPress={() => restTimer.subtractSeconds(30)}
-                >
-                  <Typography align="center" tone="inverse" variant="labelSm">
-                    -30 sec
-                  </Typography>
-                </Pressable>
-                <Pressable
-                  accessibilityRole="button"
-                  className="min-h-10 min-w-[88px] items-center justify-center rounded-lg border border-white/12 bg-white/[0.03] px-3"
-                  onPress={() => {
-                    restTimer.stop();
-                    setShowRestTimerOptions(false);
-                  }}
-                >
-                  <Typography align="center" tone="inverse" variant="labelSm">
-                    Stop Timer
-                  </Typography>
-                </Pressable>
-                <Pressable
-                  accessibilityRole="button"
-                  className="min-h-10 items-center justify-center rounded-lg border border-white/12 bg-transparent px-3"
-                  onPress={() => setShowRestTimerOptions(false)}
-                >
-                  <Typography align="center" tone="secondary" variant="labelSm">
-                    Cancel
-                  </Typography>
-                </Pressable>
-              </View>
-            )}
-          </View>
-        ) : null}
-	        <View className="flex-row items-center gap-3">
-          <View className="flex-[0.3]">
-            <SignalFooterSecondaryButton disabled={!canGoToPreviousSignalStep} onPress={handleSignalStepBack}>
-              Back
-            </SignalFooterSecondaryButton>
-          </View>
-          <View className="flex-[0.4]">
-            {!hasStartedSession ? (
-              <SignalFooterPrimaryButton
-                isLoading={startSessionMutation.isPending}
-                onPress={handleSignalFooterCenterPress}
-              >
-                {signalCenterActionLabel}
-              </SignalFooterPrimaryButton>
-            ) : (
-              <SignalFooterTimerButton onPress={handleSignalFooterCenterPress}>
-                {signalCenterActionLabel}
-              </SignalFooterTimerButton>
-            )}
-          </View>
-          <View className="flex-[0.3]">
-            <SignalFooterSecondaryButton disabled={false} onPress={handleSignalStepPrimary}>
-              {signalRightActionLabel}
-	            </SignalFooterSecondaryButton>
-	          </View>
-	        </View>
-	      </View>
-	    ) : (
-	      <View />
-	    )
+    <SignalWorkoutFooter
+      canGoBack={canGoToPreviousSignalStep}
+      centerActionLabel={signalCenterActionLabel}
+      customTimerInput={customTimerInput}
+      finishPending={finishWorkoutMutation.isPending}
+      hasStartedSession={hasStartedSession}
+      isDoneTrainingStep={isDoneTrainingStep}
+      isReflectionStep={isReflectionStep}
+      isSummaryStep={isSummaryStep}
+      isWorkoutProgressStep={isWorkoutProgressStep}
+      onBack={handleSignalStepBack}
+      onCancelCustomTimer={() => {
+        setShowCustomTimerInput(false);
+        setCustomTimerInput("");
+      }}
+      onCancelTimerPanel={() => {
+        setShowCustomTimerInput(false);
+        setShowRestTimerOptions(false);
+      }}
+      onCenterAction={handleSignalFooterCenterPress}
+      onChangeCustomTimerInput={setCustomTimerInput}
+      onFinishSession={handleFinishWorkout}
+      onPauseOrResumeTimer={() => {
+        if (restTimer.isRunning) {
+          restTimer.pause();
+        } else if (restTimer.isPaused) {
+          restTimer.resume();
+        }
+        setShowRestTimerOptions(false);
+      }}
+      onPrimaryAction={handleSignalStepPrimary}
+      onStartCustomTimer={handleStartCustomTimer}
+      onStartTimer={handleSignalTimerSelect}
+      onStepDone={() => {
+        void handleSignalSummaryDone();
+      }}
+      onTimerAdd30={() => restTimer.addSeconds(30)}
+      onTimerStop={() => {
+        restTimer.stop();
+        setShowRestTimerOptions(false);
+      }}
+      onTimerSubtract30={() => restTimer.subtractSeconds(30)}
+      rightActionLabel={signalRightActionLabel}
+      showCustomTimerInput={showCustomTimerInput}
+      showRestTimerOptions={showRestTimerOptions}
+      startSessionPending={startSessionMutation.isPending}
+      timerIsCompleted={restTimer.isCompleted}
+      timerIsIdle={restTimer.isIdle}
+      timerIsPaused={restTimer.isPaused}
+    />
   ) : null;
 
   return (
@@ -2214,33 +1919,13 @@ function WorkoutPlayerScreenComponent() {
 
         {!completionSummary && !isLoading && !hasError && !signalExecutionIssue && isSignalExecution && workoutPlan && currentStep ? (
             <View className="gap-4">
-              <View className="gap-2">
-                <View className="flex-row items-center gap-2">
-                  {signalProgressSteps.map((step, index) => {
-                  const isCurrent = index === signalProgressIndex;
-                  const isCompleted = index < signalProgressIndex;
-                  return (
-                    <View
-                      key={step.id}
-                      className={cn(
-                        "h-2 rounded-full",
-                        isCurrent ? "w-8 bg-emerald" : isCompleted ? "w-2 bg-emerald/80" : "w-2 bg-white/20",
-                      )}
-                    />
-                  );
-                })}
-              </View>
-
-              <View className="flex-row items-center justify-between">
-                <Typography className="tracking-[1px] opacity-75" tone="inverse" variant="labelSm">
-                  {currentStepLabel ?? "STEP"}
-                </Typography>
-                <Typography className="opacity-90" tone="inverse" variant="labelSm">
-                  {workoutSummary ? formatSummaryLine(workoutSummary) : "Workout in progress"}
-                </Typography>
-              </View>
-              <ProgressBar className="h-1.5" progress={signalStepProgress} tone="accent" />
-            </View>
+              <SignalWorkoutProgressHeader
+                progress={signalStepProgress}
+                progressIndex={signalProgressIndex}
+                stepLabel={currentStepLabel ?? "STEP"}
+                steps={signalProgressSteps}
+                summaryLabel={workoutSummary ? formatSummaryLine(workoutSummary) : "Workout in progress"}
+              />
 
             <View className="gap-4 rounded-md border border-white/10 bg-[#101417] p-4">
               <View className="gap-1.5">
@@ -2663,21 +2348,11 @@ function WorkoutPlayerScreenComponent() {
         workoutPlan &&
         workoutPlan.exercises.length > 0 &&
         activeExercise ? (
-        <View className="gap-gutter">
-          <View className="gap-4 rounded-[32px] border border-white/10 bg-white/[0.04] p-5">
-            <View className="flex-row items-start justify-between gap-3">
-              <View className="flex-1 gap-2">
-                <Typography tone="secondary" variant="labelSm">
-                  {activeExercise.exercise.primary_muscle ?? "Primary"}
-                </Typography>
-                <Typography tone="inverse" variant="headlineXl">{activeExercise.exercise.name}</Typography>
-                <Typography tone="secondary" variant="bodyMd">
-                  {activeExercise.prescription.notes ?? "Complete the exercises in this block, then continue."}
-                </Typography>
-              </View>
-            </View>
-          </View>
-        </View>
+        <WorkoutExerciseHeader
+          exerciseName={activeExercise.exercise.name}
+          notes={activeExercise.prescription.notes ?? "Complete the exercises in this block, then continue."}
+          primaryMuscle={activeExercise.exercise.primary_muscle ?? "Primary"}
+        />
       ) : null}
       </View>
     </ScreenScaffold>
