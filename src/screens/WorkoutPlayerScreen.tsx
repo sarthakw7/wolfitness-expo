@@ -24,6 +24,8 @@ import { SignalWorkoutProgressHeader } from "@/src/features/workout/components/S
 import { WorkoutExerciseHeader } from "@/src/features/workout/components/WorkoutExerciseHeader";
 import { SIGNAL_SET_TABLE_COLUMNS, WorkoutSetRow } from "@/src/features/workout/components/WorkoutSetRow";
 import { WorkoutCompletionSummary as WorkoutCompletionSummaryView } from "@/src/features/workout/components/WorkoutCompletionSummary";
+import { useSignalWorkoutDerivedState } from "@/src/features/workout/hooks/useSignalWorkoutDerivedState";
+import { useWorkoutPlayerDerivedState } from "@/src/features/workout/hooks/useWorkoutPlayerDerivedState";
 import {
   buildSignalDemoSearchUrl,
   getSignalCoachMediaPreview,
@@ -44,14 +46,13 @@ import {
   getSignalPrescribedSetCount,
   getTargetSets,
 } from "@/src/features/workout/lib/workoutPrescription";
-import { calculateWorkoutSummary } from "@/src/features/workout-summary/lib/calculateWorkoutSummary";
 import { formatSummaryLine } from "@/src/features/workout-summary/lib/formatWorkoutSummary";
 import type { WorkoutSummary } from "@/src/features/workout-summary/types";
 import {
   buildYouTubeEmbedUrl,
   buildYouTubeWatchUrl,
 } from "@/src/lib/youtube-media";
-import type { WorkoutExercise, WorkoutLogSet } from "@/src/services/workout.service";
+import type { WorkoutExercise } from "@/src/services/workout.service";
 import {
   buildSignalWorkoutExecutionContext,
   buildSignalWorkoutSteps,
@@ -432,47 +433,17 @@ function WorkoutPlayerScreenComponent() {
   }, [enrollmentsQuery.data, isSignalExecution]);
   const hasWorkoutAccess = isSignalExecution ? Boolean(workoutPlan) : Boolean(activeEnrollment);
 
-  const logs = useMemo<WorkoutLogSet[]>(() => sessionQuery.data?.logs ?? [], [sessionQuery.data?.logs]);
-  const normalizedLogs = useMemo(() => {
-    const byKey = new Map<string, WorkoutLogSet>();
-    logs.forEach((log) => {
-      const key = buildWorkoutLogKey(getWorkoutLogIdentityKey(log), log.set_number);
-      const existing = byKey.get(key);
-      if (!existing) {
-        byKey.set(key, log);
-        return;
-      }
-
-      const existingTime = Date.parse(existing.logged_at ?? "") || 0;
-      const nextTime = Date.parse(log.logged_at ?? "") || 0;
-      if (nextTime >= existingTime) {
-        byKey.set(key, log);
-      }
-    });
-    return Array.from(byKey.values()).sort((a, b) => {
-      if (getWorkoutLogIdentityKey(a) === getWorkoutLogIdentityKey(b)) {
-        return a.set_number - b.set_number;
-      }
-      return a.logged_at.localeCompare(b.logged_at);
-    });
-  }, [logs]);
-  const completedSetNumbersByExercise = useMemo(() => {
-    const map = new Map<string, Set<number>>();
-    normalizedLogs.forEach((log) => {
-      const identityKey = getWorkoutLogIdentityKey(log);
-      const current = map.get(identityKey) ?? new Set<number>();
-      current.add(log.set_number);
-      map.set(identityKey, current);
-    });
-    return map;
-  }, [normalizedLogs]);
-  const exerciseProgress = useMemo(() => {
-    const map = new Map<string, number>();
-    completedSetNumbersByExercise.forEach((setNumbers, exerciseId) => {
-      map.set(exerciseId, setNumbers.size);
-    });
-    return map;
-  }, [completedSetNumbersByExercise]);
+  const {
+    activeExercise,
+    completedExerciseCount,
+    completedSetNumbersByExercise,
+    normalizedLogs,
+    workoutSummary,
+  } = useWorkoutPlayerDerivedState({
+    isSignalExecution,
+    sessionData: sessionQuery.data,
+    workoutPlan,
+  });
 
   const [currentStepIndex, setCurrentStepIndex] = useState(signalInitialStepIndex);
 
@@ -499,30 +470,31 @@ function WorkoutPlayerScreenComponent() {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
   }, [isRestTimerCompleted]);
 
-  const safeStepIndex = Math.min(currentStepIndex, Math.max(0, signalOrderedSteps.length - 1));
-  const currentStep = signalOrderedSteps[safeStepIndex] ?? null;
-  const currentStepType = currentStep?.type ?? null;
-  const currentStepLabel = currentStep?.label ?? null;
-  const currentStepTitle = currentStep?.title ?? null;
-  const currentStepBody = currentStep?.body ?? null;
-  const signalProgressSteps = useMemo(
-    () => signalOrderedSteps.filter((step) => step.type !== "reflection" && step.type !== "summary"),
-    [signalOrderedSteps],
-  );
-  const signalProgressStepIds = useMemo(
-    () => signalProgressSteps.map((step) => step.id),
-    [signalProgressSteps],
-  );
-  const signalProgressIndex = useMemo(() => {
-    if (!currentStep) return 0;
-    const explicitIndex = signalProgressStepIds.indexOf(currentStep.id);
-    if (explicitIndex >= 0) return explicitIndex;
-    return Math.max(0, signalProgressSteps.length - 1);
-  }, [currentStep, signalProgressStepIds, signalProgressSteps.length]);
-  const activeExercise: WorkoutExercise | null = useMemo(() => {
-    if (isSignalExecution) return null;
-    return workoutPlan?.exercises?.[0] ?? null;
-  }, [isSignalExecution, workoutPlan?.exercises]);
+  const {
+    canGoToPreviousSignalStep,
+    currentStep,
+    currentStepBody,
+    currentStepLabel,
+    currentStepTitle,
+    isCoachInstructionsStep,
+    isDoneTrainingStep,
+    isExerciseBlockStep,
+    isInstructionBlockStep,
+    isReflectionStep,
+    isSummaryStep,
+    isWorkoutProgressStep,
+    safeStepIndex,
+    signalProgressIndex,
+    signalProgressSteps,
+    signalStepCount,
+    signalStepProgress,
+    signalWorkoutBlockCount,
+    signalWorkoutStepLines,
+  } = useSignalWorkoutDerivedState({
+    currentStepIndex,
+    isSignalExecution,
+    signalOrderedSteps,
+  });
 
   const sessionComplete = Boolean(sessionQuery.data?.session.completed_at);
   const hasStartedSession = Boolean(sessionId && sessionQuery.data?.session.cancelled_at === null);
@@ -537,25 +509,6 @@ function WorkoutPlayerScreenComponent() {
       isFetching: sessionQuery.isFetching
     });
   }
-  const completedExerciseCount = useMemo(() => {
-    if (!workoutPlan?.exercises?.length) return 0;
-    return workoutPlan.exercises.filter((item) => {
-      const completed = exerciseProgress.get(getWorkoutExerciseIdentityKey(item)) ?? 0;
-      const target = getTargetSets(item);
-      return target > 0 && completed >= target;
-    }).length;
-  }, [exerciseProgress, workoutPlan?.exercises]);
-  const workoutSummary = useMemo(
-    () =>
-      sessionQuery.data
-        ? calculateWorkoutSummary({
-            session: sessionQuery.data.session,
-            sets: normalizedLogs,
-          })
-        : null,
-    [normalizedLogs, sessionQuery.data],
-  );
-
   const [setDrafts, setSetDrafts] = useState<Record<string, { lbs: string; reps: string; rpe: string }>>({});
   const [exerciseNotes, setExerciseNotes] = useState<Record<string, string>>({});
   const [extraSetsByExercise, setExtraSetsByExercise] = useState<Record<string, number>>({});
@@ -626,11 +579,6 @@ function WorkoutPlayerScreenComponent() {
     });
   }, [normalizedLogs, pendingCompletedSetKeys.size]);
 
-  const canGoToPreviousSignalStep = Boolean(isSignalExecution && safeStepIndex > 0);
-  const isCoachInstructionsStep = currentStepType === "coach_instructions";
-  const isInstructionBlockStep = currentStepType === "instruction_block";
-  const isExerciseBlockStep = currentStepType === "exercise_block";
-  const isDoneTrainingStep = currentStepType === "done_training";
   const signalStepPrimaryLabel = isCoachInstructionsStep
     ? "Got It"
     : isInstructionBlockStep
@@ -642,9 +590,6 @@ function WorkoutPlayerScreenComponent() {
         : isDoneTrainingStep
           ? "Continue"
           : "Next";
-  const isReflectionStep = currentStepType === "reflection";
-  const isSummaryStep = currentStepType === "summary";
-  const isWorkoutProgressStep = isCoachInstructionsStep || isInstructionBlockStep || isExerciseBlockStep;
   const signalRightActionLabel = isCoachInstructionsStep
     ? "Got It"
     : isInstructionBlockStep
@@ -661,39 +606,6 @@ function WorkoutPlayerScreenComponent() {
         : restTimer.isCompleted
           ? "Rest Done"
           : "Select Timer";
-  const signalStepCount = signalProgressSteps.length;
-  const signalStepProgress =
-    signalStepCount > 0 ? (Math.min(signalProgressIndex + 1, signalStepCount) / signalStepCount) : 0;
-  const signalWorkoutStepLines = useMemo(
-    () =>
-      signalOrderedSteps.map((step) => {
-        switch (step.type) {
-          case "coach_instructions":
-            return "Coach Instructions";
-          case "instruction_block":
-            return `${step.label} ${step.title}`;
-          case "exercise_block":
-            return `${step.label} ${step.title}`;
-          case "done_training":
-            return "Done Training";
-          case "reflection":
-            return "Reflection";
-          case "summary":
-            return "Summary";
-          default:
-            return `${step.label} ${step.title}`;
-        }
-      }),
-    [signalOrderedSteps],
-  );
-  const signalWorkoutBlockCount = useMemo(() => {
-    const uniqueBlocks = new Set(
-      signalProgressSteps
-        .filter((step) => step.blockIndex != null)
-        .map((step) => step.blockIndex),
-    );
-    return uniqueBlocks.size;
-  }, [signalProgressSteps]);
   const currentSignalBlockExercises = useMemo(() => {
     if (!isSignalExecution || currentStep?.type !== "exercise_block" || !workoutPlan || !currentStep.block || !currentStep.blockLabel) {
       return [];
