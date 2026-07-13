@@ -1,8 +1,7 @@
-import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { Link, router, useLocalSearchParams } from "expo-router";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
-import { Alert, Pressable, RefreshControl, ScrollView, View } from "react-native";
+import { Alert, RefreshControl, View } from "react-native";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { AppTopBar, EditorialCard, ScreenScaffold } from "@/src/components/layout";
@@ -15,33 +14,30 @@ import { useUpdateSignalProgramVersion } from "@/src/hooks/mutations";
 import { useSignalProgramProgress } from "@/src/hooks/queries/useSignalProgramProgress";
 import { useAuth } from "@/src/hooks/useAuth";
 import { useWorkoutProgram } from "@/src/hooks/useWorkoutProgram";
-import { cn } from "@/src/lib/cn";
 import { toCalendarIsoDate } from "@/src/lib/date";
 import { singleParam } from "@/src/lib/routing";
 import { findDay, findWeek } from "@/src/features/signal-programs/lib/signalSelection";
 import {
   buildSignalWeekCalendarDays,
   getSignalWorkoutDayPreview,
-  getSignalBlockLabel,
-  getSignalExerciseLabel,
   formatMonthYearLabel,
   resolveSignalDayDate,
   resolveSignalWorkoutSelection,
 } from "@/src/services/signal-workout-adapter";
 import type { ActiveProgramRow } from "@/src/services/active-program.service";
-import type { WorkoutProgramPayloadExercise } from "@/src/services/programs";
-import { colors } from "@/src/theme";
 
-import { ActiveProgramActions } from "@/src/features/program-lifecycle/components/ActiveProgramActions";
 import { ProgramLifecycleCard } from "@/src/features/program-lifecycle/components/ProgramLifecycleCard";
 import { SignalProgramLifecycleHome } from "@/src/features/program-lifecycle/components/SignalProgramLifecycleHome";
-import { SignalSessionPrimaryAction } from "@/src/features/program-lifecycle/components/SignalSessionPrimaryAction";
 import { SIGNAL_LIFECYCLE_ACTION_COPY } from "@/src/features/program-lifecycle/constants";
 import { resolveSignalCompletedSessionId } from "@/src/features/program-lifecycle/lib/resolveSignalCompletedSessionId";
 import { findFirstPlayableSignalStartPoint } from "@/src/features/program-lifecycle/services/signalProgramLifecycle.service";
 import { useResetSignalProgram } from "@/src/features/program-lifecycle/hooks/useResetSignalProgram";
 import { useSignalProgramLifecycle } from "@/src/features/program-lifecycle/hooks/useSignalProgramLifecycle";
 import { useUnjoinSignalProgram } from "@/src/features/program-lifecycle/hooks/useUnjoinSignalProgram";
+import { SignalCalendarStrip } from "@/src/features/signal-programs/components/SignalCalendarStrip";
+import { SignalProgramActionCard } from "@/src/features/signal-programs/components/SignalProgramActionCard";
+import { SignalTrainingCard } from "@/src/features/signal-programs/components/SignalTrainingCard";
+import { SignalWorkoutPlanPreview } from "@/src/features/signal-programs/components/SignalWorkoutPlanPreview";
 
 import { WorkoutPlayerScreen } from "./WorkoutPlayerScreen";
 
@@ -57,14 +53,6 @@ function getDayInstructions(selectedPreview: ReturnType<typeof getSignalWorkoutD
   if (firstInstruction) return firstInstruction;
 
   return "Review the blocks below, then start your session.";
-}
-
-function getExercisePrescription(exercise: WorkoutProgramPayloadExercise) {
-  const parts = [exercise.sets?.trim() ? `${exercise.sets.trim()} sets` : null];
-  if (exercise.reps?.trim()) parts.push(`${exercise.reps.trim()} reps`);
-  if (exercise.rpe?.trim()) parts.push(`RPE ${exercise.rpe.trim()}`);
-  if (exercise.rest?.trim()) parts.push(`Rest ${exercise.rest.trim()}`);
-  return parts.filter(Boolean).join(" · ");
 }
 
 function getDisplayCompletedState(selectedDayCompleted: boolean, activeSessionMatchesSelection: boolean) {
@@ -730,361 +718,59 @@ function SignalWorkoutHome({
         {payload && activePointerValid ? (
           <>
             {calendarStrip ? (
-              <EditorialCard className="gap-2.5">
-                <View className="gap-1">
-                  <Typography tone="secondary" variant="labelSm">
-                    {selectedMonthYearDate ? formatMonthYearLabel(selectedMonthYearDate) : calendarStrip.monthYearLabel}
-                  </Typography>
-                  <View className="flex-row items-end justify-between gap-3">
-                    <Typography variant="headlineLg">{selectedWeek?.title ?? activeWeek?.title ?? "Current week"}</Typography>
-                    <Typography tone="secondary" variant="labelSm">
-                      Weekly plan
-                    </Typography>
-                  </View>
-                </View>
-
-                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                  <View className="flex-row gap-2 pr-2">
-                    {calendarStrip.days.map((cell) => {
-                      const assignedWorkout = cell.isAssigned;
-                      return (
-                        <Pressable
-                          accessibilityRole="button"
-                          className={`min-w-14 rounded-xl border px-2.5 py-2 ${
-                            cell.isSelected
-                              ? "border-emerald bg-emerald/8"
-                              : assignedWorkout
-                                ? cell.isCompleted
-                                  ? "border-emerald/35 bg-emerald/8"
-                                  : "border-border bg-background"
-                                : "border-border/50 bg-background/40"
-                          }`}
-                          key={`${cell.weekKey ?? "rest"}:${cell.dayKey ?? cell.dayLabel}:${toCalendarIsoDate(cell.date)}`}
-                          onPress={() => {
-                            setSelectedDateIso(toCalendarIsoDate(cell.date));
-                            if (cell.isAssigned && cell.weekKey && cell.dayKey) {
-                              setSelectedWeekKey(cell.weekKey);
-                              setSelectedDayKey(cell.dayKey);
-                              return;
-                            }
-                            setSelectedWeekKey(displayWeek?.sync_key ?? activeProgram.current_week_key);
-                            setSelectedDayKey(null);
-                          }}
-                        >
-                          <View className="gap-1.5">
-                            <View className="flex-row items-center justify-between gap-2">
-                              <Typography tone="secondary" variant="labelSm">
-                                {cell.weekdayLabel}
-                              </Typography>
-                              <View className="flex-row items-center gap-1">
-                                {cell.isToday ? (
-                                  <View className="rounded-full border border-emerald/30 px-1 py-0.5">
-                                    <Typography tone="primary" variant="labelSm">
-                                      TODAY
-                                    </Typography>
-                                  </View>
-                                ) : null}
-                                {cell.isCompleted ? (
-                                  <Ionicons color={colors.emerald} name="checkmark-circle" size={16} />
-                                ) : cell.isAssigned ? (
-                                  <View className="h-2 w-2 rounded-full bg-emerald" />
-                                ) : (
-                                  <View className="h-1.5 w-1.5 rounded-full bg-border" />
-                                )}
-                              </View>
-                            </View>
-                            <Typography variant="bodyLg">{cell.dayLabel}</Typography>
-                            <Typography numberOfLines={1} tone="secondary" variant="labelSm">
-                              {cell.isAssigned ? "Planned" : "Rest"}
-                            </Typography>
-                          </View>
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-                </ScrollView>
-              </EditorialCard>
+              <SignalCalendarStrip
+                days={calendarStrip.days}
+                monthYearLabel={selectedMonthYearDate ? formatMonthYearLabel(selectedMonthYearDate) : calendarStrip.monthYearLabel}
+                onDayPress={(cell) => {
+                  setSelectedDateIso(toCalendarIsoDate(cell.date));
+                  if (cell.isAssigned && cell.weekKey && cell.dayKey) {
+                    setSelectedWeekKey(cell.weekKey);
+                    setSelectedDayKey(cell.dayKey);
+                    return;
+                  }
+                  setSelectedWeekKey(displayWeek?.sync_key ?? activeProgram.current_week_key);
+                  setSelectedDayKey(null);
+                }}
+                weekTitle={selectedWeek?.title ?? activeWeek?.title ?? "Current week"}
+              />
             ) : null}
 
-            <EditorialCard className="gap-2.5">
-              <View className="gap-1.5">
-                <View className="flex-row items-center justify-between gap-3">
-                  <Typography tone="secondary" variant="labelSm">
-                    TRAINING
-                  </Typography>
-                </View>
-                <Typography variant="headlineLg">{program?.title ?? "Signal Program"}</Typography>
-                <Typography tone="secondary" variant="bodyMd">
-                  {selectedWeek?.title ?? activeWeek?.title ?? "Current week"} ·{" "}
-                  {selectedDay?.title ?? selectedCalendarCell?.title ?? "Selected day"}
-                </Typography>
-                <View className="flex-row items-center gap-3 border-t border-border pt-2.5">
-                  <View className="flex-1 gap-1">
-                    <Typography tone="secondary" variant="labelSm">
-                      Status
-                    </Typography>
-                    <Typography variant="bodyMd">
-                      {getDisplayCompletedState(selectedDayCompleted, hasMatchingOpenSignalSession)}
-                    </Typography>
-                  </View>
-                  <View className="h-8 w-px bg-border" />
-                  <View className="flex-1 gap-1">
-                    <Typography tone="secondary" variant="labelSm">
-                      Blocks
-                    </Typography>
-                    <Typography variant="bodyMd">{selectedPreview.blockCount}</Typography>
-                  </View>
-                  <View className="h-8 w-px bg-border" />
-                  <View className="flex-1 gap-1">
-                    <Typography tone="secondary" variant="labelSm">
-                      Exercises
-                    </Typography>
-                    <Typography variant="bodyMd">{selectedPreview.exerciseCount}</Typography>
-                  </View>
-                  <View className="h-8 w-px bg-border" />
-                  <View className="flex-1 gap-1">
-                    <Typography tone="secondary" variant="labelSm">
-                      Minutes
-                    </Typography>
-                    <Typography variant="bodyMd">--</Typography>
-                  </View>
-                </View>
-                <View className="gap-3 pt-4">
-                  <SignalSessionPrimaryAction
-                    actionType={sessionActionType}
-                    disabled={!isPlayableDay}
-                    isLoading={false}
-                    onPress={handleSelectedDayPrimaryAction}
-                  />
-                </View>
-                {hasUpdateToLatest ? (
-                  <View className="mt-3 flex-row items-center gap-3 rounded-2xl border border-emerald/25 bg-emerald/8 px-3 py-3">
-                    <View className="flex-1 gap-0.5">
-                      <Typography tone="primary" variant="labelSm">
-                        Update available
-                      </Typography>
-                      <Typography tone="secondary" variant="labelSm">
-                        Coach published a newer version.
-                      </Typography>
-                    </View>
-                    <Pressable
-                      accessibilityRole="button"
-                      className={cn(
-                        "min-h-10 min-w-[88px] items-center justify-center rounded-full px-4",
-                        updateBannerButtonDisabled ? "bg-emerald/30 opacity-60" : "bg-emerald active:opacity-85",
-                      )}
-                      disabled={updateBannerButtonDisabled}
-                      onPress={handleUpdateToLatest}
-                    >
-                      <Typography tone="inverse" variant="labelSm">
-                        {isUpdateVersionPending ? "Updating..." : "Update"}
-                      </Typography>
-                    </Pressable>
-                  </View>
-                ) : null}
-              </View>
-            </EditorialCard>
+            <SignalTrainingCard
+              actionType={sessionActionType}
+              blockCount={selectedPreview.blockCount}
+              dayTitle={selectedDay?.title ?? selectedCalendarCell?.title ?? "Selected day"}
+              exerciseCount={selectedPreview.exerciseCount}
+              hasUpdateToLatest={hasUpdateToLatest}
+              isPlayableDay={isPlayableDay}
+              isUpdateVersionPending={isUpdateVersionPending}
+              onPrimaryAction={handleSelectedDayPrimaryAction}
+              onUpdateToLatest={handleUpdateToLatest}
+              programTitle={program?.title ?? "Signal Program"}
+              statusLabel={getDisplayCompletedState(selectedDayCompleted, hasMatchingOpenSignalSession)}
+              updateBannerButtonDisabled={updateBannerButtonDisabled}
+              weekTitle={selectedWeek?.title ?? activeWeek?.title ?? "Current week"}
+            />
 
-            <EditorialCard className="gap-3">
-              <View className="gap-1">
-                <Typography tone="secondary" variant="labelSm">
-                  PROGRAM ACTIONS
-                </Typography>
-                <Typography tone="secondary" variant="bodyMd">
-                  Keep your current history, or restart the program from Week 1 Day 1.
-                </Typography>
-              </View>
-              <ActiveProgramActions
-                isResetting={resetSignalProgramMutation.isPending}
-                isUnjoining={unjoinSignalProgramMutation.isPending}
-                onReset={handleResetProgram}
-                onUnjoin={handleUnjoinProgram}
-              />
-            </EditorialCard>
+            <SignalProgramActionCard
+              isResetting={resetSignalProgramMutation.isPending}
+              isUnjoining={unjoinSignalProgramMutation.isPending}
+              onReset={handleResetProgram}
+              onUnjoin={handleUnjoinProgram}
+            />
 
-            {selectedDay && selectedWeek ? (
-              <EditorialCard className="gap-4 overflow-hidden">
-                <View className="gap-1.5">
-                  <Typography tone="secondary" variant="labelSm">
-                    TODAY&apos;S TRAINING
-                  </Typography>
-                  <Typography variant="headlineLg">{selectedDay.title}</Typography>
-                  <Typography tone="secondary" variant="bodyMd">
-                    {selectedWeek.title} · {selectedDayCompleted ? "Completed" : "Ready to train"}
-                  </Typography>
-                </View>
-
-                <Pressable
-                  accessibilityRole={canOpenSelectedWorkoutSections ? "button" : undefined}
-                  className={cn(
-                    "gap-1.5 border-t border-border pt-2",
-                    canOpenSelectedWorkoutSections ? "rounded-lg active:bg-surface-muted" : "",
-                  )}
-                  disabled={!canOpenSelectedWorkoutSections}
-                  onPress={() => openSignalWorkout({ stepType: "coach" })}
-                >
-                  <View className="flex-row items-start justify-between gap-3">
-                    <View className="flex-1 gap-1.5">
-                      <Typography tone="secondary" variant="labelSm">
-                        COACH INSTRUCTIONS
-                      </Typography>
-                      <Typography variant="bodyMd">{coachInstructionsText}</Typography>
-                    </View>
-                    {canOpenSelectedWorkoutSections ? (
-                      <View className="flex-row items-center gap-1 pt-0.5">
-                        <Typography tone="secondary" variant="labelSm">
-                          Open
-                        </Typography>
-                        <Ionicons color={colors.graphiteMuted} name="chevron-forward" size={16} />
-                      </View>
-                    ) : null}
-                  </View>
-                </Pressable>
-
-                {selectedPreview.blocks.length > 0 ? (
-                  <View className="gap-3">
-                    <Typography tone="secondary" variant="labelSm">
-                      WORKOUT PLAN
-                    </Typography>
-                    {selectedPreview.blocks.map((block, index) => {
-                      const isOpenableBlock = canOpenSelectedWorkoutSections;
-                      const isPlayableBlock = block.isPlayable && isOpenableBlock;
-                      const blockLabel = getSignalBlockLabel(index);
-                      const hasExercises = selectedDay.blocks[index]?.exercises.length > 0;
-                      const blockExercises = selectedDay.blocks[index]?.exercises ?? [];
-                      return (
-                        <View className="flex-row items-start gap-3" key={block.key}>
-                          <View className="h-9 w-9 items-center justify-center rounded-full bg-emerald">
-                            <Typography className="text-white" variant="labelMd">
-                              {blockLabel}
-                            </Typography>
-                          </View>
-                          <View className="flex-1 gap-1.5 border-b border-border pb-3">
-                            <View className="flex-row items-start justify-between gap-3">
-                              <View className="flex-1 gap-0.5">
-                                <Typography variant="bodyLg">{block.title}</Typography>
-                                <Typography tone="secondary" variant="labelSm">
-                                  {block.isInstructionOnly ? "Instruction block" : block.isMixed ? "Mixed block" : "Exercise block"}
-                                </Typography>
-                              </View>
-                              <Typography tone={selectedDayCompleted ? "accent" : "secondary"} variant="labelSm">
-                                {selectedDayCompleted ? "Completed" : hasExercises ? "Ready" : "Instructions"}
-                              </Typography>
-                            </View>
-
-                            {block.instruction ? (
-                              <Typography tone="secondary" variant="bodyMd">
-                                {block.instruction}
-                              </Typography>
-                            ) : null}
-
-                            {hasExercises ? (
-                              <View className="gap-1 pt-0.5">
-                                {blockExercises.map((exercise, exerciseIndex) => {
-                                  const exerciseLabel = getSignalExerciseLabel(blockLabel, exerciseIndex);
-                                  const prescription = getExercisePrescription(exercise);
-                                  return (
-                                    <Pressable
-                                      accessibilityRole="button"
-                                      className={`flex-row items-start gap-3 rounded-lg px-1 py-1.5 ${
-                                        isPlayableBlock ? "active:bg-surface-muted" : ""
-                                      }`}
-                                      key={exercise.sync_key}
-                                      onPress={() => {
-                                        if (!isPlayableBlock) return;
-                                        openSignalWorkout({ blockIndex: index, exerciseIndex });
-                                      }}
-                                    >
-                                      <View className="mt-0.5 min-w-10 items-center rounded-full bg-emerald/10 px-2 py-1">
-                                        <Typography tone="primary" variant="labelSm">
-                                          {exerciseLabel}
-                                        </Typography>
-                                      </View>
-                                      <View className="flex-1 gap-0.5">
-                                        <Typography variant="bodyMd">{exercise.exerciseName}</Typography>
-                                        {prescription ? (
-                                          <Typography tone="secondary" variant="labelSm">
-                                            {prescription}
-                                          </Typography>
-                                        ) : null}
-                                        {exercise.notes?.trim() ? (
-                                          <Typography numberOfLines={2} tone="secondary" variant="labelSm">
-                                            {exercise.notes.trim()}
-                                          </Typography>
-                                        ) : null}
-                                      </View>
-                                      {isPlayableBlock ? (
-                                        <Ionicons color={colors.graphiteMuted} name="chevron-forward" size={16} />
-                                      ) : null}
-                                    </Pressable>
-                                  );
-                                })}
-                              </View>
-                            ) : block.prescriptionSummary ? (
-                              <Typography tone="secondary" variant="labelSm">
-                                {block.prescriptionSummary}
-                              </Typography>
-                            ) : null}
-
-                            {!hasExercises && block.isInstructionOnly && !block.instruction ? (
-                              <Typography tone="secondary" variant="bodyMd">
-                                This block contains coach instructions only.
-                              </Typography>
-                            ) : null}
-
-                            {isOpenableBlock ? (
-                              <Pressable
-                                accessibilityRole="button"
-                                className="flex-row items-center gap-2 pt-1"
-                                onPress={() => openSignalWorkout({ blockIndex: index })}
-                              >
-                                <Typography tone="primary" variant="labelSm">
-                                  {hasExercises ? "Open block" : "Open step"}
-                                </Typography>
-                                <Ionicons color={colors.emerald} name="arrow-forward" size={14} />
-                              </Pressable>
-                            ) : null}
-                          </View>
-                        </View>
-                      );
-                    })}
-                  </View>
-                ) : null}
-
-                {!selectedPreview.blocks.length ? (
-                  <View className="gap-2 rounded-2xl border border-border bg-surface-muted p-4">
-                    <Typography variant="headlineLg">Workout preview unavailable</Typography>
-                    <Typography tone="secondary" variant="bodyMd">
-                      This day does not have any block details yet.
-                    </Typography>
-                  </View>
-                ) : null}
-
-                {!selectedPreview.isPlayable ? (
-                  <View className="gap-2 rounded-2xl border border-border bg-surface-muted p-4">
-                    <Typography variant="headlineLg">Rest day</Typography>
-                    <Typography tone="secondary" variant="bodyMd">
-                      This selected day does not contain playable exercises.
-                    </Typography>
-                  </View>
-                ) : null}
-
-              </EditorialCard>
-            ) : (
-              <EditorialCard className="gap-3">
-                <Typography variant="headlineLg">Rest Day</Typography>
-                <Typography tone="secondary" variant="bodyMd">
-                  {selectedCalendarCell?.title
-                    ? `No workout assigned for ${selectedCalendarCell.weekdayLabel} ${selectedCalendarCell.dayLabel}.`
-                    : "No workout assigned for this selected date."}
-                </Typography>
-                {payload && activePointerValid ? (
-                  <AppButton disabled size="lg" variant="secondary">
-                    Unavailable
-                  </AppButton>
-                ) : null}
-              </EditorialCard>
-            )}
+            <SignalWorkoutPlanPreview
+              canOpenSelectedWorkoutSections={canOpenSelectedWorkoutSections}
+              coachInstructionsText={coachInstructionsText}
+              onOpenBlock={(blockIndex) => openSignalWorkout({ blockIndex })}
+              onOpenCoach={() => openSignalWorkout({ stepType: "coach" })}
+              onOpenExercise={(blockIndex, exerciseIndex) => openSignalWorkout({ blockIndex, exerciseIndex })}
+              selectedCalendarCell={selectedCalendarCell}
+              selectedDay={selectedDay}
+              selectedDayCompleted={selectedDayCompleted}
+              selectedPreview={selectedPreview}
+              selectedWeek={selectedWeek}
+              showUnavailableButton={Boolean(payload && activePointerValid)}
+            />
           </>
         ) : null}
       </View>
