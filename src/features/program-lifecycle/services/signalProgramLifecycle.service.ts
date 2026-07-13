@@ -1,4 +1,5 @@
 import { activeProgramService, workoutService } from "@/src/services";
+import { findFirstPlayableSignalSelection } from "@/src/features/signal-programs/lib/signalSelection";
 import type { WorkoutProgramPayloadWeek } from "@/src/services/programs";
 import type { ActiveProgramRow } from "@/src/services/active-program.service";
 
@@ -76,16 +77,5 @@ export async function restartCompletedSignalProgram(input: {
 export function findFirstPlayableSignalStartPoint(
   weeks: WorkoutProgramPayloadWeek[],
 ): SignalProgramStartPoint | null {
-  for (const week of weeks) {
-    for (const day of week.days) {
-      if (day.blocks.some((block) => block.exercises.length > 0)) {
-        return {
-          dayKey: day.sync_key,
-          weekKey: week.sync_key,
-        };
-      }
-    }
-  }
-
-  return null;
+  return findFirstPlayableSignalSelection(weeks);
 }

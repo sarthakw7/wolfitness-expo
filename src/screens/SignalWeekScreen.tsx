@@ -9,23 +9,11 @@ import { useActiveProgram } from "@/src/hooks/queries/useActiveProgram";
 import { useSignalProgramProgress } from "@/src/hooks/queries/useSignalProgramProgress";
 import { useAuth } from "@/src/hooks/useAuth";
 import { useWorkoutProgram } from "@/src/hooks/useWorkoutProgram";
+import { singleParam } from "@/src/lib/routing";
+import { countExercisesInDay } from "@/src/features/signal-programs/lib/signalExerciseCounts";
+import { findWeek } from "@/src/features/signal-programs/lib/signalSelection";
 import { isSignalPlayableDay } from "@/src/services/signal-workout-adapter";
-import type { WorkoutProgramPayloadDay, WorkoutProgramPayloadWeek } from "@/src/services/programs";
 import { colors } from "@/src/theme";
-
-function singleParam(value: string | string[] | undefined) {
-  if (Array.isArray(value)) return value[0] ?? null;
-  return value ?? null;
-}
-
-function findWeek(weeks: WorkoutProgramPayloadWeek[], weekKey: string | null) {
-  if (!weekKey) return null;
-  return weeks.find((week) => week.id === weekKey || week.sync_key === weekKey) ?? null;
-}
-
-function countExercisesInDay(day: WorkoutProgramPayloadDay) {
-  return day.blocks.reduce((sum, block) => sum + block.exercises.length, 0);
-}
 
 function getProgramsErrorCode(error: unknown) {
   return error instanceof Error ? (error as { code?: string }).code ?? null : null;

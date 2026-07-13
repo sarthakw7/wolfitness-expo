@@ -21,32 +21,48 @@ import {
   type WorkoutExerciseMedia,
 } from "@/src/lib/youtube-media";
 import { toCalendarIsoDate } from "@/src/lib/date";
+import { countExercisesInDay, countPlayableWorkouts } from "@/src/features/signal-programs/lib/signalExerciseCounts";
+import { getSignalBlockLabel } from "@/src/features/signal-programs/lib/signalLabels";
+import { compactSignalPrescription } from "@/src/features/signal-programs/lib/signalPrescription";
+import {
+  isSignalPlayableDay,
+  resolveSignalWorkoutSelection,
+  type SignalWorkoutSelection,
+} from "@/src/features/signal-programs/lib/signalSelection";
+import { resolveNextSignalWorkoutPreview } from "@/src/features/signal-programs/lib/signalProgression";
 
-export type SignalWorkoutSelection = {
-  dayId?: string | null;
-  weekId?: string | null;
-};
+export {
+  countExercisesInBlock,
+  countExercisesInDay,
+  countExercisesInWeek,
+} from "@/src/features/signal-programs/lib/signalExerciseCounts";
+export {
+  getSignalBlockLabel,
+  getSignalExerciseLabel,
+} from "@/src/features/signal-programs/lib/signalLabels";
+export {
+  formatSignalExercisePrescription,
+} from "@/src/features/signal-programs/lib/signalPrescription";
+export {
+  findDay,
+  findFirstPlayableSignalSelection,
+  findWeek,
+  isSignalPlayableDay,
+  matchesSignalKey,
+  resolveSignalWorkoutSelection,
+} from "@/src/features/signal-programs/lib/signalSelection";
+export {
+  findNextSignalWorkoutDay,
+} from "@/src/features/signal-programs/lib/signalProgression";
+export type {
+  SignalWorkoutSelection,
+  SignalWorkoutSelectionState,
+} from "@/src/features/signal-programs/lib/signalSelection";
+export type {
+  SignalWorkoutNextDayResult,
+} from "@/src/features/signal-programs/lib/signalProgression";
 
 export type SignalWorkoutExecutionContext = WorkoutPlanForToday;
-
-export type SignalWorkoutSelectionState =
-  | {
-      day: WorkoutProgramPayloadDay | null;
-      status: "day_not_found" | "missing_day" | "missing_week" | "week_not_found" | "missing_program" | "empty_payload" | "ok";
-      week: WorkoutProgramPayloadWeek | null;
-    }
-  | {
-      day: null;
-      status: "empty_payload" | "missing_program";
-    week: null;
-  };
-
-export type SignalWorkoutNextDayResult = {
-  error?: string;
-  isProgramCompleted: boolean;
-  nextDayKey: string | null;
-  nextWeekKey: string | null;
-};
 
 export type SignalProgramLifecycleRow = {
   completed_at: string | null;
@@ -215,18 +231,6 @@ function toCalendarWeekdayLabel(date: Date) {
   return new Intl.DateTimeFormat(undefined, { weekday: "short" }).format(date).toUpperCase();
 }
 
-export function getSignalBlockLabel(blockIndex: number) {
-  if (blockIndex >= 0 && blockIndex < 26) {
-    return String.fromCharCode(65 + blockIndex);
-  }
-
-  return `${blockIndex + 1}`;
-}
-
-export function getSignalExerciseLabel(blockLabel: string, exerciseIndex: number) {
-  return `${blockLabel}${exerciseIndex + 1}`;
-}
-
 export function formatMonthYearLabel(date: Date) {
   const month = new Intl.DateTimeFormat(undefined, { month: "long" }).format(date).toUpperCase();
   const year = String(date.getFullYear()).slice(-2);
@@ -300,191 +304,11 @@ export function buildSignalWeekCalendarDays(
   };
 }
 
-function findWeek(weeks: WorkoutProgramPayloadWeek[], weekId?: string | null) {
-  if (!weeks.length) return null;
-  if (!weekId) return null;
-  return weeks.find((week) => week.id === weekId || week.sync_key === weekId) ?? null;
-}
-
-function findDay(week: WorkoutProgramPayloadWeek | null, dayId?: string | null) {
-  if (!week?.days.length) return null;
-  if (!dayId) return null;
-  return week.days.find((day) => day.id === dayId || day.sync_key === dayId) ?? null;
-}
-
-export function isSignalPlayableDay(day: WorkoutProgramPayloadDay | null | undefined) {
-  if (!day) return false;
-  return day.blocks.some((block) => block.exercises.length > 0);
-}
-
-function countExercisesInDay(day: WorkoutProgramPayloadDay) {
-  return day.blocks.reduce((blockTotal, block) => blockTotal + block.exercises.length, 0);
-}
-
-function countPlayableWorkouts(payload: WorkoutProgramPayload) {
-  return payload.weeks.reduce((weekTotal, week) => {
-    return weekTotal + week.days.filter((day) => isSignalPlayableDay(day)).length;
-  }, 0);
-}
-
 function sanitizeProgramMeta(value: string | null | undefined, fallbackValues: string[]) {
   if (!value) return null;
   const normalized = value.trim();
   if (!normalized) return null;
   return fallbackValues.includes(normalized) ? null : normalized;
-}
-
-function findWeekByKey(weeks: WorkoutProgramPayloadWeek[], weekKey: string | null | undefined) {
-  if (!weekKey) return null;
-  return weeks.find((week) => week.id === weekKey || week.sync_key === weekKey) ?? null;
-}
-
-function findDayByKey(week: WorkoutProgramPayloadWeek | null, dayKey: string | null | undefined) {
-  if (!week || !dayKey) return null;
-  return week.days.find((day) => day.id === dayKey || day.sync_key === dayKey) ?? null;
-}
-
-export function resolveSignalWorkoutSelection(
-  payload: WorkoutProgramPayload | null | undefined,
-  selection: SignalWorkoutSelection,
-): SignalWorkoutSelectionState {
-  if (!payload?.program?.id || !Array.isArray(payload.weeks)) {
-    return {
-      day: null,
-      status: "missing_program",
-      week: null,
-    };
-  }
-
-  if (payload.weeks.length === 0) {
-    return {
-      day: null,
-      status: "empty_payload",
-      week: null,
-    };
-  }
-
-  if (!selection.weekId) {
-    return {
-      day: null,
-      status: "missing_week",
-      week: null,
-    };
-  }
-
-  const week = findWeek(payload.weeks, selection.weekId);
-  if (!week) {
-    return {
-      day: null,
-      status: "week_not_found",
-      week: null,
-    };
-  }
-
-  if (!selection.dayId) {
-    return {
-      day: null,
-      status: "missing_day",
-      week,
-    };
-  }
-
-  const day = findDay(week, selection.dayId);
-  if (!day) {
-    return {
-      day: null,
-      status: "day_not_found",
-      week,
-    };
-  }
-
-  return {
-    day,
-    status: "ok",
-    week,
-  };
-}
-
-export function findNextSignalWorkoutDay(
-  payload: WorkoutProgramPayload | null | undefined,
-  currentWeekKey: string | null | undefined,
-  currentDayKey: string | null | undefined,
-): SignalWorkoutNextDayResult {
-  if (!payload?.program?.id || !Array.isArray(payload.weeks)) {
-    return {
-      error: "missing_program",
-      isProgramCompleted: false,
-      nextDayKey: null,
-      nextWeekKey: null,
-    };
-  }
-
-  if (!currentWeekKey) {
-    return {
-      error: "missing_week",
-      isProgramCompleted: false,
-      nextDayKey: null,
-      nextWeekKey: null,
-    };
-  }
-
-  const currentWeekIndex = payload.weeks.findIndex((week) => week.id === currentWeekKey || week.sync_key === currentWeekKey);
-  if (currentWeekIndex < 0) {
-    return {
-      error: "week_not_found",
-      isProgramCompleted: false,
-      nextDayKey: null,
-      nextWeekKey: null,
-    };
-  }
-
-  if (!currentDayKey) {
-    return {
-      error: "missing_day",
-      isProgramCompleted: false,
-      nextDayKey: null,
-      nextWeekKey: null,
-    };
-  }
-
-  const currentWeek = payload.weeks[currentWeekIndex];
-  const currentDayIndex = currentWeek.days.findIndex((day) => day.id === currentDayKey || day.sync_key === currentDayKey);
-  if (currentDayIndex < 0) {
-    return {
-      error: "day_not_found",
-      isProgramCompleted: false,
-      nextDayKey: null,
-      nextWeekKey: null,
-    };
-  }
-
-  const laterDaysInCurrentWeek = currentWeek.days.slice(currentDayIndex + 1);
-  const nextPlayableInCurrentWeek = laterDaysInCurrentWeek.find((day) => isSignalPlayableDay(day));
-  if (nextPlayableInCurrentWeek) {
-    return {
-      isProgramCompleted: false,
-      nextDayKey: nextPlayableInCurrentWeek.sync_key,
-      nextWeekKey: currentWeek.sync_key,
-    };
-  }
-
-  for (let index = currentWeekIndex + 1; index < payload.weeks.length; index += 1) {
-    const nextWeek = payload.weeks[index];
-    const nextPlayableDay = nextWeek.days.find((day) => isSignalPlayableDay(day));
-    if (nextPlayableDay) {
-      return {
-        isProgramCompleted: false,
-        nextDayKey: nextPlayableDay.sync_key,
-        nextWeekKey: nextWeek.sync_key,
-      };
-    }
-  }
-
-  return {
-    isProgramCompleted: true,
-    nextDayKey: null,
-    nextWeekKey: null,
-  };
 }
 
 export function getSignalProgramProgress(
@@ -545,17 +369,7 @@ export function getSignalProgramProgress(
 
   const nextWorkoutPreview = isProgramCompleted
     ? null
-    : (() => {
-        const nextDay = findNextSignalWorkoutDay(payload, lifecycle.current_week_key, lifecycle.current_day_key);
-        if (nextDay.error || !nextDay.nextDayKey || !nextDay.nextWeekKey) return null;
-        const nextWeek = findWeekByKey(payload.weeks, nextDay.nextWeekKey);
-        const nextDayRow = findDayByKey(nextWeek, nextDay.nextDayKey);
-        if (!nextWeek || !nextDayRow) return null;
-        return {
-          dayLabel: nextDayRow.title,
-          weekLabel: nextWeek.title,
-        };
-      })();
+    : resolveNextSignalWorkoutPreview(payload, lifecycle.current_week_key, lifecycle.current_day_key);
 
   return {
     completedWorkouts,
@@ -635,20 +449,6 @@ export function getSignalProgramOverview(
     totalPlayableWorkouts,
     totalWeeks,
   };
-}
-
-function compactPrescription(exercise: WorkoutProgramPayloadExercise) {
-  return [
-    exercise.sets ? `${exercise.sets} sets` : null,
-    exercise.reps ? `${exercise.reps} reps` : null,
-    exercise.rpe ? `RPE ${exercise.rpe}` : null,
-  ]
-    .filter(Boolean)
-    .join(" · ");
-}
-
-export function formatSignalExercisePrescription(exercise: WorkoutProgramPayloadExercise) {
-  return compactPrescription(exercise) || null;
 }
 
 function getCoachInstructionsBody(day: WorkoutProgramPayloadDay) {
@@ -793,7 +593,7 @@ export function getSignalWorkoutDayPreview(
       .filter((name) => name.length > 0)
       .slice(0, 4);
     const prescriptionSummary =
-      block.exercises.map(compactPrescription).find((summary) => summary.length > 0) ?? null;
+      block.exercises.map(compactSignalPrescription).find((summary) => summary.length > 0) ?? null;
 
     return {
       exerciseCount: block.exercises.length,

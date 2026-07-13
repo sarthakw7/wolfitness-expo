@@ -11,28 +11,10 @@ import { useWorkoutActiveSession } from "@/src/hooks/queries/useWorkoutActiveSes
 import { useAuth } from "@/src/hooks/useAuth";
 import { useWorkoutProgram } from "@/src/hooks/useWorkoutProgram";
 import { singleParam } from "@/src/lib/routing";
+import { countExercisesInDay } from "@/src/features/signal-programs/lib/signalExerciseCounts";
+import { findDay, findWeek } from "@/src/features/signal-programs/lib/signalSelection";
 import { getSignalWorkoutDayPreview, isSignalPlayableDay } from "@/src/services/signal-workout-adapter";
-import type { WorkoutProgramPayloadBlock, WorkoutProgramPayloadWeek } from "@/src/services/programs";
 import { colors } from "@/src/theme";
-
-function findWeek(weeks: WorkoutProgramPayloadWeek[], weekKey: string | null) {
-  if (!weekKey) return null;
-  return weeks.find((week) => week.id === weekKey || week.sync_key === weekKey) ?? null;
-}
-
-function findDay(week: WorkoutProgramPayloadWeek | null, dayKey: string | null) {
-  if (!week || !dayKey) return null;
-  return week.days.find((day) => day.id === dayKey || day.sync_key === dayKey) ?? null;
-}
-
-function countExercisesInBlock(block: WorkoutProgramPayloadBlock) {
-  return block.exercises.length;
-}
-
-function countExercisesInDay(day: WorkoutProgramPayloadBlock[] | null) {
-  if (!day) return 0;
-  return day.reduce((sum, block) => sum + countExercisesInBlock(block), 0);
-}
 
 function getProgramsErrorCode(error: unknown) {
   return error instanceof Error ? (error as { code?: string }).code ?? null : null;

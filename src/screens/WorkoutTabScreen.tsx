@@ -18,6 +18,7 @@ import { useWorkoutProgram } from "@/src/hooks/useWorkoutProgram";
 import { cn } from "@/src/lib/cn";
 import { toCalendarIsoDate } from "@/src/lib/date";
 import { singleParam } from "@/src/lib/routing";
+import { findDay, findWeek } from "@/src/features/signal-programs/lib/signalSelection";
 import {
   buildSignalWeekCalendarDays,
   getSignalWorkoutDayPreview,
@@ -28,7 +29,7 @@ import {
   resolveSignalWorkoutSelection,
 } from "@/src/services/signal-workout-adapter";
 import type { ActiveProgramRow } from "@/src/services/active-program.service";
-import type { WorkoutProgramPayloadExercise, WorkoutProgramPayloadWeek } from "@/src/services/programs";
+import type { WorkoutProgramPayloadExercise } from "@/src/services/programs";
 import { colors } from "@/src/theme";
 
 import { ActiveProgramActions } from "@/src/features/program-lifecycle/components/ActiveProgramActions";
@@ -46,16 +47,6 @@ import { WorkoutPlayerScreen } from "./WorkoutPlayerScreen";
 
 function getProgramsErrorCode(error: unknown) {
   return error instanceof Error ? (error as { code?: string }).code ?? null : null;
-}
-
-function findWeek(weeks: WorkoutProgramPayloadWeek[], weekKey: string | null | undefined) {
-  if (!weekKey) return null;
-  return weeks.find((week) => week.id === weekKey || week.sync_key === weekKey) ?? null;
-}
-
-function findDay(week: WorkoutProgramPayloadWeek | null, dayKey: string | null | undefined) {
-  if (!week || !dayKey) return null;
-  return week.days.find((day) => day.id === dayKey || day.sync_key === dayKey) ?? null;
 }
 
 function getDayInstructions(selectedPreview: ReturnType<typeof getSignalWorkoutDayPreview>) {

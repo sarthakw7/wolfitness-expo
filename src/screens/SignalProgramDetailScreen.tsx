@@ -11,8 +11,10 @@ import { AppButton, Typography } from "@/src/components/primitives";
 import { useSignalProgramLifecycle } from "@/src/features/program-lifecycle/hooks/useSignalProgramLifecycle";
 import { useWorkoutProgram } from "@/src/hooks/useWorkoutProgram";
 import { singleParam } from "@/src/lib/routing";
+import { countExercisesInWeek } from "@/src/features/signal-programs/lib/signalExerciseCounts";
+import { findFirstPlayableSignalSelection } from "@/src/features/signal-programs/lib/signalSelection";
 import { getSignalProgramOverview, resolveSignalWorkoutSelection } from "@/src/services/signal-workout-adapter";
-import type { WorkoutProgramPayloadDay, WorkoutProgramPayloadWeek } from "@/src/services/programs";
+import type { WorkoutProgramPayloadDay } from "@/src/services/programs";
 import { colors } from "@/src/theme";
 
 function getProgramsErrorCode(error: unknown) {
@@ -48,33 +50,10 @@ function getErrorMessage(error: unknown) {
   return "We could not start this program. Please try again.";
 }
 
-function countExercisesInDay(day: WorkoutProgramPayloadDay) {
-  return day.blocks.reduce((blockTotal, block) => blockTotal + block.exercises.length, 0);
-}
-
-function countExercisesInWeek(week: WorkoutProgramPayloadWeek) {
-  return week.days.reduce((dayTotal, day) => dayTotal + countExercisesInDay(day), 0);
-}
-
 function formatAverageWorkoutsPerWeek(value: number) {
   if (!Number.isFinite(value) || value <= 0) return "0 / week";
   const rounded = Number.isInteger(value) ? value.toString() : value.toFixed(1);
   return `${rounded} / week`;
-}
-
-function findFirstPlayableSignalSelection(weeks: WorkoutProgramPayloadWeek[]) {
-  for (const week of weeks) {
-    for (const day of week.days) {
-      if (day.blocks.some((block) => block.exercises.length > 0)) {
-        return {
-          dayKey: day.sync_key,
-          weekKey: week.sync_key,
-        };
-      }
-    }
-  }
-
-  return null;
 }
 
 function SignalProgramDetailScreenComponent() {
