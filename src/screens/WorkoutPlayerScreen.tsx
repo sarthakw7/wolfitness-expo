@@ -25,6 +25,7 @@ import { WorkoutCompletionSummary as WorkoutCompletionSummaryView } from "@/src/
 import { useSignalSaveAndExit } from "@/src/features/workout/hooks/useSignalSaveAndExit";
 import { useSignalWorkoutDerivedState } from "@/src/features/workout/hooks/useSignalWorkoutDerivedState";
 import { useWorkoutDiscard } from "@/src/features/workout/hooks/useWorkoutDiscard";
+import { useWorkoutCompletion, type WorkoutCompletionSummary } from "@/src/features/workout/hooks/useWorkoutCompletion";
 import { useWorkoutPlayerDerivedState } from "@/src/features/workout/hooks/useWorkoutPlayerDerivedState";
 import {
   buildSignalDemoSearchUrl,
@@ -47,7 +48,6 @@ import {
   getTargetSets,
 } from "@/src/features/workout/lib/workoutPrescription";
 import { formatSummaryLine } from "@/src/features/workout-summary/lib/formatWorkoutSummary";
-import type { WorkoutSummary } from "@/src/features/workout-summary/types";
 import {
   buildYouTubeEmbedUrl,
   buildYouTubeWatchUrl,
@@ -58,7 +58,6 @@ import {
   buildSignalWorkoutSteps,
   formatSignalExercisePrescription,
   hasSignalWorkoutPayload,
-  findNextSignalWorkoutDay,
   getSignalExerciseLabel,
   resolveSignalWorkoutInitialStepIndex,
   resolveSignalWorkoutSelection,
@@ -70,24 +69,6 @@ const SIGNAL_WORKOUT_HOME_HREF = "/(tabs)/workouts" as const;
 function getProgramsErrorCode(error: unknown) {
   return error instanceof Error ? (error as { code?: string }).code ?? null : null;
 }
-
-type WorkoutCompletionSummary = {
-  completedDayTitle: string;
-  completedExercises: number;
-  completedSets: number;
-  completedWeekLabel: string;
-  isProgramCompleted: boolean;
-  nextWorkout: {
-    dayId: string;
-    dayLabel: string;
-    programId: string;
-    weekId: string;
-    weekLabel: string;
-  } | null;
-  progressUpdateNeedsRefresh: boolean;
-  programTitle: string;
-  summary: WorkoutSummary;
-};
 
 function isMatchingSignalActiveProgram(
   activeProgram:
@@ -285,7 +266,6 @@ function WorkoutPlayerScreenComponent() {
   const finishWorkoutMutation = useFinishWorkout();
   const discardWorkoutMutation = useDiscardWorkoutSession();
   const setInputRefs = useRef<Record<string, TextInput | null>>({});
-  const finishLockRef = useRef(false);
   const [completionSummary, setCompletionSummary] = useState<WorkoutCompletionSummary | null>(null);
   const [reflectionIntensity, setReflectionIntensity] = useState<number>(7);
   const [reflectionDurationMinutes, setReflectionDurationMinutes] = useState<string>("");
@@ -534,6 +514,37 @@ function WorkoutPlayerScreenComponent() {
   });
   const isWorkoutPersistenceBusy =
     completeSetMutation.isPending || pendingCompletedSetKeys.size > 0 || isSavingAndExiting;
+  const {
+    finishWorkout: handleFinishWorkout,
+    isFinishLocked,
+  } = useWorkoutCompletion({
+    activeSignalProgram,
+    advanceActiveProgramAfterWorkout: advanceActiveProgramMutation.mutateAsync,
+    completedExerciseCount,
+    completionSummary,
+    finishWorkoutSession: finishWorkoutMutation.mutateAsync,
+    isFinishPending: finishWorkoutMutation.isPending,
+    isSignalExecution,
+    navigateAfterFallbackFinish: () => {
+      router.replace("/(tabs)");
+    },
+    normalizedLogs,
+    refetchSession: sessionQuery.refetch,
+    refetchWorkout: workoutQuery.refetch,
+    resetRestTimer,
+    sessionComplete,
+    sessionId,
+    sessionStartedAt: sessionQuery.data?.session.started_at,
+    setCompletionSummary,
+    setCurrentStepIndex,
+    setFinishError: setSignalFinishError,
+    signalDayId,
+    signalOrderedSteps,
+    signalWeekId,
+    signalWorkoutPayload,
+    workoutPlan,
+    workoutSummary,
+  });
   const { discardWorkout: handleDiscardSession } = useWorkoutDiscard({
     clearLocalWorkoutState: () => {
       setExtraSetsByExercise({});
@@ -553,7 +564,7 @@ function WorkoutPlayerScreenComponent() {
     hasSessionData: Boolean(sessionQuery.data?.session?.id),
     hasStartedSession,
     isDiscardingMutation: discardWorkoutMutation.isPending,
-    isFinishLocked: () => finishLockRef.current,
+    isFinishLocked,
     navigateHome: () => {
       router.replace(SIGNAL_WORKOUT_HOME_HREF);
     },
@@ -732,7 +743,7 @@ function WorkoutPlayerScreenComponent() {
     workoutPlan,
   ]);
   const shouldEnableFooter =
-    Boolean(sessionId) && !finishWorkoutMutation.isPending && !sessionComplete && !finishLockRef.current && !completionSummary;
+    Boolean(sessionId) && !finishWorkoutMutation.isPending && !sessionComplete && !isFinishLocked() && !completionSummary;
   const footerLabel = finishWorkoutMutation.isPending ? "Finishing..." : "Finish Workout";
   const footerAction = handleFinishWorkout;
 
@@ -1084,137 +1095,6 @@ function WorkoutPlayerScreenComponent() {
       return false;
     }
   };
-
-  async function handleFinishWorkout() {
-    if (!sessionId || finishWorkoutMutation.isPending || sessionComplete || finishLockRef.current || completionSummary) return;
-    setSignalFinishError(null);
-    finishLockRef.current = true;
-    try {
-      const isSignalWorkout = Boolean(isSignalExecution && signalWorkoutPayload && activeSignalProgram);
-      const currentWeekLabel = workoutPlan?.week.title ?? signalWorkoutPayload?.weeks.find((week) => week.id === signalWeekId || week.sync_key === signalWeekId)?.title ?? "Workout";
-      const currentDayLabel = workoutPlan?.day.title ?? signalWorkoutPayload?.weeks
-        .find((week) => week.id === signalWeekId || week.sync_key === signalWeekId)
-        ?.days.find((day) => day.id === signalDayId || day.sync_key === signalDayId)?.title ?? "Workout";
-      const summary = workoutSummary ?? {
-        averageRpe: null,
-        completedAt: new Date().toISOString(),
-        durationMinutes: null,
-        notes: null,
-        startedAt: sessionQuery.data?.session.started_at ?? new Date().toISOString(),
-        totalExercises: completedExerciseCount,
-        totalReps: normalizedLogs.reduce((total, log) => total + (log.reps_completed ?? 0), 0),
-        totalSets: normalizedLogs.length,
-        totalVolumeKg: normalizedLogs.reduce((total, log) => {
-          const reps = log.reps_completed ?? 0;
-          const weightKg = log.weight_kg ?? 0;
-          return total + reps * weightKg;
-        }, 0),
-        totalWeightMovedKg: normalizedLogs.reduce((total, log) => {
-          const reps = log.reps_completed ?? 0;
-          const weightKg = log.weight_kg ?? 0;
-          return total + reps * weightKg;
-        }, 0),
-      };
-      const summarySnapshot: Omit<WorkoutCompletionSummary, "nextWorkout" | "progressUpdateNeedsRefresh" | "isProgramCompleted"> = {
-        completedDayTitle: currentDayLabel,
-        completedExercises: summary.totalExercises,
-        completedSets: summary.totalSets,
-        completedWeekLabel: currentWeekLabel,
-        programTitle: workoutPlan?.program.title ?? signalWorkoutPayload?.program.title ?? "Workout",
-        summary,
-      };
-
-      await finishWorkoutMutation.mutateAsync(sessionId);
-
-      if (!isSignalWorkout) {
-        restTimer.reset();
-        setCompletionSummary({
-          ...summarySnapshot,
-          isProgramCompleted: false,
-          nextWorkout: null,
-          progressUpdateNeedsRefresh: false,
-        });
-        return;
-      }
-
-      const nextDay = signalWorkoutPayload
-        ? findNextSignalWorkoutDay(signalWorkoutPayload, signalWeekId, signalDayId)
-        : { error: "missing_program", isProgramCompleted: false, nextDayKey: null, nextWeekKey: null };
-      let nextWorkout: WorkoutCompletionSummary["nextWorkout"] = null;
-      let progressUpdateNeedsRefresh = false;
-
-      if (nextDay.error) {
-        progressUpdateNeedsRefresh = true;
-        console.warn("[athlete-flow]", {
-          error: nextDay.error,
-          screen: "WorkoutPlayer",
-          type: "active-program-advance-validation",
-        });
-      } else if (!nextDay.isProgramCompleted && nextDay.nextWeekKey && nextDay.nextDayKey && signalWorkoutPayload) {
-        const nextWeek = signalWorkoutPayload.weeks.find((week) => week.id === nextDay.nextWeekKey || week.sync_key === nextDay.nextWeekKey);
-        const nextDayRow = nextWeek?.days.find((day) => day.id === nextDay.nextDayKey || day.sync_key === nextDay.nextDayKey);
-        if (!nextWeek || !nextDayRow) {
-          progressUpdateNeedsRefresh = true;
-        } else {
-          nextWorkout = {
-            dayId: nextDay.nextDayKey,
-            dayLabel: nextDayRow.title,
-            programId: signalWorkoutPayload.program.id,
-            weekId: nextDay.nextWeekKey,
-            weekLabel: nextWeek.title,
-          };
-        }
-      }
-
-      if (isSignalExecution && signalWorkoutPayload && activeSignalProgram) {
-        if (!nextDay.error) {
-          try {
-            await advanceActiveProgramMutation.mutateAsync({
-              activeProgramId: activeSignalProgram.id,
-              completedSessionId: sessionId,
-              isProgramCompleted: nextDay.isProgramCompleted,
-              nextDayKey: nextDay.nextDayKey,
-              nextWeekKey: nextDay.nextWeekKey,
-            });
-          } catch (error) {
-            progressUpdateNeedsRefresh = true;
-            console.warn("[athlete-flow]", {
-              error: error instanceof Error ? error.message : String(error),
-              screen: "WorkoutPlayer",
-              type: "active-program-advance",
-            });
-          }
-        }
-
-        restTimer.reset();
-        setCompletionSummary({
-          ...summarySnapshot,
-          isProgramCompleted: nextDay.isProgramCompleted,
-          nextWorkout,
-          progressUpdateNeedsRefresh,
-        });
-        const summaryStepIndex = signalOrderedSteps.findIndex((step) => step.type === "summary");
-        if (summaryStepIndex >= 0) {
-          setCurrentStepIndex(summaryStepIndex);
-        }
-        return;
-      }
-
-      restTimer.reset();
-      await new Promise((resolve) => setTimeout(resolve, 750));
-      router.replace("/(tabs)");
-    } catch (error) {
-      console.warn("[athlete-flow]", {
-        error: error instanceof Error ? error.message : String(error),
-        screen: "WorkoutPlayer",
-        type: "finish-workout-action",
-      });
-      workoutQuery.refetch();
-      sessionQuery.refetch();
-      setSignalFinishError(error instanceof Error ? error.message : "Unable to finish workout.");
-      finishLockRef.current = false;
-    }
-  }
 
   const showSignalFooter =
     isSignalExecution && !isLoading && !hasError && !signalExecutionIssue && Boolean(workoutPlan) && Boolean(currentStep);
