@@ -1,91 +1,25 @@
 import { assertSupabaseConfigured, supabase } from "@/src/lib/supabase";
 import { calculateWorkoutSummary } from "@/src/features/workout-summary/lib/calculateWorkoutSummary";
-import type { WorkoutSummary } from "@/src/features/workout-summary/types";
+import {
+  calculateDurationMinutes,
+  formatFallbackTitle,
+  formatSignalWorkoutSubtitle,
+  getWorkoutLogIdentityKey,
+  logProgress,
+} from "@/src/services/progress/progress.shared";
+import type {
+  ProgressOverview,
+  ProgressRange,
+  ProgressTrendPoint,
+  SignalCompletedWorkoutSessionRow,
+  SignalProgramLifecycleProgressRow,
+  SignalProgramProgressSnapshot,
+  WorkoutHistoryRow,
+  WorkoutSessionDetail,
+  WorkoutSessionDetailExerciseGroup,
+} from "@/src/services/progress/progressTypes";
 
-export type ProgressRange = "7d" | "30d";
-
-export type SignalProgramLifecycleProgressRow = {
-  completed_at: string | null;
-  current_day_key: string | null;
-  current_week_key: string | null;
-  id: string;
-  replaced_at: string | null;
-  source: "legacy" | "signal";
-  source_program_id: string;
-  source_program_version: string | null;
-  started_at: string;
-  status: "active" | "paused" | "completed" | "replaced";
-  updated_at: string;
-  user_id: string;
-};
-
-export type SignalCompletedWorkoutSessionRow = {
-  completed_at: string | null;
-  active_program_id: string | null;
-  id: string;
-  source: "legacy" | "signal" | null;
-  source_day_key: string | null;
-  source_program_id: string | null;
-  source_program_version: string | null;
-  source_week_key: string | null;
-};
-
-export type SignalProgramProgressSnapshot = {
-  completedSessions: SignalCompletedWorkoutSessionRow[];
-  lifecycle: SignalProgramLifecycleProgressRow | null;
-};
-
-export type WorkoutHistoryRow = {
-  completedAt: string;
-  dayId: string | null;
-  dayLabel: string;
-  exerciseCount: number;
-  id: string;
-  programId: string | null;
-  programLabel: string;
-  summary: WorkoutSummary;
-  setCount: number;
-  source: "legacy" | "signal" | null;
-  sourceDayKey: string | null;
-  sourceProgramId: string | null;
-  sourceWeekKey: string | null;
-  startedAt: string;
-  subtitle: string;
-  title: string;
-};
-
-export type WorkoutSessionDetailSetRow = {
-  id: string;
-  loggedAt: string;
-  repsCompleted: number | null;
-  rpeActual: number | null;
-  setNumber: number;
-  weightKg: number | null;
-};
-
-export type WorkoutSessionDetailExerciseGroup = {
-  exerciseId: string;
-  exerciseLabel: string;
-  sets: WorkoutSessionDetailSetRow[];
-};
-
-export type WorkoutSessionDetail = {
-  completedAt: string | null;
-  dayLabel: string;
-  durationMinutes: number | null;
-  exerciseCount: number;
-  groupedExercises: WorkoutSessionDetailExerciseGroup[];
-  id: string;
-  programLabel: string;
-  summary: WorkoutSummary;
-  setCount: number;
-  source: "legacy" | "signal" | null;
-  sourceDayKey: string | null;
-  sourceProgramId: string | null;
-  sourceWeekKey: string | null;
-  startedAt: string;
-  title: string;
-};
+export * from "@/src/services/progress/progressTypes";
 
 type CompletedWorkoutSessionRow = {
   completed_at: string | null;
@@ -146,43 +80,6 @@ type MacroTargetsRow = {
   daily_protein_target: number;
 };
 
-export type ProgressTrendPoint = {
-  date: string;
-  percentOfTarget: number;
-  target: number | null;
-  value: number;
-};
-
-export type RecentProgressSession = {
-  completedAt: string;
-  dayId: string | null;
-  durationMinutes: number | null;
-  id: string;
-  programId: string | null;
-  startedAt: string;
-  volume: number;
-};
-
-export type ProgressOverview = {
-  calorieTrend: ProgressTrendPoint[];
-  consistencyPercent: number;
-  currentStreak: number;
-  nutritionAdherence: {
-    calorieAveragePercent: number;
-    daysWithNutrition: number;
-    proteinAveragePercent: number;
-  };
-  proteinTrend: ProgressTrendPoint[];
-  range: ProgressRange;
-  recentSessions: RecentProgressSession[];
-  weeklyVolume: number;
-  weeklyWorkoutCount: number;
-};
-
-function logProgress(level: "error" | "info" | "warn", message: string, context?: Record<string, unknown>) {
-  console[level]("[progress]", message, context ?? {});
-}
-
 function toIsoDate(date = new Date()) {
   const yyyy = date.getFullYear();
   const mm = String(date.getMonth() + 1).padStart(2, "0");
@@ -239,16 +136,6 @@ function calculateCurrentStreak(completedDates: Set<string>, fromDate = new Date
   return streak;
 }
 
-function calculateDurationMinutes(startedAt: string, completedAt: string | null) {
-  if (!completedAt) return null;
-
-  const started = new Date(startedAt).getTime();
-  const completed = new Date(completedAt).getTime();
-  if (!Number.isFinite(started) || !Number.isFinite(completed) || completed <= started) return null;
-
-  return Math.round((completed - started) / (1000 * 60));
-}
-
 function buildTrend(
   summaries: DailyNutritionSummaryRow[],
   startIso: string,
@@ -279,19 +166,8 @@ function average(values: number[]) {
   return values.reduce((total, value) => total + value, 0) / values.length;
 }
 
-function formatFallbackTitle(value: string | null | undefined, fallback: string) {
-  if (!value) return fallback;
-  return value;
-}
-
 function formatSignalWorkoutTitle(row: WorkoutHistorySessionRow) {
   return "Signal Workout";
-}
-
-function formatSignalWorkoutSubtitle(row: WorkoutHistorySessionRow) {
-  const week = row.source_week_key ? `Week ${row.source_week_key}` : "Week unavailable";
-  const day = row.source_day_key ? `Day ${row.source_day_key}` : "Day unavailable";
-  return `${week} · ${day}`;
 }
 
 function formatLegacyWorkoutTitle(
@@ -318,12 +194,6 @@ function formatExerciseFallback(exerciseId: string) {
 
 function isUuidLike(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
-}
-
-function getWorkoutLogIdentityKey(
-  log: Pick<WorkoutLogSetRow, "exercise_library_id" | "exercise_name" | "id" | "source_exercise_key">,
-) {
-  return log.source_exercise_key?.trim() || log.exercise_library_id?.trim() || log.exercise_name?.trim() || log.id;
 }
 
 export async function fetchWorkoutHistory(userId: string, limit = 20): Promise<WorkoutHistoryRow[]> {
