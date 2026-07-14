@@ -11,11 +11,11 @@ import {
   EditorialCard,
   ScreenScaffold,
 } from "@/src/components/layout";
-import type { ProgramCardModel } from "@/src/components/marketplace/types";
 import { ActiveWorkoutBanner } from "@/src/features/dashboard/components/ActiveWorkoutBanner";
 import { DashboardMetricCards } from "@/src/features/dashboard/components/DashboardMetricCards";
 import { FeaturedProgramsCarousel } from "@/src/features/dashboard/components/FeaturedProgramsCarousel";
 import { TodaySessionHero } from "@/src/features/dashboard/components/TodaySessionHero";
+import { useAthleteDashboardDerivedState } from "@/src/features/dashboard/hooks/useAthleteDashboardDerivedState";
 import { useAuth } from "@/src/hooks/useAuth";
 import { useActiveProgram } from "@/src/hooks/queries/useActiveProgram";
 import {
@@ -30,17 +30,11 @@ import {
 } from "@/src/hooks/queries";
 import { useWorkoutProgram } from "@/src/hooks/useWorkoutProgram";
 import {
-  dayKey,
-  estimateSessionMinutes,
   formatActiveSignalWorkoutTitle,
   formatStartedAgo,
-  percent,
-  prettyGoal,
-  titleCase,
 } from "@/src/features/dashboard/lib/dashboardFormatters";
 import { SignalProgramDashboardCard } from "@/src/features/signal-programs/components/SignalProgramDashboardCard";
 import { WolfAIDashboardSection } from "@/src/features/wolf-ai/components/WolfAIDashboardSection";
-import type { Program } from "@/src/services/programs.service";
 import { getSignalProgramProgress } from "@/src/services/signal-workout-adapter";
 
 const heroImage =
@@ -149,45 +143,8 @@ function AthleteDashboardScreenComponent() {
     activeWorkoutSessionQuery.error,
   ]);
 
-  const programMap = useMemo(() => {
-    const map = new Map<string, Program>();
-    (programsQuery.data ?? []).forEach((p) => map.set(p.id, p));
-    return map;
-  }, [programsQuery.data]);
-
-  const activeEnrollment = useMemo(() => {
-    const list = enrollmentsQuery.data ?? [];
-    return list.find((e) => e.status === "active") ?? null;
-  }, [enrollmentsQuery.data]);
-
-  const hasAnyEnrollment = (enrollmentsQuery.data ?? []).length > 0;
-
-  const legacyActiveProgram = useMemo(() => {
-    if (!activeEnrollment) return null;
-    return programMap.get(activeEnrollment.program_id) ?? null;
-  }, [activeEnrollment, programMap]);
-
-  const featuredPrograms = useMemo<ProgramCardModel[]>(() => {
-    return (programsQuery.data ?? []).slice(0, 3).map((program) => ({
-      category: program.difficulty ? titleCase(program.difficulty) : "Program",
-      coach: program.coach_name ?? "Wolfitness Coach",
-      description: program.description ?? "Structured performance protocol.",
-      duration: program.duration_weeks ? `${program.duration_weeks} Weeks` : "Flexible",
-      id: program.id,
-      image:
-        program.image_url ??
-        "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?q=80&w=1200&auto=format&fit=crop",
-      level: program.difficulty ? titleCase(program.difficulty) : "All Levels",
-      price: `$${program.price}`,
-      title: program.title,
-    }));
-  }, [programsQuery.data]);
-
   const nutrition = dashboardQuery.data;
   const workoutPlan = workoutQuery.data;
-  const sessionMinutes = estimateSessionMinutes(workoutPlan?.exercises.length ?? 0);
-  const headlineTitle = prettyGoal(profileQuery.data?.fitnessProfile?.primary_goal);
-  const hasNutritionData = Boolean(nutrition?.todayNutritionSummary || nutrition?.macroTargets);
   const signalProgressState = useMemo(() => {
     if (activeProgramQuery.isLoading || signalProgramProgressQuery.isLoading || signalProgramQuery.isLoading) {
       return { kind: "loading" as const };
@@ -218,20 +175,6 @@ function AthleteDashboardScreenComponent() {
     signalProgramQuery.isLoading,
   ]);
   const signalReadyState = signalProgressState.kind === "ready" ? signalProgressState : null;
-  const todaySessionTitle =
-    signalReadyState?.programTitle ??
-    workoutPlan?.program.title ??
-    legacyActiveProgram?.title ??
-    "No Active Program";
-  const todayFocus =
-    signalReadyState && signalLifecycleRow
-      ? `${signalReadyState.currentWeekLabel} · ${signalReadyState.currentDayLabel}`
-      : workoutPlan?.day.title ?? "Start with today’s assigned session";
-  const todayLoad = signalReadyState
-    ? "Active Signal Program"
-    : legacyActiveProgram?.difficulty
-      ? titleCase(legacyActiveProgram.difficulty)
-      : "Moderate";
   const signalCardState = useMemo(() => {
     if (signalProgressState.kind === "hidden") return { kind: "hidden" as const };
     if (signalProgressState.kind === "loading") return { kind: "loading" as const };
@@ -343,31 +286,28 @@ function AthleteDashboardScreenComponent() {
     workoutPlan?.program.title,
   ]);
 
-  const macroProgress = useMemo(() => {
-    const summary = nutrition?.todayNutritionSummary;
-    const targets = nutrition?.macroTargets;
-    if (!summary || !targets) {
-      return {
-        calories: { progress: 0, trend: "No nutrition data yet", value: "--" },
-        protein: { progress: 0, trend: "Set macro targets to calibrate", value: "--" },
-      };
-    }
-
-    const caloriesProgress = percent(summary.total_calories ?? 0, targets.daily_calorie_target);
-    const proteinProgress = percent(summary.total_protein ?? 0, targets.daily_protein_target);
-    return {
-      calories: {
-        progress: caloriesProgress,
-        trend: `Daily Goal ${targets.daily_calorie_target.toLocaleString()} kcal`,
-        value: Math.round(summary.total_calories ?? 0).toLocaleString(),
-      },
-      protein: {
-        progress: proteinProgress,
-        trend: `Target ${Math.round(targets.daily_protein_target)} g`,
-        value: `${Math.round(summary.total_protein ?? 0)} / ${Math.round(targets.daily_protein_target)}g`,
-      },
-    };
-  }, [nutrition?.macroTargets, nutrition?.todayNutritionSummary]);
+  const {
+    featuredPrograms,
+    hasAnyEnrollment,
+    hasNutritionData,
+    headlineTitle,
+    macroProgress,
+    sessionMinutes,
+    todayFocus,
+    todayLoad,
+    todaySessionTitle,
+    weeklyDots,
+    workoutCta,
+  } = useAthleteDashboardDerivedState({
+    enrollments: enrollmentsQuery.data,
+    nutrition,
+    profilePrimaryGoal: profileQuery.data?.fitnessProfile?.primary_goal,
+    programs: programsQuery.data,
+    signalLifecycleStatus: signalLifecycleRow?.status,
+    signalTodayState: signalReadyState,
+    workoutPlan,
+    workoutSessionStatus: workoutSessionStatusQuery.data,
+  });
 
   const isLoading =
     profileQuery.isLoading ||
@@ -377,35 +317,6 @@ function AthleteDashboardScreenComponent() {
     workoutQuery.isLoading ||
     workoutSessionStatusQuery.isLoading;
 
-  const workoutCta = useMemo(() => {
-    if (signalReadyState && signalLifecycleRow?.status === "active") {
-      return {
-        href: "/(tabs)/workouts" as const,
-        icon: "play-circle-outline" as const,
-        label: "Go to Workout",
-      };
-    }
-    if (!legacyActiveProgram) {
-      return {
-        href: "/(marketplace)" as const,
-        icon: "compass-outline" as const,
-        label: "Explore Programs",
-      };
-    }
-    if (workoutSessionStatusQuery.data) {
-      return {
-        href: "/(tabs)/workouts" as const,
-        icon: "play-circle-outline" as const,
-        label: "Resume Workout",
-      };
-    }
-    return {
-      href: "/(tabs)/workouts" as const,
-      icon: "barbell-outline" as const,
-      label: "Start Today's Workout",
-    };
-  }, [legacyActiveProgram, signalLifecycleRow?.status, signalReadyState, workoutSessionStatusQuery.data]);
-
   const handleContinueSignalProgram = useMemo(() => {
     if (!signalReadyState || signalReadyState.isProgramCompleted) return null;
 
@@ -413,25 +324,6 @@ function AthleteDashboardScreenComponent() {
       router.push("/(tabs)/workouts");
     };
   }, [signalReadyState]);
-
-  const weeklyDots = useMemo(() => {
-    const now = new Date();
-    const day = now.getDay();
-    const mondayOffset = day === 0 ? -6 : 1 - day;
-    const monday = new Date(now);
-    monday.setDate(now.getDate() + mondayOffset);
-    const labels = ["M", "T", "W", "T", "F", "S", "S"];
-
-    return labels.map((label, idx) => {
-      const d = new Date(monday);
-      d.setDate(monday.getDate() + idx);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-      const completed = (nutrition?.weeklyCompletedSessionDates ?? []).some((iso) => dayKey(iso) === key);
-      const isFuture = d.getTime() > now.getTime();
-      const isToday = dayKey(d.toISOString()) === dayKey(new Date().toISOString());
-      return { completed, isFuture, isToday, label };
-    });
-  }, [nutrition?.weeklyCompletedSessionDates]);
 
   return (
     <ScreenScaffold contentClassName="gap-6" header={<AppTopBar />}>
