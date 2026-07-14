@@ -1,98 +1,163 @@
 # wolfitness-expo (Mobile)
 
-Wolfitness mobile app built with Expo + Expo Router + Supabase. This repo focuses on athlete experience (auth/onboarding, training, nutrition, marketplace consumption) while delegating purchases, AI nutrition chat, and ledger operations to the Wolfitness web backend.
+Expo mobile app for the Wolfitness athlete experience. This app owns the native athlete UI and talks to Supabase, the Signal backend, and the Wolfitness web backend for server-side workflows.
 
 ## What’s In This App Today
 
-- Auth: email/password + Google OAuth (Supabase PKCE) with deep-link safe callbacks.
-- Onboarding: pre-auth athlete onboarding flow persisted to Supabase and committed post-auth.
-- Athlete dashboard: overview + navigation into core areas.
-- Workout engine: workout player with session restore and execution flow.
-- Nutrition tracking: daily logs + macro targets editing + quick log/add meal modal.
-- AI nutrition assistant: calls Wolfitness web backend using `EXPO_PUBLIC_API_URL`.
-- Progress analytics: athlete progress/consistency surfaces.
-- Marketplace: browse programs, program detail, coach detail.
-- Purchases: starts Stripe checkout via web backend and returns to mobile success route.
+- Auth: email/password + Google OAuth through Supabase PKCE.
+- Pre-auth onboarding: goal, profile, equipment, injury, measurement, and availability capture.
+- Athlete dashboard: training, nutrition, progress, Wolf AI, and active Signal program overview.
+- Workout engine: legacy and Signal workout player, session restore, set logging, save-and-exit, discard, finish, history, and summaries.
+- Signal programs: program marketplace/detail, active day selection, lifecycle reset/unjoin/restart, calendar strip, and progression.
+- Nutrition tracking: daily logs, macro targets, quick log, add meal, and AI assistant.
+- Meal Photo AI: photo selection, backend image analysis, editable meal draft, totals, and save-to-log flow.
+- Wolf AI: daily goal insight, nutrition/recovery suggestions, usage limits, cache-aware refresh, and guardrail/error states.
+- Goal profile: user goal settings and target suggestions.
+- Smart Sync: manual health metric entry and today’s health metric status.
+- Marketplace and purchases: browse programs/coaches and start Stripe checkout through the Wolfitness web backend.
+- Settings: support email, privacy, terms, and profile surfaces.
 
-## Routing Map (Expo Router)
+## Backend Responsibilities
+
+The mobile app uses three main backend surfaces:
+
+- Supabase: auth, database reads/writes, session state, nutrition logs, workout logs, profiles, and program data.
+- Signal API: Signal program browsing and published workout payloads.
+- Wolfitness web API: Wolf AI, Meal Photo AI, AI nutrition, purchases, and server-verified workflows.
+
+## Routing Map
 
 Top-level routes live in `app/`:
 
-- `app/index.tsx`: entry redirector (auth/onboarding/workout session restore).
-- `app/(auth)/*`: auth landing + sign-in + sign-up.
-- `app/auth/callback.tsx`: OAuth callback handler (deep link).
-- `app/auth/reset-password.tsx`: password reset handler (deep link).
-- `app/(preauth-onboarding)/*`: onboarding screens (goal/sex/DOB/equipment/etc).
-- `app/(tabs)/*`: main athlete tabs (home, workouts, nutrition, progress, profile).
-- `app/(marketplace)/*`: marketplace and program/coach detail.
-- `app/(modals)/*`: modal flows (add meal, nutrition goals, AI assistant, edit profile, workout detail, quick log).
+- `app/index.tsx`: entry redirector for auth/onboarding/session restore.
+- `app/(auth)/*`: auth landing, sign-in, sign-up.
+- `app/auth/callback.tsx`: OAuth callback handler.
+- `app/auth/reset-password.tsx`: password reset callback handler.
+- `app/(preauth-onboarding)/*`: pre-auth onboarding screens.
+- `app/(tabs)/*`: home, workouts, nutrition, progress, profile, settings, history.
+- `app/(marketplace)/*`: marketplace and legacy program/coach detail.
+- `app/(signal)/*`: Signal program browsing/detail routes.
+- `app/(modals)/*`: add meal, nutrition goals, AI assistant, Meal Photo AI, Smart Sync, goal profile, edit profile, workout detail, quick log.
 - `app/purchase/success.tsx`: purchase return surface after web checkout.
 
-Core UI/business logic lives in `src/`:
+Core code lives in `src/`:
 
-- `src/providers/*`: app providers (auth, react-query, theme).
-- `src/lib/*`: supabase client, onboarding draft commit, query client, utilities.
-- `src/services/*`: API + persistence services (nutrition, purchase, etc).
+- `src/providers/*`: auth, React Query, theme, and app providers.
 - `src/screens/*`: screen implementations used by routes.
+- `src/features/*`: feature-local components, hooks, services, libs, constants, and types.
+- `src/services/*`: compatibility facades and global services.
+- `src/hooks/*`: query/mutation facades and shared hooks.
+- `src/lib/*`: Supabase client, routing/date helpers, Sentry, query client, and utilities.
+- `src/config/*`: API URL configuration.
 
-## Local Development
+## Environment Variables
 
-1. Install deps:
+Create `.env` from `.env.example`:
 
 ```bash
-npm install
+cp .env.example .env
 ```
 
-2. Set environment:
+Required local values:
 
-Create/update `.env` with:
+```env
+EXPO_PUBLIC_SUPABASE_URL=
+EXPO_PUBLIC_SUPABASE_ANON_KEY=
 
-```bash
-EXPO_PUBLIC_SUPABASE_URL=...
-EXPO_PUBLIC_SUPABASE_ANON_KEY=...
-EXPO_PUBLIC_API_URL=http://<YOUR_MAC_LAN_IP>:3000
-EXPO_PUBLIC_SENTRY_DSN=https://<public-key>@o0.ingest.sentry.io/<project-id>
+EXPO_PUBLIC_SIGNAL_API_URL=http://<YOUR_MAC_LAN_IP>:3000
+EXPO_PUBLIC_WOLFITNESS_API_URL=http://<YOUR_MAC_LAN_IP>:3001
+
+EXPO_PUBLIC_SENTRY_DSN=
 EXPO_PUBLIC_APP_ENV=development
 EXPO_PUBLIC_SENTRY_ENABLE_DEV=false
 EXPO_PUBLIC_SENTRY_DEBUG=false
+
+EXPO_PUBLIC_SUPPORT_EMAIL=
+EXPO_PUBLIC_PRIVACY_URL=
+EXPO_PUBLIC_TERMS_URL=
 ```
 
 Notes:
-- Do not use `localhost` for `EXPO_PUBLIC_API_URL` on physical devices.
-- `EXPO_PUBLIC_API_URL` should point at the `wolfitness` web app (used for AI nutrition + purchase init).
-- `EXPO_PUBLIC_SENTRY_DSN` is safe to expose in the client and is enough for runtime event capture.
-- `EXPO_PUBLIC_SENTRY_DSN` alone is not enough for readable production stack traces. Source map upload requires CI/EAS-only Sentry credentials.
-- Keep `SENTRY_AUTH_TOKEN` server-side only. Do not place it in the mobile client `.env`.
 
-3. Start:
+- Do not use `localhost` or `127.0.0.1` for mobile API URLs on a physical device.
+- `EXPO_PUBLIC_SIGNAL_API_URL` points to the Signal CMS/backend used for Signal programs and workout payloads.
+- `EXPO_PUBLIC_WOLFITNESS_API_URL` points to the Wolfitness web app used for Wolf AI, Meal Photo AI, AI nutrition, and purchase initialization.
+- `EXPO_PUBLIC_SENTRY_DSN` is safe to expose to the client and enables runtime event capture.
+- Sentry source map upload requires CI/EAS-only credentials. Do not put `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, or `SENTRY_PROJECT` in the mobile `.env`.
 
-```bash
-npx expo start
-```
-
-After changing `.env`, restart with a cleared cache:
+After changing `.env`, restart Expo with a cleared cache:
 
 ```bash
 npx expo start -c
 ```
 
-## Deep Linking (Auth + Recovery)
+## Local Development
 
-Configured scheme is `wolfitnessexpo` (see `app.json`). Auth uses `expo-auth-session` + Supabase PKCE, and callbacks are handled by:
+Install dependencies:
+
+```bash
+npm install
+```
+
+Start Expo:
+
+```bash
+npx expo start
+```
+
+Useful scripts:
+
+- `npm run start` — start Expo
+- `npm run android` — run Android development build
+- `npm run ios` — run iOS development build
+- `npm run web` — start Expo web
+- `npm run lint` — run Expo lint
+
+## Web Backend Local Setup
+
+When testing mobile against the local Wolfitness web app:
+
+```bash
+cd ../wolfitness
+npm run dev:lan
+```
+
+Then set Expo:
+
+```env
+EXPO_PUBLIC_WOLFITNESS_API_URL=http://<YOUR_MAC_LAN_IP>:3001
+```
+
+For Signal local testing, run the Signal backend/CMS and set:
+
+```env
+EXPO_PUBLIC_SIGNAL_API_URL=http://<YOUR_MAC_LAN_IP>:3000
+```
+
+## Deep Linking
+
+Configured scheme: `wolfitnessexpo` in `app.json`.
+
+Auth callback routes:
 
 - `app/auth/callback.tsx`
 - `app/auth/reset-password.tsx`
 
-If OAuth redirects break, confirm:
-- the scheme matches (`wolfitnessexpo`)
-- Supabase Auth redirect URLs include the expected callback URIs for your environment
+If OAuth redirects fail, verify:
+
+- the scheme matches `wolfitnessexpo`
+- Supabase Auth redirect URLs include the expected callback URIs
+- the app was restarted after env/config changes
 
 ## EAS Builds
 
-EAS config is in `eas.json` with profiles:
-- `development` (dev client, internal distribution)
-- `preview` (internal, Android APK)
-- `production` (auto-increment)
+EAS config lives in `eas.json`.
+
+Profiles:
+
+- `development`: dev client, internal distribution
+- `preview`: internal Android APK
+- `production`: production build with auto-increment
 
 Common commands:
 
@@ -102,22 +167,19 @@ eas build --profile preview --platform android
 eas build --profile production --platform ios
 ```
 
-For Sentry native source map upload on EAS builds, set these environment variables in EAS or CI:
+For readable Sentry stack traces, configure these as EAS/CI secrets only:
 
-```bash
-SENTRY_AUTH_TOKEN=...
-SENTRY_ORG=...
-SENTRY_PROJECT=...
+```env
+SENTRY_AUTH_TOKEN=
+SENTRY_ORG=
+SENTRY_PROJECT=
 ```
-
-Notes:
-- These variables are required for source map upload and readable production stack traces.
-- Configure them in EAS secrets or your CI secret storage.
-- Do not commit `SENTRY_AUTH_TOKEN`.
-- Do not place `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, or `SENTRY_PROJECT` in the client `.env` file.
 
 ## Troubleshooting
 
-- Supabase not configured: check `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY` (`src/lib/supabase.ts`).
-- AI nutrition calls failing: confirm `EXPO_PUBLIC_API_URL` points to the running/deployed web app (`src/services/nutrition.service.ts`).
-- Purchases not starting: same `EXPO_PUBLIC_API_URL` requirement (`src/services/purchase.service.ts`).
+- **Supabase not configured**: check `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY`.
+- **App crashes on startup with API config error**: set both `EXPO_PUBLIC_SIGNAL_API_URL` and `EXPO_PUBLIC_WOLFITNESS_API_URL` to valid `http` or `https` origins.
+- **Physical device cannot reach backend**: use LAN IP URLs, not `localhost`.
+- **Wolf AI or Meal Photo AI failing**: confirm `EXPO_PUBLIC_WOLFITNESS_API_URL` points to a running web backend with AI provider env vars configured.
+- **Signal programs failing**: confirm `EXPO_PUBLIC_SIGNAL_API_URL` points to the Signal backend/CMS.
+- **Purchases not starting**: confirm the Wolfitness web backend has Stripe env vars configured and mobile points to `EXPO_PUBLIC_WOLFITNESS_API_URL`.

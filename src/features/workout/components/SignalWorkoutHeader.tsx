@@ -7,7 +7,7 @@ import { colors } from "@/src/theme";
 type SignalWorkoutHeaderProps = {
   currentStepTitle: string;
   hasStartedSession: boolean;
-  isSavingAndExiting: boolean;
+  isWorkoutPersistenceBusy: boolean;
   onClose: () => void;
   onFinishEarly: (() => void) | null;
   onNext: () => void;
@@ -19,7 +19,7 @@ type SignalWorkoutHeaderProps = {
 export function SignalWorkoutHeader({
   currentStepTitle,
   hasStartedSession,
-  isSavingAndExiting,
+  isWorkoutPersistenceBusy,
   onClose,
   onFinishEarly,
   onNext,
@@ -38,7 +38,7 @@ export function SignalWorkoutHeader({
             accessibilityLabel="Close workout"
             accessibilityRole="button"
             className="h-10 w-10 items-center justify-center rounded-sm border border-white/10 bg-white/[0.04]"
-            disabled={isSavingAndExiting}
+            disabled={isWorkoutPersistenceBusy}
             hitSlop={8}
             onPress={onClose}
           >

@@ -14,7 +14,6 @@ import { queryKeys } from "@/src/hooks/queries/queryKeys";
 import { useAuth } from "@/src/hooks/useAuth";
 import { useRestTimer } from "@/src/hooks/useRestTimer";
 import { useWorkoutProgram } from "@/src/hooks/useWorkoutProgram";
-import { workoutService } from "@/src/services";
 import { cn } from "@/src/lib/cn";
 import { parseIndexParam, singleParam } from "@/src/lib/routing";
 import { CoachMediaModal } from "@/src/features/workout/components/CoachMediaModal";
@@ -24,6 +23,7 @@ import { SignalWorkoutProgressHeader } from "@/src/features/workout/components/S
 import { WorkoutExerciseHeader } from "@/src/features/workout/components/WorkoutExerciseHeader";
 import { SIGNAL_SET_TABLE_COLUMNS, WorkoutSetRow } from "@/src/features/workout/components/WorkoutSetRow";
 import { WorkoutCompletionSummary as WorkoutCompletionSummaryView } from "@/src/features/workout/components/WorkoutCompletionSummary";
+import { useSignalSaveAndExit } from "@/src/features/workout/hooks/useSignalSaveAndExit";
 import { useSignalWorkoutDerivedState } from "@/src/features/workout/hooks/useSignalWorkoutDerivedState";
 import { useWorkoutPlayerDerivedState } from "@/src/features/workout/hooks/useWorkoutPlayerDerivedState";
 import {
@@ -295,7 +295,6 @@ function WorkoutPlayerScreenComponent() {
   const [showRestTimerOptions, setShowRestTimerOptions] = useState(false);
   const [showCustomTimerInput, setShowCustomTimerInput] = useState(false);
   const [customTimerInput, setCustomTimerInput] = useState("");
-  const [isSavingAndExiting, setIsSavingAndExiting] = useState(false);
   const signalCompletionSummary = isSignalExecution ? completionSummary : null;
   const [pendingCompletedSetKeys, setPendingCompletedSetKeys] = useState<Set<string>>(() => new Set());
   const restTimer = useRestTimer();
@@ -514,6 +513,27 @@ function WorkoutPlayerScreenComponent() {
   const [extraSetsByExercise, setExtraSetsByExercise] = useState<Record<string, number>>({});
   const [activeCoachMedia, setActiveCoachMedia] = useState<SignalCoachMediaPreview | null>(null);
   const [coachMediaError, setCoachMediaError] = useState(false);
+  const { isSavingAndExiting, saveAndExit: handleSaveAndExit } = useSignalSaveAndExit({
+    completedSetNumbersByExercise,
+    completeSetMutationIsPending: completeSetMutation.isPending,
+    drafts: setDrafts,
+    extraSetsByExercise,
+    isSignalExecution,
+    navigateHome: () => {
+      router.replace(SIGNAL_WORKOUT_HOME_HREF);
+    },
+    pendingCompletedSetKeys,
+    queryClient,
+    refetchSession: sessionQuery.refetch,
+    refetchWorkout: workoutQuery.refetch,
+    resetRestTimer,
+    sessionId,
+    signalSessionScope,
+    userId: user?.id,
+    workoutPlan,
+  });
+  const isWorkoutPersistenceBusy =
+    completeSetMutation.isPending || pendingCompletedSetKeys.size > 0 || isSavingAndExiting;
 
   useEffect(() => {
     setSetDrafts({});
@@ -848,9 +868,9 @@ function WorkoutPlayerScreenComponent() {
     <SignalWorkoutHeader
       currentStepTitle={currentStepTitle ?? workoutPlan?.day.title ?? "Workout"}
       hasStartedSession={hasStartedSession}
-      isSavingAndExiting={isSavingAndExiting}
+      isWorkoutPersistenceBusy={isWorkoutPersistenceBusy}
       onClose={() => {
-        if (isSavingAndExiting) return;
+        if (isWorkoutPersistenceBusy) return;
         if (hasStartedSession) {
           console.log("[WorkoutPlayer] exit requested", { hasStartedSession, sessionId });
           Alert.alert(
@@ -996,147 +1016,6 @@ function WorkoutPlayerScreenComponent() {
     restTimer.reset();
     router.replace(SIGNAL_WORKOUT_HOME_HREF);
   };
-
-  async function flushWorkoutDraftsBeforeExit() {
-    if (!sessionId || !workoutPlan || !isSignalExecution) return 0;
-
-    console.log("[SaveExit] drafts", setDrafts);
-    console.log("[SaveExit] requested", {
-      draftCount: Object.keys(setDrafts ?? {}).length,
-      extraSetsByExercise,
-      sessionId,
-    });
-
-    let savedCount = 0;
-
-    for (const exercise of workoutPlan.exercises ?? []) {
-      const exerciseId = getWorkoutExerciseIdentityKey(exercise);
-      const exerciseName = exercise.exercise.name;
-      const targetSets = getTargetSets(exercise);
-      const extraSets = extraSetsByExercise[exerciseId] ?? 0;
-      const totalSets = targetSets + extraSets;
-
-      for (let setNumber = 1; setNumber <= totalSets; setNumber += 1) {
-        const logKey = buildWorkoutLogKey(exerciseId, setNumber);
-        const draft = setDrafts[logKey] ?? { lbs: "", reps: "", rpe: "" };
-        const isAlreadyCompleted = completedSetNumbersByExercise.get(exerciseId)?.has(setNumber) ?? false;
-        const isPending = pendingCompletedSetKeys.has(logKey);
-        const hasMeaningfulDraft = Boolean(draft.lbs.trim() || draft.reps.trim() || draft.rpe.trim());
-
-        if (isAlreadyCompleted && !isPending) continue;
-        if (!hasMeaningfulDraft && !isPending) continue;
-
-        console.log("[SaveExit] flushing draft", {
-          draft,
-          exerciseName,
-          sessionId,
-          setNumber,
-        });
-
-        const normalized = normalizeCompletedSetPayload({ draft, exercise, isSignalWorkout: isSignalExecution, setNumber });
-        const payload = {
-          exerciseLibraryId: normalized.exerciseLibraryId,
-          exerciseName: normalized.exerciseName,
-          repsCompleted: normalized.repsCompleted,
-          rpeActual: normalized.rpeActual,
-          sessionId,
-          setNumber: normalized.setNumber,
-          sourceExerciseKey: normalized.sourceExerciseKey,
-          weightKg: normalized.weightKg,
-        };
-
-        console.log("[SaveExit] payload", payload);
-
-        try {
-          const result = await workoutService.completeSet(payload);
-          console.log("[SaveExit] success", result);
-          savedCount += 1;
-        } catch (error) {
-          console.log("[SaveExit] error", {
-            error: error instanceof Error ? error.message : String(error),
-            sessionId,
-          });
-          throw error;
-        }
-      }
-    }
-
-    console.log("[SaveExit] flush success", {
-      savedCount,
-      sessionId,
-    });
-
-    return savedCount;
-  }
-
-  async function handleSaveAndExit() {
-    if (!sessionId || isSavingAndExiting) return;
-    setIsSavingAndExiting(true);
-    try {
-      const savedCount = await flushWorkoutDraftsBeforeExit();
-      const scopedQueries = signalSessionScope && user?.id
-        ? [
-            queryKeys.signalWorkoutSession(
-              user.id,
-              signalSessionScope.activeProgramId,
-              signalSessionScope.sourceProgramId,
-              signalSessionScope.sourceProgramVersion,
-              signalSessionScope.sourceWeekKey,
-              signalSessionScope.sourceDayKey,
-            ),
-            queryKeys.signalWorkoutSessionPlan(
-              user.id,
-              signalSessionScope.activeProgramId,
-              signalSessionScope.sourceProgramId,
-              signalSessionScope.sourceProgramVersion,
-              signalSessionScope.sourceWeekKey,
-              signalSessionScope.sourceDayKey,
-            ),
-            queryKeys.signalWorkoutSessionStatus(
-              user.id,
-              signalSessionScope.activeProgramId,
-              signalSessionScope.sourceProgramId,
-              signalSessionScope.sourceProgramVersion,
-              signalSessionScope.sourceWeekKey,
-              signalSessionScope.sourceDayKey,
-            ),
-          ]
-        : [];
-
-      const invalidatePromises = scopedQueries.map((queryKey) =>
-        queryClient.invalidateQueries({ exact: true, queryKey }),
-      );
-      invalidatePromises.push(queryClient.invalidateQueries({ queryKey: ["workout", "signal-session-plan"] }));
-      invalidatePromises.push(queryClient.invalidateQueries({ queryKey: ["workout", "signal-session-status"] }));
-      if (sessionId) {
-        invalidatePromises.push(queryClient.invalidateQueries({ exact: true, queryKey: queryKeys.workoutSession(sessionId) }));
-      }
-      if (user?.id) {
-        invalidatePromises.push(queryClient.invalidateQueries({ queryKey: queryKeys.workoutActiveSession(user.id) }));
-      }
-      await Promise.all(invalidatePromises);
-
-      console.log("[SaveExit] flushed and navigating home", {
-        savedCount,
-        sessionId,
-      });
-      restTimer.reset();
-      router.replace(SIGNAL_WORKOUT_HOME_HREF);
-    } catch (error) {
-      console.log("[SaveExit] flush error", {
-        error: error instanceof Error ? error.message : String(error),
-        sessionId,
-      });
-      Alert.alert(
-        "Could not save session",
-        "We could not save your latest workout changes before leaving. Please stay on the workout screen and try again.",
-      );
-      workoutQuery.refetch();
-      sessionQuery.refetch();
-    } finally {
-      setIsSavingAndExiting(false);
-    }
-  }
 
   const handleStartCustomTimer = () => {
     const parsed = Number.parseInt(customTimerInput.trim(), 10);
