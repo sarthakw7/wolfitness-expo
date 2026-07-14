@@ -27,6 +27,7 @@ import { useSignalWorkoutDerivedState } from "@/src/features/workout/hooks/useSi
 import { useWorkoutDiscard } from "@/src/features/workout/hooks/useWorkoutDiscard";
 import { useWorkoutCompletion, type WorkoutCompletionSummary } from "@/src/features/workout/hooks/useWorkoutCompletion";
 import { useWorkoutPlayerDerivedState } from "@/src/features/workout/hooks/useWorkoutPlayerDerivedState";
+import { useWorkoutSetState } from "@/src/features/workout/hooks/useWorkoutSetState";
 import {
   buildSignalDemoSearchUrl,
   getSignalCoachMediaPreview,
@@ -34,11 +35,9 @@ import {
   type SignalCoachMediaPreview,
 } from "@/src/features/workout/lib/coachMedia";
 import { normalizeCompletedSetPayload } from "@/src/features/workout/lib/normalizeCompletedSetPayload";
-import { kgToLbs } from "@/src/features/workout/lib/weightConversion";
 import {
   buildWorkoutLogKey,
   getWorkoutExerciseIdentityKey,
-  getWorkoutLogIdentityKey,
 } from "@/src/features/workout/lib/workoutLogIdentity";
 import {
   formatSignalWorkoutPrescriptionSummary,
@@ -48,10 +47,7 @@ import {
   getTargetSets,
 } from "@/src/features/workout/lib/workoutPrescription";
 import { formatSummaryLine } from "@/src/features/workout-summary/lib/formatWorkoutSummary";
-import {
-  buildYouTubeEmbedUrl,
-  buildYouTubeWatchUrl,
-} from "@/src/lib/youtube-media";
+import { buildYouTubeEmbedUrl, buildYouTubeWatchUrl } from "@/src/lib/youtube-media";
 import type { WorkoutExercise } from "@/src/services/workout.service";
 import {
   buildSignalWorkoutExecutionContext,
@@ -276,7 +272,6 @@ function WorkoutPlayerScreenComponent() {
   const [showCustomTimerInput, setShowCustomTimerInput] = useState(false);
   const [customTimerInput, setCustomTimerInput] = useState("");
   const signalCompletionSummary = isSignalExecution ? completionSummary : null;
-  const [pendingCompletedSetKeys, setPendingCompletedSetKeys] = useState<Set<string>>(() => new Set());
   const restTimer = useRestTimer();
   const resetRestTimer = restTimer.reset;
   const isRestTimerCompleted = restTimer.isCompleted;
@@ -423,14 +418,31 @@ function WorkoutPlayerScreenComponent() {
     sessionData: sessionQuery.data,
     workoutPlan,
   });
+  const {
+    addExtraSet,
+    clearSetPending,
+    exerciseNotes,
+    extraSetsByExercise,
+    markSetPending,
+    pendingCompletedSetKeys,
+    removeExtraSet,
+    resetSetState,
+    setDrafts,
+    updateExerciseNote,
+    updateSetDraft,
+  } = useWorkoutSetState({
+    normalizedLogs,
+    sessionId,
+    signalDayId,
+    signalInitialStepIndex,
+    signalWeekId,
+    workoutPlan,
+  });
 
   const [currentStepIndex, setCurrentStepIndex] = useState(signalInitialStepIndex);
 
   useEffect(() => {
     setCurrentStepIndex(signalInitialStepIndex);
-    setSetDrafts({});
-    setExerciseNotes({});
-    setExtraSetsByExercise({});
     setCompletionSummary(null);
     setReflectionIntensity(7);
     setReflectionDurationMinutes("");
@@ -440,7 +452,6 @@ function WorkoutPlayerScreenComponent() {
     setShowRestTimerOptions(false);
     setShowCustomTimerInput(false);
     setCustomTimerInput("");
-    setPendingCompletedSetKeys(new Set());
     resetRestTimer();
   }, [resetRestTimer, signalDayId, signalInitialStepIndex, signalWeekId]);
 
@@ -475,9 +486,6 @@ function WorkoutPlayerScreenComponent() {
 
   const sessionComplete = Boolean(sessionQuery.data?.session.completed_at);
   const hasStartedSession = Boolean(sessionId && sessionQuery.data?.session.cancelled_at === null);
-  const [setDrafts, setSetDrafts] = useState<Record<string, { lbs: string; reps: string; rpe: string }>>({});
-  const [exerciseNotes, setExerciseNotes] = useState<Record<string, string>>({});
-  const [extraSetsByExercise, setExtraSetsByExercise] = useState<Record<string, number>>({});
   const [activeCoachMedia, setActiveCoachMedia] = useState<SignalCoachMediaPreview | null>(null);
   const [coachMediaError, setCoachMediaError] = useState(false);
   const { isSavingAndExiting, saveAndExit: handleSaveAndExit } = useSignalSaveAndExit({
@@ -534,9 +542,7 @@ function WorkoutPlayerScreenComponent() {
   });
   const { discardWorkout: handleDiscardSession } = useWorkoutDiscard({
     clearLocalWorkoutState: () => {
-      setExtraSetsByExercise({});
-      setPendingCompletedSetKeys(new Set());
-      setSetDrafts({});
+      resetSetState({ includeNotes: false });
     },
     clearRouteParams: () => {
       router.setParams({
@@ -563,68 +569,9 @@ function WorkoutPlayerScreenComponent() {
   });
 
   useEffect(() => {
-    setSetDrafts({});
-  }, [sessionId, signalDayId, signalWeekId]);
-
-  useEffect(() => {
     setActiveCoachMedia(null);
     setCoachMediaError(false);
   }, [signalDayId, signalWeekId]);
-
-  useEffect(() => {
-    if (!normalizedLogs.length) return;
-
-    setSetDrafts((current) => {
-      const next = { ...current };
-      normalizedLogs.forEach((log) => {
-        const draftKey = buildWorkoutLogKey(getWorkoutLogIdentityKey(log), log.set_number);
-        if (next[draftKey]) return;
-        next[draftKey] = {
-          lbs: log.weight_kg != null ? String(Math.round(kgToLbs(Number(log.weight_kg)))) : "",
-          reps: log.reps_completed != null ? String(log.reps_completed) : "",
-          rpe: log.rpe_actual != null ? String(log.rpe_actual) : "",
-        };
-      });
-      return next;
-    });
-  }, [normalizedLogs]);
-
-  useEffect(() => {
-    if (!workoutPlan?.exercises?.length || !normalizedLogs.length) return;
-
-    setExtraSetsByExercise((current) => {
-      const next = { ...current };
-      let changed = false;
-
-      workoutPlan.exercises.forEach((exercise) => {
-        const exerciseId = getWorkoutExerciseIdentityKey(exercise);
-        const targetSets = getTargetSets(exercise);
-        const inferredExtraSets = normalizedLogs.reduce((max, log) => {
-          if (getWorkoutLogIdentityKey(log) !== exerciseId) return max;
-          return Math.max(max, log.set_number - targetSets);
-        }, 0);
-        const currentExtraSets = next[exerciseId] ?? 0;
-        if (inferredExtraSets > currentExtraSets) {
-          next[exerciseId] = inferredExtraSets;
-          changed = true;
-        }
-      });
-
-      return changed ? next : current;
-    });
-  }, [normalizedLogs, workoutPlan?.exercises]);
-
-  useEffect(() => {
-    if (pendingCompletedSetKeys.size === 0) return;
-
-    setPendingCompletedSetKeys((current) => {
-      const next = new Set(current);
-      normalizedLogs.forEach((log) => {
-        next.delete(buildWorkoutLogKey(getWorkoutLogIdentityKey(log), log.set_number));
-      });
-      return next.size === current.size ? current : next;
-    });
-  }, [normalizedLogs, pendingCompletedSetKeys.size]);
 
   const signalStepPrimaryLabel = isCoachInstructionsStep
     ? "Got It"
@@ -742,11 +689,7 @@ function WorkoutPlayerScreenComponent() {
     };
 
     try {
-      setPendingCompletedSetKeys((current) => {
-        const next = new Set(current);
-        next.add(logKey);
-        return next;
-      });
+      markSetPending(logKey);
       await completeSetMutation.mutateAsync(payload);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
 
@@ -756,11 +699,7 @@ function WorkoutPlayerScreenComponent() {
         }, 150);
       }
     } catch (error) {
-      setPendingCompletedSetKeys((current) => {
-        const next = new Set(current);
-        next.delete(logKey);
-        return next;
-      });
+      clearSetPending(logKey);
       console.warn("[athlete-flow]", {
         error: error instanceof Error ? error.message : String(error),
         screen: "WorkoutPlayer",
@@ -1460,24 +1399,9 @@ function WorkoutPlayerScreenComponent() {
                               isEditable={hasStartedSession && Boolean(exerciseSection.workoutExercise)}
                               key={draftKey}
                               lbsValue={draft.lbs}
-                              onChangeLbs={(next) =>
-                                setSetDrafts((current) => ({
-                                  ...current,
-                                  [draftKey]: { ...(current[draftKey] ?? { lbs: "", reps: "", rpe: "" }), lbs: next },
-                                }))
-                              }
-                              onChangeReps={(next) =>
-                                setSetDrafts((current) => ({
-                                  ...current,
-                                  [draftKey]: { ...(current[draftKey] ?? { lbs: "", reps: "", rpe: "" }), reps: next },
-                                }))
-                              }
-                              onChangeRpe={(next) =>
-                                setSetDrafts((current) => ({
-                                  ...current,
-                                  [draftKey]: { ...(current[draftKey] ?? { lbs: "", reps: "", rpe: "" }), rpe: next },
-                                }))
-                              }
+                              onChangeLbs={(next) => updateSetDraft(draftKey, "lbs", next)}
+                              onChangeReps={(next) => updateSetDraft(draftKey, "reps", next)}
+                              onChangeRpe={(next) => updateSetDraft(draftKey, "rpe", next)}
                               onToggleComplete={() => {
                                 if (!exerciseSection.workoutExercise) return;
                                 handleCompleteSet(exerciseSection.workoutExercise, setNo);
@@ -1503,10 +1427,7 @@ function WorkoutPlayerScreenComponent() {
                                 const lastSetNo = exerciseSection.targetSets + exerciseSection.extraSets;
                                 const isLastSetCompleted = exerciseSection.completedSetNumbers.has(lastSetNo) || pendingCompletedSetKeys.has(buildWorkoutLogKey(exerciseSection.exerciseId, lastSetNo));
                                 if (isLastSetCompleted) return; // Prevent removing completed set
-                                setExtraSetsByExercise((current) => ({
-                                  ...current,
-                                  [exerciseSection.exerciseId]: Math.max(0, (current[exerciseSection.exerciseId] ?? 0) - 1),
-                                }));
+                                removeExtraSet(exerciseSection.exerciseId);
                               }}
                               className={cn(
                                 "h-8 w-8 items-center justify-center rounded-full border",
@@ -1523,12 +1444,7 @@ function WorkoutPlayerScreenComponent() {
                             <Pressable
                               accessibilityLabel="Add set"
                               accessibilityRole="button"
-                              onPress={() => {
-                                setExtraSetsByExercise((current) => ({
-                                  ...current,
-                                  [exerciseSection.exerciseId]: (current[exerciseSection.exerciseId] ?? 0) + 1,
-                                }));
-                              }}
+                              onPress={() => addExtraSet(exerciseSection.exerciseId)}
                               className="h-8 w-8 items-center justify-center rounded-full border border-emerald/50 bg-emerald/20"
                             >
                               <Ionicons color={colors.emerald} name="add" size={16} />
@@ -1543,12 +1459,7 @@ function WorkoutPlayerScreenComponent() {
                         </Typography>
                         <TextInput
                           editable={hasStartedSession}
-                          onChangeText={(next) =>
-                            setExerciseNotes((current) => ({
-                              ...current,
-                              [exerciseSection.exerciseId]: next,
-                            }))
-                          }
+                          onChangeText={(next) => updateExerciseNote(exerciseSection.exerciseId, next)}
                           placeholder="Add a quick note"
                           placeholderTextColor="rgba(255,255,255,0.42)"
                           selectionColor={colors.emerald}
