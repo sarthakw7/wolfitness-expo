@@ -1,22 +1,21 @@
-import { Ionicons } from "@expo/vector-icons";
 import { Link, router } from "expo-router";
 import { memo, useEffect, useMemo } from "react";
-import { ImageBackground, ScrollView, View } from "react-native";
+import { View } from "react-native";
 
 import {
   AppButton,
-  GlassCard,
   Typography,
 } from "@/src/components/primitives";
 import {
   AppTopBar,
-  Chip,
   EditorialCard,
   ScreenScaffold,
-  SectionTitle,
 } from "@/src/components/layout";
-import { ProgramCard } from "@/src/components/marketplace";
 import type { ProgramCardModel } from "@/src/components/marketplace/types";
+import { ActiveWorkoutBanner } from "@/src/features/dashboard/components/ActiveWorkoutBanner";
+import { DashboardMetricCards } from "@/src/features/dashboard/components/DashboardMetricCards";
+import { FeaturedProgramsCarousel } from "@/src/features/dashboard/components/FeaturedProgramsCarousel";
+import { TodaySessionHero } from "@/src/features/dashboard/components/TodaySessionHero";
 import { useAuth } from "@/src/hooks/useAuth";
 import { useActiveProgram } from "@/src/hooks/queries/useActiveProgram";
 import {
@@ -39,10 +38,10 @@ import {
   prettyGoal,
   titleCase,
 } from "@/src/features/dashboard/lib/dashboardFormatters";
+import { SignalProgramDashboardCard } from "@/src/features/signal-programs/components/SignalProgramDashboardCard";
 import { WolfAIDashboardSection } from "@/src/features/wolf-ai/components/WolfAIDashboardSection";
 import type { Program } from "@/src/services/programs.service";
 import { getSignalProgramProgress } from "@/src/services/signal-workout-adapter";
-import { colors } from "@/src/theme";
 
 const heroImage =
   "https://lh3.googleusercontent.com/aida-public/AB6AXuD4Lt7B2pUHplBybkn77mauDPD2uknpPW3rz2oPP-1P15sQRnQvEGqUrIdVsdqLWAFEJVUL8zT_RpiKhx6kcefATW7OQddv8jMkxL2nOCh58Bchxc3-waMAp_9tCOLZXBEYxgCog2SHQ0e1X8Sxl2fSAV4JWzu7xNG9DetNYrOtRpam2-8m4Nl7zczbI_uboD2SrpHBMcO2xWB5k-K2E5qAEy3nQzXy-9hJT1jmv1STgrgro3chu6Q6ADmU6w6k943_wALFo7uVVbXX";
@@ -470,206 +469,47 @@ function AthleteDashboardScreenComponent() {
 
       {!isLoading && !hasBlockingError ? (
       <View className="gap-gutter">
-        {activeWorkoutBannerState.kind === "loading" ? (
-          <EditorialCard className="min-h-28 bg-surface-muted" />
-        ) : null}
-
-        {activeWorkoutBannerState.kind === "error" ? (
-          <EditorialCard className="gap-3">
-            <Typography variant="headlineLg">Unable to recover workout</Typography>
-            <Typography tone="secondary" variant="bodyMd">
-              We could not load your in-progress workout state.
-            </Typography>
-            <AppButton onPress={() => activeWorkoutSessionQuery.refetch()} variant="secondary">
-              Retry
-            </AppButton>
-          </EditorialCard>
-        ) : null}
-
-        {activeWorkoutBannerState.kind === "recovery" ? (
-          <EditorialCard className="gap-3">
-            <Typography tone="secondary" variant="labelSm">
-              WORKOUT RECOVERY
-            </Typography>
-            <Typography variant="headlineLg">{activeWorkoutBannerState.title}</Typography>
-            <Typography tone="secondary" variant="bodyMd">
-              {activeWorkoutBannerState.body}
-            </Typography>
-            {activeWorkoutBannerState.programId && activeWorkoutBannerState.ctaLabel ? (
-              <AppButton
-                onPress={() =>
+        <ActiveWorkoutBanner
+          onOpenProgram={
+            activeWorkoutBannerState.kind === "recovery" && activeWorkoutBannerState.programId
+              ? () => {
                   router.push({
                     pathname: "/(signal)/program/[programId]",
                     params: { programId: activeWorkoutBannerState.programId ?? "" },
-                  })
-                }
-                variant="secondary"
-              >
-                {activeWorkoutBannerState.ctaLabel}
-              </AppButton>
-            ) : null}
-          </EditorialCard>
-        ) : null}
-
-        {activeWorkoutBannerState.kind === "ready" ? (
-          <EditorialCard className="gap-4">
-            <View className="gap-2">
-              <Typography tone="secondary" variant="labelSm">
-                WORKOUT IN PROGRESS
-              </Typography>
-              <Typography variant="headlineLg">{activeWorkoutBannerState.subtitle}</Typography>
-              <Typography tone="secondary" variant="bodyMd">
-                {activeWorkoutBannerState.body}
-              </Typography>
-            </View>
-
-            <View className="flex-row flex-wrap gap-2">
-              <Typography tone="secondary" variant="labelSm">
-                Source {activeWorkoutBannerState.label}
-              </Typography>
-            </View>
-
-            <AppButton
-              onPress={() => {
-                if (activeWorkoutBannerState.resumeParams) {
-                  router.push({
-                    pathname: "/(tabs)/workouts",
-                    params: activeWorkoutBannerState.resumeParams,
                   });
-                  return;
                 }
+              : null
+          }
+          onResume={() => {
+            if (activeWorkoutBannerState.kind === "ready" && activeWorkoutBannerState.resumeParams) {
+              router.push({
+                pathname: "/(tabs)/workouts",
+                params: activeWorkoutBannerState.resumeParams,
+              });
+              return;
+            }
 
-                router.push("/(tabs)/workouts");
-              }}
-            >
-              Resume Workout
-            </AppButton>
-          </EditorialCard>
-        ) : null}
+            router.push("/(tabs)/workouts");
+          }}
+          onRetry={() => activeWorkoutSessionQuery.refetch()}
+          state={activeWorkoutBannerState}
+        />
 
-        {signalCardState.kind === "loading" ? (
-          <EditorialCard className="min-h-36 bg-surface-muted" />
-        ) : null}
+        <SignalProgramDashboardCard
+          onBrowsePrograms={() => router.push("/(marketplace)")}
+          onContinue={handleContinueSignalProgram}
+          state={signalCardState}
+        />
 
-        {signalCardState.kind === "program_unavailable" || signalCardState.kind === "active_pointer_invalid" ? (
-          <EditorialCard className="gap-3">
-            <Typography tone="secondary" variant="labelSm">
-              ACTIVE SIGNAL PROGRAM
-            </Typography>
-            <Typography variant="headlineLg">{signalCardState.title}</Typography>
-            <Typography tone="secondary" variant="bodyMd">
-              {signalCardState.body}
-            </Typography>
-            <View className="pt-2">
-              <Link href="/(marketplace)" asChild>
-                <AppButton variant="secondary">{signalCardState.ctaLabel}</AppButton>
-              </Link>
-            </View>
-          </EditorialCard>
-        ) : null}
-
-        {signalCardState.kind === "ready" ? (
-          <EditorialCard className="gap-4">
-            <View className="gap-2">
-            <Typography tone="secondary" variant="labelSm">
-              CURRENT PROGRAM
-            </Typography>
-            <Typography variant="headlineXl">{signalCardState.programTitle}</Typography>
-            <Typography tone="secondary" variant="bodyMd">
-              {signalCardState.isProgramCompleted
-                ? "Program completed."
-                  : "Continue from your saved week and day."}
-              </Typography>
-            </View>
-
-            <View className="flex-row flex-wrap gap-2">
-              <Typography tone="secondary" variant="labelSm">
-                {signalCardState.currentWeekLabel}
-              </Typography>
-              <Typography tone="secondary" variant="labelSm">
-                {signalCardState.currentDayLabel}
-              </Typography>
-            </View>
-
-            <View className="gap-2">
-              <View className="flex-row items-end justify-between gap-4">
-                <Typography variant="headlineLg">
-                  {signalCardState.completedWorkouts} of {signalCardState.totalWorkouts} workouts complete
-                </Typography>
-                <Typography tone="secondary" variant="headlineLg">
-                  {signalCardState.percentage}%
-                </Typography>
-              </View>
-              <View className="h-1.5 overflow-hidden rounded-full bg-surface-muted">
-                <View className="h-full rounded-full bg-emerald" style={{ width: `${signalCardState.percentage}%` }} />
-              </View>
-            </View>
-
-            <View className="gap-2">
-              <Typography tone="secondary" variant="labelSm">
-                {signalCardState.isProgramCompleted ? "Program completed" : "Next workout"}
-              </Typography>
-              <Typography variant="bodyMd">
-                {signalCardState.nextWorkoutPreview
-                  ? `${signalCardState.nextWorkoutPreview.weekLabel} · ${signalCardState.nextWorkoutPreview.dayLabel}`
-                  : "Program completed"}
-              </Typography>
-            </View>
-
-            <View className="gap-3 pt-2">
-              {!signalCardState.isProgramCompleted && handleContinueSignalProgram ? (
-                <AppButton onPress={handleContinueSignalProgram}>Go to Workout</AppButton>
-              ) : null}
-
-              {signalCardState.isProgramCompleted ? (
-                <Link href="/(marketplace)" asChild>
-                  <AppButton variant="secondary">Browse Programs</AppButton>
-                </Link>
-              ) : null}
-            </View>
-          </EditorialCard>
-        ) : null}
-
-        <View className="min-h-[420px] overflow-hidden rounded-3xl bg-surface-muted">
-          <ImageBackground
-            accessibilityLabel="Daily workout editorial image"
-            source={{ uri: heroImage }}
-            style={{ flex: 1, justifyContent: "flex-end", padding: 12 }}
-          >
-            <GlassCard className="gap-4" intensity={18}>
-              <View className="flex-row items-start justify-between gap-4">
-                <View className="flex-1 gap-1">
-                  <Typography tone="secondary" variant="labelSm">
-                    {"TODAY'S SESSION"}
-                  </Typography>
-                  <Typography variant="headlineXl">
-                    {todaySessionTitle}
-                  </Typography>
-                </View>
-                <Chip label={`${sessionMinutes} MIN`} />
-              </View>
-              <View className="flex-row gap-8">
-                <View>
-                  <Typography tone="secondary" variant="labelSm">
-                    Focus
-                  </Typography>
-                  <Typography variant="bodyMd">{todayFocus}</Typography>
-                </View>
-                <View>
-                  <Typography tone="secondary" variant="labelSm">
-                    Status
-                  </Typography>
-                  <Typography variant="bodyMd">{todayLoad}</Typography>
-                </View>
-              </View>
-              <Link href={workoutCta.href} asChild>
-                <AppButton iconLeft={<Ionicons color={colors.white} name={workoutCta.icon} size={16} />}>
-                  {workoutCta.label === "Start Today's Workout" ? "Begin Protocol" : workoutCta.label}
-                </AppButton>
-              </Link>
-            </GlassCard>
-          </ImageBackground>
-        </View>
+        <TodaySessionHero
+          cta={workoutCta}
+          focus={todayFocus}
+          heroImage={heroImage}
+          load={todayLoad}
+          onPressCta={() => router.push(workoutCta.href)}
+          sessionMinutes={sessionMinutes}
+          title={todaySessionTitle}
+        />
 
         {!hasAnyEnrollment ? (
           <EditorialCard className="gap-3">
@@ -715,101 +555,20 @@ function AthleteDashboardScreenComponent() {
           </EditorialCard>
         ) : null}
 
-        <View className="gap-gutter">
-          <EditorialCard className="gap-5">
-            <View className="flex-row items-center justify-between">
-              <Typography tone="secondary" variant="labelSm">ENERGY EXPENDITURE</Typography>
-              <Ionicons color={colors.graphiteMuted} name="flame-outline" size={20} />
-            </View>
-            <View className="flex-row items-end gap-2">
-              <Typography variant="displayLg">{macroProgress.calories.value}</Typography>
-              <Typography tone="secondary" variant="bodyLg">kcal</Typography>
-            </View>
-            <View className="gap-2">
-              <View className="flex-row items-center justify-between">
-                <Typography tone="secondary" variant="labelSm">Daily Goal</Typography>
-                <Typography tone="secondary" variant="bodyMd">
-                  {nutrition?.macroTargets?.daily_calorie_target?.toLocaleString() ?? "--"} kcal
-                </Typography>
-              </View>
-              <View className="h-1.5 overflow-hidden rounded-full bg-surface-muted">
-                <View className="h-full rounded-full bg-emerald" style={{ width: `${macroProgress.calories.progress * 100}%` }} />
-              </View>
-            </View>
-            {!hasNutritionData ? (
-              <View className="gap-3">
-                <Typography tone="secondary" variant="bodyMd">
-                  No nutrition data has been logged yet.
-                </Typography>
-                <Link href="/(tabs)/nutrition" asChild>
-                  <AppButton variant="secondary">Log First Meal</AppButton>
-                </Link>
-              </View>
-            ) : null}
-          </EditorialCard>
-
-          <EditorialCard className="gap-5">
-            <View className="flex-row items-center justify-between">
-              <Typography tone="secondary" variant="labelSm">WEEKLY CONSISTENCY</Typography>
-              <Ionicons color={colors.graphiteMuted} name="calendar-outline" size={20} />
-            </View>
-            <View className="flex-row items-end justify-between">
-              {weeklyDots.map((dot, idx) => (
-                <View className="items-center gap-2" key={idx}>
-                  <View
-                    className={
-                      dot.completed
-                        ? "h-12 w-8 rounded-full bg-emerald"
-                        : dot.isFuture
-                          ? "h-12 w-8 rounded-full border border-dashed border-border bg-transparent"
-                          : "h-12 w-8 rounded-full bg-surface-muted"
-                    }
-                  >
-                    {!dot.completed && !dot.isFuture ? (
-                      <View className="absolute bottom-1 left-1 right-1 h-2 rounded-full bg-border" />
-                    ) : null}
-                  </View>
-                  <Typography tone="secondary" variant="labelSm">
-                    {dot.label}
-                  </Typography>
-                </View>
-              ))}
-            </View>
-          </EditorialCard>
-        </View>
+        <DashboardMetricCards
+          dailyCalorieTarget={nutrition?.macroTargets?.daily_calorie_target}
+          hasNutritionData={hasNutritionData}
+          macroProgress={macroProgress}
+          onLogFirstMeal={() => router.push("/(tabs)/nutrition")}
+          weeklyDots={weeklyDots}
+        />
       </View>
       ) : null}
 
-      <View className="mt-4 gap-3">
-        <SectionTitle
-          action={
-            <Link href="/(marketplace)" asChild>
-              <AppButton size="sm" variant="ghost">View All</AppButton>
-            </Link>
-          }
-          title="Active Programs"
-        />
-          <ScrollView
-            alwaysBounceHorizontal={false}
-            contentContainerClassName=""
-            contentContainerStyle={{ paddingBottom: 10, paddingLeft: 2, paddingRight: 10, paddingTop: 10 }}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-          >
-            {featuredPrograms.length === 0 ? (
-              <EditorialCard className="w-72 items-center justify-center p-5">
-                <Typography tone="secondary" variant="bodyMd">
-                  No published programs yet.
-                </Typography>
-              </EditorialCard>
-            ) : null}
-            {featuredPrograms.map((program, index) => (
-              <View key={program.id} style={{ marginRight: index === featuredPrograms.length - 1 ? 0 : 18 }}>
-                <ProgramCard compact program={program} />
-              </View>
-            ))}
-          </ScrollView>
-      </View>
+      <FeaturedProgramsCarousel
+        onViewAll={() => router.push("/(marketplace)")}
+        programs={featuredPrograms}
+      />
       </View>
     </ScreenScaffold>
   );
