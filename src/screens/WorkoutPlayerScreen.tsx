@@ -10,7 +10,6 @@ import { AppTopBar, EditorialCard, ScreenScaffold } from "@/src/components/layou
 import { AppButton, Typography } from "@/src/components/primitives";
 import { useAdvanceActiveProgramAfterWorkout, useCompleteSet, useFinishWorkout, useDiscardWorkoutSession } from "@/src/hooks/mutations";
 import { useActiveProgram, useEnrollments, useWorkout, useWorkoutSession } from "@/src/hooks/queries";
-import { queryKeys } from "@/src/hooks/queries/queryKeys";
 import { useAuth } from "@/src/hooks/useAuth";
 import { useRestTimer } from "@/src/hooks/useRestTimer";
 import { useWorkoutProgram } from "@/src/hooks/useWorkoutProgram";
@@ -25,6 +24,7 @@ import { SIGNAL_SET_TABLE_COLUMNS, WorkoutSetRow } from "@/src/features/workout/
 import { WorkoutCompletionSummary as WorkoutCompletionSummaryView } from "@/src/features/workout/components/WorkoutCompletionSummary";
 import { useSignalSaveAndExit } from "@/src/features/workout/hooks/useSignalSaveAndExit";
 import { useSignalWorkoutDerivedState } from "@/src/features/workout/hooks/useSignalWorkoutDerivedState";
+import { useWorkoutDiscard } from "@/src/features/workout/hooks/useWorkoutDiscard";
 import { useWorkoutPlayerDerivedState } from "@/src/features/workout/hooks/useWorkoutPlayerDerivedState";
 import {
   buildSignalDemoSearchUrl,
@@ -534,6 +534,38 @@ function WorkoutPlayerScreenComponent() {
   });
   const isWorkoutPersistenceBusy =
     completeSetMutation.isPending || pendingCompletedSetKeys.size > 0 || isSavingAndExiting;
+  const { discardWorkout: handleDiscardSession } = useWorkoutDiscard({
+    clearLocalWorkoutState: () => {
+      setExtraSetsByExercise({});
+      setPendingCompletedSetKeys(new Set());
+      setSetDrafts({});
+    },
+    clearRouteParams: () => {
+      router.setParams({
+        signalDayId: "",
+        signalProgramId: "",
+        signalWeekId: "",
+        signalStepType: "",
+        signalBlockIndex: "",
+      });
+    },
+    discardWorkoutSession: discardWorkoutMutation.mutateAsync,
+    hasSessionData: Boolean(sessionQuery.data?.session?.id),
+    hasStartedSession,
+    isDiscardingMutation: discardWorkoutMutation.isPending,
+    isFinishLocked: () => finishLockRef.current,
+    navigateHome: () => {
+      router.replace(SIGNAL_WORKOUT_HOME_HREF);
+    },
+    queryClient,
+    refetchSession: sessionQuery.refetch,
+    refetchWorkout: workoutQuery.refetch,
+    resetRestTimer,
+    routeParams: params,
+    sessionId,
+    signalSessionScope,
+    userId: user?.id,
+  });
 
   useEffect(() => {
     setSetDrafts({});
@@ -1181,102 +1213,6 @@ function WorkoutPlayerScreenComponent() {
       sessionQuery.refetch();
       setSignalFinishError(error instanceof Error ? error.message : "Unable to finish workout.");
       finishLockRef.current = false;
-    }
-  }
-
-  async function handleDiscardSession() {
-    if (!sessionId || discardWorkoutMutation.isPending || finishLockRef.current) return;
-    try {
-      console.log("[DiscardDebug] before discard", {
-        sessionId,
-        hasStartedSession,
-        routeParams: params,
-      });
-
-      console.log("[DiscardDebug] service deleting", { sessionId });
-      const result = await discardWorkoutMutation.mutateAsync({
-        sessionId,
-        signalScope: signalSessionScope,
-      });
-      console.log("[DiscardDebug] after service discard", { sessionId });
-
-      console.log("[DiscardDebug] discard result handled in UI", {
-        status: result.status,
-        sessionId
-      });
-
-      const resetKeys = [queryKeys.workoutSession(sessionId), queryKeys.workoutSessionPlans(), queryKeys.workoutSessionStatuses()] as const;
-      const signalResetKeys = signalSessionScope
-        ? [
-            queryKeys.signalWorkoutSession(
-              user?.id ?? "",
-              signalSessionScope.activeProgramId,
-              signalSessionScope.sourceProgramId,
-              signalSessionScope.sourceProgramVersion,
-              signalSessionScope.sourceWeekKey,
-              signalSessionScope.sourceDayKey,
-            ),
-            queryKeys.signalWorkoutSessionPlan(
-              user?.id ?? "",
-              signalSessionScope.activeProgramId,
-              signalSessionScope.sourceProgramId,
-              signalSessionScope.sourceProgramVersion,
-              signalSessionScope.sourceWeekKey,
-              signalSessionScope.sourceDayKey,
-            ),
-            queryKeys.signalWorkoutSessionStatus(
-              user?.id ?? "",
-              signalSessionScope.activeProgramId,
-              signalSessionScope.sourceProgramId,
-              signalSessionScope.sourceProgramVersion,
-              signalSessionScope.sourceWeekKey,
-              signalSessionScope.sourceDayKey,
-            ),
-          ]
-        : [];
-      const broadSignalResetKeys = [["workout", "signal-session"], ["workout", "signal-session-plan"], ["workout", "signal-session-status"]] as const;
-      const combinedResetKeys = [...resetKeys, ...signalResetKeys, ...broadSignalResetKeys];
-      console.log("[DiscardDebug] reset exact query keys", { keys: combinedResetKeys });
-
-      const resetPromises = combinedResetKeys.map((queryKey) => queryClient.resetQueries({ queryKey }));
-      if (user?.id) {
-        resetPromises.push(queryClient.resetQueries({ queryKey: queryKeys.workoutActiveSession(user.id) }));
-      }
-      await Promise.all(resetPromises);
-
-      setExtraSetsByExercise({});
-      setPendingCompletedSetKeys(new Set());
-      setSetDrafts({});
-      restTimer.reset();
-
-      console.log("[DiscardDebug] after local reset", {
-        sessionId,
-        hasStartedSession: Boolean(sessionQuery.data?.session?.id)
-      });
-
-      console.log("[DiscardDebug] replacing to workout home");
-      router.setParams({
-        signalDayId: "",
-        signalProgramId: "",
-        signalWeekId: "",
-        signalStepType: "",
-        signalBlockIndex: "",
-      });
-      console.log("[SessionAudit][discard]", {
-        queriesReset: true,
-        routeParamsCleared: true,
-        sessionId,
-        status: result.status,
-      });
-      router.replace(SIGNAL_WORKOUT_HOME_HREF);
-    } catch (error) {
-      console.warn("[athlete-flow]", {
-        error: error instanceof Error ? error.message : String(error),
-        screen: "WorkoutPlayer",
-        type: "discard-session-action",
-      });
-      workoutQuery.refetch();
-      sessionQuery.refetch();
     }
   }
 
