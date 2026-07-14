@@ -746,10 +746,6 @@ export async function fetchSignalProgramProgress(userId: string): Promise<Signal
     const lifecycle = (activeLifecycleRes.data ?? fallbackLifecycleRes?.data ?? null) as SignalProgramLifecycleProgressRow | null;
     if (!lifecycle) return null;
 
-    if (__DEV__) {
-      console.log("[SignalProgress] lifecycle version", lifecycle.source_program_version);
-    }
-
     let sessionsQuery = supabase
       .from("workout_sessions")
       .select("id,completed_at,active_program_id,source,source_program_id,source_program_version,source_week_key,source_day_key")
@@ -769,21 +765,6 @@ export async function fetchSignalProgramProgress(userId: string): Promise<Signal
     if (sessionsRes.error) throw sessionsRes.error;
 
     const completedSessions = (sessionsRes.data ?? []) as SignalCompletedWorkoutSessionRow[];
-
-    if (__DEV__) {
-      console.log(
-        "[SignalProgress] completed sessions version-filtered",
-        completedSessions.map((session) => ({
-          id: session.id,
-          active_program_id: session.active_program_id,
-          source_day_key: session.source_day_key,
-          source_program_id: session.source_program_id,
-          source_program_version: session.source_program_version,
-          source_week_key: session.source_week_key,
-          status: session.completed_at ? "completed" : "open",
-        })),
-      );
-    }
 
     return {
       completedSessions,
