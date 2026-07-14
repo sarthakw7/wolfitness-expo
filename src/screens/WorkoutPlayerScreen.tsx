@@ -27,6 +27,7 @@ import { useSignalWorkoutDerivedState } from "@/src/features/workout/hooks/useSi
 import { useWorkoutDiscard } from "@/src/features/workout/hooks/useWorkoutDiscard";
 import { useWorkoutCompletion, type WorkoutCompletionSummary } from "@/src/features/workout/hooks/useWorkoutCompletion";
 import { useWorkoutPlayerDerivedState } from "@/src/features/workout/hooks/useWorkoutPlayerDerivedState";
+import { useWorkoutSetActions } from "@/src/features/workout/hooks/useWorkoutSetActions";
 import { useWorkoutSetState } from "@/src/features/workout/hooks/useWorkoutSetState";
 import {
   buildSignalDemoSearchUrl,
@@ -34,7 +35,6 @@ import {
   isValidHttpUrl,
   type SignalCoachMediaPreview,
 } from "@/src/features/workout/lib/coachMedia";
-import { normalizeCompletedSetPayload } from "@/src/features/workout/lib/normalizeCompletedSetPayload";
 import {
   buildWorkoutLogKey,
   getWorkoutExerciseIdentityKey,
@@ -44,11 +44,9 @@ import {
   getSignalPrescribedRepsValue,
   getSignalPrescribedRpeValue,
   getSignalPrescribedSetCount,
-  getTargetSets,
 } from "@/src/features/workout/lib/workoutPrescription";
 import { formatSummaryLine } from "@/src/features/workout-summary/lib/formatWorkoutSummary";
 import { buildYouTubeEmbedUrl, buildYouTubeWatchUrl } from "@/src/lib/youtube-media";
-import type { WorkoutExercise } from "@/src/services/workout.service";
 import {
   buildSignalWorkoutExecutionContext,
   buildSignalWorkoutSteps,
@@ -662,52 +660,25 @@ function WorkoutPlayerScreenComponent() {
     Boolean(sessionId) && !finishWorkoutMutation.isPending && !sessionComplete && !isFinishLocked() && !completionSummary;
   const footerLabel = finishWorkoutMutation.isPending ? "Finishing..." : "Finish Workout";
   const footerAction = handleFinishWorkout;
-
-  const handleCompleteSet = async (exercise: WorkoutExercise, setNumber: number) => {
-    if (!sessionId || completeSetMutation.isPending || sessionComplete) return;
-    const exerciseIdentityKey = getWorkoutExerciseIdentityKey(exercise);
-    const completedSetNumbers = completedSetNumbersByExercise.get(exerciseIdentityKey) ?? new Set<number>();
-    const targetSets = getTargetSets(exercise);
-    const isExerciseComplete = targetSets > 0 && completedSetNumbers.size >= targetSets;
-    const logKey = buildWorkoutLogKey(exerciseIdentityKey, setNumber);
-    if (isExerciseComplete || completedSetNumbers.has(setNumber) || pendingCompletedSetKeys.has(logKey)) {
-      return;
-    }
-    const draft = setDrafts[logKey] ?? { lbs: "", reps: "", rpe: "" };
-    const totalSets = targetSets;
-    const willCompleteExercise = totalSets > 0 && setNumber >= totalSets;
-    const normalized = normalizeCompletedSetPayload({ draft, exercise, isSignalWorkout: isSignalExecution, setNumber });
-    const payload = {
-      exerciseLibraryId: normalized.exerciseLibraryId,
-      exerciseName: normalized.exerciseName,
-      repsCompleted: normalized.repsCompleted,
-      rpeActual: normalized.rpeActual,
-      sessionId,
-      setNumber: normalized.setNumber,
-      sourceExerciseKey: normalized.sourceExerciseKey,
-      weightKg: normalized.weightKg,
-    };
-
-    try {
-      markSetPending(logKey);
-      await completeSetMutation.mutateAsync(payload);
+  const { completeSet: handleCompleteSet } = useWorkoutSetActions({
+    clearSetPending,
+    completeSet: completeSetMutation.mutateAsync,
+    completeSetIsPending: completeSetMutation.isPending,
+    completedSetNumbersByExercise,
+    focusNextSetInput: (exerciseIdentityKey, setNumber) => {
+      setInputRefs.current[buildWorkoutLogKey(exerciseIdentityKey, setNumber)]?.focus();
+    },
+    isSignalExecution,
+    markSetPending,
+    pendingCompletedSetKeys,
+    refetchSession: sessionQuery.refetch,
+    sessionComplete,
+    sessionId,
+    setDrafts,
+    triggerSetCompletedHaptic: () => {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-
-      if (!willCompleteExercise) {
-        setTimeout(() => {
-          setInputRefs.current[buildWorkoutLogKey(exerciseIdentityKey, setNumber + 1)]?.focus();
-        }, 150);
-      }
-    } catch (error) {
-      clearSetPending(logKey);
-      console.warn("[athlete-flow]", {
-        error: error instanceof Error ? error.message : String(error),
-        screen: "WorkoutPlayer",
-        type: "complete-set-action",
-      });
-      sessionQuery.refetch();
-    }
-  };
+    },
+  });
 
   const handleSignalStepBack = () => {
     if (!isSignalExecution) return;
