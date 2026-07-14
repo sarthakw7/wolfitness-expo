@@ -16,8 +16,6 @@ type UseWorkoutDiscardInput = {
   clearLocalWorkoutState: () => void;
   clearRouteParams: () => void;
   discardWorkoutSession: (input: DiscardWorkoutInput) => Promise<DiscardWorkoutResult>;
-  hasStartedSession: boolean;
-  hasSessionData: boolean;
   isDiscardingMutation: boolean;
   isFinishLocked: () => boolean;
   navigateHome: () => void;
@@ -25,7 +23,6 @@ type UseWorkoutDiscardInput = {
   refetchSession: () => void;
   refetchWorkout: () => void;
   resetRestTimer: () => void;
-  routeParams: unknown;
   sessionId: string | null | undefined;
   signalSessionScope: SignalWorkoutSessionScope | null;
   userId: string | null | undefined;
@@ -35,8 +32,6 @@ export function useWorkoutDiscard({
   clearLocalWorkoutState,
   clearRouteParams,
   discardWorkoutSession,
-  hasStartedSession,
-  hasSessionData,
   isDiscardingMutation,
   isFinishLocked,
   navigateHome,
@@ -44,7 +39,6 @@ export function useWorkoutDiscard({
   refetchSession,
   refetchWorkout,
   resetRestTimer,
-  routeParams,
   sessionId,
   signalSessionScope,
   userId,
@@ -52,22 +46,9 @@ export function useWorkoutDiscard({
   async function discardWorkout() {
     if (!sessionId || isDiscardingMutation || isFinishLocked()) return;
     try {
-      console.log("[DiscardDebug] before discard", {
-        sessionId,
-        hasStartedSession,
-        routeParams,
-      });
-
-      console.log("[DiscardDebug] service deleting", { sessionId });
-      const result = await discardWorkoutSession({
+      await discardWorkoutSession({
         sessionId,
         signalScope: signalSessionScope,
-      });
-      console.log("[DiscardDebug] after service discard", { sessionId });
-
-      console.log("[DiscardDebug] discard result handled in UI", {
-        status: result.status,
-        sessionId,
       });
 
       const resetKeys = [queryKeys.workoutSession(sessionId), queryKeys.workoutSessionPlans(), queryKeys.workoutSessionStatuses()] as const;
@@ -101,7 +82,6 @@ export function useWorkoutDiscard({
         : [];
       const broadSignalResetKeys = [["workout", "signal-session"], ["workout", "signal-session-plan"], ["workout", "signal-session-status"]] as const;
       const combinedResetKeys = [...resetKeys, ...signalResetKeys, ...broadSignalResetKeys];
-      console.log("[DiscardDebug] reset exact query keys", { keys: combinedResetKeys });
 
       const resetPromises = combinedResetKeys.map((queryKey) => queryClient.resetQueries({ queryKey }));
       if (userId) {
@@ -112,19 +92,7 @@ export function useWorkoutDiscard({
       clearLocalWorkoutState();
       resetRestTimer();
 
-      console.log("[DiscardDebug] after local reset", {
-        sessionId,
-        hasStartedSession: hasSessionData,
-      });
-
-      console.log("[DiscardDebug] replacing to workout home");
       clearRouteParams();
-      console.log("[SessionAudit][discard]", {
-        queriesReset: true,
-        routeParamsCleared: true,
-        sessionId,
-        status: result.status,
-      });
       navigateHome();
     } catch (error) {
       console.warn("[athlete-flow]", {

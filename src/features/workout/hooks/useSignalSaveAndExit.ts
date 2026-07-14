@@ -114,7 +114,7 @@ export function useSignalSaveAndExit({
     if (!sessionId || isSavingAndExiting) return;
     setIsSavingAndExiting(true);
     try {
-      const savedCount = await flushWorkoutDraftsBeforeExit();
+      await flushWorkoutDraftsBeforeExit();
       const scopedQueries = signalSessionScope && userId
         ? [
             queryKeys.signalWorkoutSession(
@@ -157,17 +157,9 @@ export function useSignalSaveAndExit({
       }
       await Promise.all(invalidatePromises);
 
-      console.log("[SaveExit] flushed and navigating home", {
-        savedCount,
-        sessionId,
-      });
       resetRestTimer();
       navigateHome();
-    } catch (error) {
-      console.log("[SaveExit] flush error", {
-        error: error instanceof Error ? error.message : String(error),
-        sessionId,
-      });
+    } catch {
       Alert.alert(
         "Could not save session",
         "We could not save your latest workout changes before leaving. Please stay on the workout screen and try again.",

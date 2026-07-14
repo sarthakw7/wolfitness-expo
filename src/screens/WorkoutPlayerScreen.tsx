@@ -467,8 +467,6 @@ function WorkoutPlayerScreenComponent() {
     signalProgressSteps,
     signalStepCount,
     signalStepProgress,
-    signalWorkoutBlockCount,
-    signalWorkoutStepLines,
   } = useSignalWorkoutDerivedState({
     currentStepIndex,
     isSignalExecution,
@@ -477,17 +475,6 @@ function WorkoutPlayerScreenComponent() {
 
   const sessionComplete = Boolean(sessionQuery.data?.session.completed_at);
   const hasStartedSession = Boolean(sessionId && sessionQuery.data?.session.cancelled_at === null);
-  
-  if (__DEV__) {
-    console.log("[WorkoutSessionDebug] useWorkoutSession state", {
-      dayId: workoutPlan?.day.id,
-      programId: workoutPlan?.program.id,
-      versionId: activeProgram?.source_program_version,
-      sessionId,
-      hasData: Boolean(sessionQuery.data),
-      isFetching: sessionQuery.isFetching
-    });
-  }
   const [setDrafts, setSetDrafts] = useState<Record<string, { lbs: string; reps: string; rpe: string }>>({});
   const [exerciseNotes, setExerciseNotes] = useState<Record<string, string>>({});
   const [extraSetsByExercise, setExtraSetsByExercise] = useState<Record<string, number>>({});
@@ -561,8 +548,6 @@ function WorkoutPlayerScreenComponent() {
       });
     },
     discardWorkoutSession: discardWorkoutMutation.mutateAsync,
-    hasSessionData: Boolean(sessionQuery.data?.session?.id),
-    hasStartedSession,
     isDiscardingMutation: discardWorkoutMutation.isPending,
     isFinishLocked,
     navigateHome: () => {
@@ -572,7 +557,6 @@ function WorkoutPlayerScreenComponent() {
     refetchSession: sessionQuery.refetch,
     refetchWorkout: workoutQuery.refetch,
     resetRestTimer,
-    routeParams: params,
     sessionId,
     signalSessionScope,
     userId: user?.id,
@@ -698,21 +682,6 @@ function WorkoutPlayerScreenComponent() {
       const coachMedia = getSignalCoachMediaPreview(workoutExercise, payloadExercise.exerciseName);
       const mediaUrl = coachMedia?.url && isValidHttpUrl(coachMedia.url) ? coachMedia.url : null;
 
-      if (__DEV__) {
-        console.log("[PlayerPrescription] exercise", {
-          name: payloadExercise.exerciseName,
-          reps: payloadExercise.reps,
-          rest: payloadExercise.rest,
-          rpe: payloadExercise.rpe,
-          sets: payloadExercise.sets,
-        });
-        console.log("[PlayerSetRows]", {
-          name: payloadExercise.exerciseName,
-          prescribedSets: targetSets,
-          rows: targetSets,
-        });
-      }
-
       return {
         completedSetNumbers,
         coachMedia,
@@ -747,29 +716,6 @@ function WorkoutPlayerScreenComponent() {
   const footerLabel = finishWorkoutMutation.isPending ? "Finishing..." : "Finish Workout";
   const footerAction = handleFinishWorkout;
 
-  useEffect(() => {
-    if (!__DEV__ || !isSignalExecution) return;
-    console.log("[signal-ordered-steps]", {
-      currentStepIndex: safeStepIndex,
-      initialStepIndex: signalInitialStepIndex,
-      steps: signalWorkoutStepLines,
-      totalSteps: signalOrderedSteps.length,
-    });
-
-    if (signalWorkoutBlockCount <= 1) {
-      console.warn(
-        "Signal demo program only has one block. To test A/B/C/D/E flow, create/publish a Signal day with multiple blocks.",
-      );
-    }
-  }, [
-    isSignalExecution,
-    safeStepIndex,
-    signalInitialStepIndex,
-    signalOrderedSteps.length,
-    signalWorkoutBlockCount,
-    signalWorkoutStepLines,
-  ]);
-
   const handleCompleteSet = async (exercise: WorkoutExercise, setNumber: number) => {
     if (!sessionId || completeSetMutation.isPending || sessionComplete) return;
     const exerciseIdentityKey = getWorkoutExerciseIdentityKey(exercise);
@@ -795,31 +741,13 @@ function WorkoutPlayerScreenComponent() {
       weightKg: normalized.weightKg,
     };
 
-    if (__DEV__ && isSignalExecution) {
-      console.log("[CompleteSet] draft", draft);
-      console.log("[CompleteSet] payload", payload);
-        console.log("[signal-workout-player]", {
-          activeExerciseId: exerciseIdentityKey,
-          activeExerciseName: exercise.exercise.name,
-          completedSetCount: completedSetNumbers.size,
-          nextSetNumber: setNumber,
-        repsCompleted: normalized.repsCompleted,
-        rpeActual: normalized.rpeActual,
-        sessionId,
-        weightKg: normalized.weightKg,
-      });
-    }
-
     try {
       setPendingCompletedSetKeys((current) => {
         const next = new Set(current);
         next.add(logKey);
         return next;
       });
-      const result = await completeSetMutation.mutateAsync(payload);
-      if (__DEV__ && isSignalExecution) {
-        console.log("[CompleteSet] success", result);
-      }
+      await completeSetMutation.mutateAsync(payload);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
 
       if (!willCompleteExercise) {
@@ -828,12 +756,6 @@ function WorkoutPlayerScreenComponent() {
         }, 150);
       }
     } catch (error) {
-      if (__DEV__ && isSignalExecution) {
-        console.log("[CompleteSet] error", {
-          error: error instanceof Error ? error.message : String(error),
-          sessionId,
-        });
-      }
       setPendingCompletedSetKeys((current) => {
         const next = new Set(current);
         next.delete(logKey);
@@ -915,7 +837,6 @@ function WorkoutPlayerScreenComponent() {
       onClose={() => {
         if (isWorkoutPersistenceBusy) return;
         if (hasStartedSession) {
-          console.log("[WorkoutPlayer] exit requested", { hasStartedSession, sessionId });
           Alert.alert(
             "Leave workout?",
             "Your progress is saved. You can resume this workout later.",
@@ -925,7 +846,6 @@ function WorkoutPlayerScreenComponent() {
                 text: "Discard Session",
                 style: "destructive",
                 onPress: () => {
-                  console.log("[WorkoutPlayer] discard session requested", { sessionId });
                   Alert.alert(
                     "Discard session?",
                     "This will delete this in-progress workout session and any sets logged in it. This cannot be undone.",
@@ -944,14 +864,12 @@ function WorkoutPlayerScreenComponent() {
                 text: "Save & Exit",
                 style: "default",
                 onPress: () => {
-                  console.log("[WorkoutPlayer] save and exit", { sessionId });
                   void handleSaveAndExit();
                 },
               },
             ],
           );
         } else {
-          console.log("[WorkoutPlayer] exit requested", { hasStartedSession, sessionId });
           restTimer.reset();
           router.replace(SIGNAL_WORKOUT_HOME_HREF);
         }
@@ -959,7 +877,6 @@ function WorkoutPlayerScreenComponent() {
       onFinishEarly={
         hasStartedSession && !isSummaryStep && !isReflectionStep && !isDoneTrainingStep
           ? () => {
-              console.log("[WorkoutPlayer] finish early requested", { sessionId });
               Alert.alert(
                 "Finish workout early?",
                 "This will save your logged sets and take you to reflection.",
@@ -1032,7 +949,6 @@ function WorkoutPlayerScreenComponent() {
     if (!isSignalExecution || !isWorkoutProgressStep) return;
 
     if (!hasStartedSession) {
-      console.log("[WorkoutPlayer] begin logging pressed", { sessionId });
       await handleStartWorkout();
       return;
     }
@@ -1076,15 +992,6 @@ function WorkoutPlayerScreenComponent() {
       await startSession();
       return true;
     } catch (error) {
-      console.log("[BeginLoggingDebug] raw start error", {
-        code: error instanceof Error ? (error as { code?: string }).code ?? null : null,
-        details: error instanceof Error ? (error as { details?: string }).details ?? null : null,
-        hint: error instanceof Error ? (error as { hint?: string }).hint ?? null : null,
-        json: JSON.stringify(error, null, 2),
-        message: error instanceof Error ? error.message : String(error),
-        name: error instanceof Error ? error.name : typeof error,
-        stack: error instanceof Error ? error.stack ?? null : null,
-      });
       console.warn("[athlete-flow]", {
         error: error instanceof Error ? error.message : String(error),
         screen: "WorkoutPlayer",

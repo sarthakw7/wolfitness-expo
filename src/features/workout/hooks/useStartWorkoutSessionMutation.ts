@@ -68,15 +68,6 @@ export function useStartWorkoutSessionMutation({
           const logs = await workoutService.fetchWorkoutLogSets(session.id);
           return { logs, session };
         } catch (error) {
-          console.log("[BeginLoggingDebug] raw start error", {
-            code: error instanceof Error ? (error as { code?: string }).code ?? null : null,
-            details: error instanceof Error ? (error as { details?: string }).details ?? null : null,
-            hint: error instanceof Error ? (error as { hint?: string }).hint ?? null : null,
-            json: JSON.stringify(error, null, 2),
-            message: error instanceof Error ? error.message : String(error),
-            name: error instanceof Error ? error.name : typeof error,
-            stack: error instanceof Error ? error.stack ?? null : null,
-          });
           throw error instanceof Error ? error : new Error(String(error));
         }
       }
@@ -90,13 +81,6 @@ export function useStartWorkoutSessionMutation({
       return { logs, session };
     },
     onSuccess: async (bundle) => {
-      console.log("[BeginLoggingDebug] startSession success", {
-        active_program_id: bundle.session.active_program_id,
-        sessionId: bundle.session.id,
-        source_day_key: bundle.session.source_day_key,
-        source_program_version: bundle.session.source_program_version,
-        source_week_key: bundle.session.source_week_key,
-      });
       queryClient.setQueryData(planKey, bundle);
       if (isSignalWorkout && signalSessionScope && userId) {
         queryClient.setQueryData(
