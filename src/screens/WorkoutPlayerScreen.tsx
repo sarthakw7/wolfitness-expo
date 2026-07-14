@@ -1,8 +1,7 @@
-import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { Link, router, useLocalSearchParams } from "expo-router";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Image, Linking, Pressable, StyleSheet, TextInput, View } from "react-native";
+import { Alert, Linking, View, type TextInput } from "react-native";
 import { useQueryClient } from "@tanstack/react-query";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -18,9 +17,8 @@ import { parseIndexParam, singleParam } from "@/src/lib/routing";
 import { CoachMediaModal } from "@/src/features/workout/components/CoachMediaModal";
 import { SignalWorkoutFooter } from "@/src/features/workout/components/SignalWorkoutFooter";
 import { SignalWorkoutHeader } from "@/src/features/workout/components/SignalWorkoutHeader";
-import { SignalWorkoutProgressHeader } from "@/src/features/workout/components/SignalWorkoutProgressHeader";
+import { SignalWorkoutStepPane } from "@/src/features/workout/components/SignalWorkoutStepPane";
 import { WorkoutExerciseHeader } from "@/src/features/workout/components/WorkoutExerciseHeader";
-import { SIGNAL_SET_TABLE_COLUMNS, WorkoutSetRow } from "@/src/features/workout/components/WorkoutSetRow";
 import { WorkoutCompletionSummary as WorkoutCompletionSummaryView } from "@/src/features/workout/components/WorkoutCompletionSummary";
 import { useSignalSaveAndExit } from "@/src/features/workout/hooks/useSignalSaveAndExit";
 import { useSignalWorkoutPlayerState } from "@/src/features/workout/hooks/useSignalWorkoutPlayerState";
@@ -99,28 +97,6 @@ function WorkoutSkeleton() {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  noteInputCompact: {
-    borderRadius: 6,
-    fontSize: 14,
-    minHeight: 38,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-  },
-  noteInput: {
-    borderRadius: 6,
-    minHeight: 64,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
-  noteInputSignal: {
-    backgroundColor: "rgba(255,255,255,0.05)",
-    borderColor: "rgba(255,255,255,0.18)",
-    borderWidth: StyleSheet.hairlineWidth,
-    color: colors.white,
-  },
-});
 
 function WorkoutPlayerScreenComponent() {
   const { user } = useAuth();
@@ -640,9 +616,16 @@ function WorkoutPlayerScreenComponent() {
         coachMedia,
         exerciseId,
         exerciseIndex,
+        exerciseKey: payloadExercise.sync_key,
+        exerciseName: payloadExercise.exerciseName,
         label: getSignalExerciseLabel(blockLabel, exerciseIndex),
+        notesText: workoutExercise?.prescription.notes ?? payloadExercise.notes?.trim() ?? null,
         note: exerciseNotes[exerciseId] ?? "",
-        payloadExercise,
+        prescriptionText: workoutExercise
+          ? formatSignalWorkoutPrescriptionSummary(workoutExercise.prescription) ??
+            formatSignalExercisePrescription(payloadExercise) ??
+            "Log the prescribed sets below."
+          : formatSignalExercisePrescription(payloadExercise) ?? "Log the prescribed sets below.",
         targetSets,
         nextSetNumber,
         workoutExercise,
@@ -1147,398 +1130,46 @@ function WorkoutPlayerScreenComponent() {
         ) : null}
 
         {!completionSummary && !isLoading && !hasError && !signalExecutionIssue && isSignalExecution && workoutPlan && currentStep ? (
-            <View className="gap-4">
-              <SignalWorkoutProgressHeader
-                progress={signalStepProgress}
-                progressIndex={signalProgressIndex}
-                stepLabel={currentStepLabel ?? "STEP"}
-                steps={signalProgressSteps}
-                summaryLabel={workoutSummary ? formatSummaryLine(workoutSummary) : "Workout in progress"}
-              />
-
-            <View className="gap-4 rounded-md border border-white/10 bg-[#101417] p-4">
-              <View className="gap-1.5">
-                <Typography className="tracking-[1px] opacity-75" tone="inverse" variant="labelSm">
-                  {isCoachInstructionsStep ? "COACH INSTRUCTIONS" : isExerciseBlockStep ? "EXERCISE BLOCK" : isInstructionBlockStep ? "BLOCK" : "STEP"}
-                </Typography>
-                <Typography tone="inverse" variant="headlineLg">
-                  {`${currentStepLabel ?? ""} ${currentStepTitle ?? "Workout"}`.trim()}
-                </Typography>
-                {isExerciseBlockStep ? (
-                  <Typography className="opacity-80" tone="inverse" variant="bodyMd">
-                    Scroll through the full block and log each exercise below.
-                  </Typography>
-                ) : null}
-                {!isExerciseBlockStep && currentStepBody ? (
-                  <Typography className="opacity-85" tone="inverse" variant="bodyMd">
-                    {currentStepBody}
-                  </Typography>
-                ) : null}
-              </View>
-
-              {isCoachInstructionsStep ? (
-                <Typography className="opacity-75" tone="inverse" variant="bodyMd">
-                  Read the coaching notes, then continue.
-                </Typography>
-              ) : null}
-
-              {isInstructionBlockStep ? (
-                <Typography className="opacity-75" tone="inverse" variant="bodyMd">
-                  Review the block details, then continue.
-                </Typography>
-              ) : null}
-
-              {isExerciseBlockStep ? (
-                <View className="gap-4">
-                  {!hasStartedSession ? (
-                    <Typography className="opacity-80" tone="inverse" variant="bodyMd">
-                      Start session to begin logging.
-                    </Typography>
-                  ) : null}
-
-                  {currentSignalBlockExercises.map((exerciseSection) => (
-                    <View className="gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-3.5" key={exerciseSection.payloadExercise.sync_key}>
-                      <View className="flex-row items-start justify-between gap-3">
-                        <View className="flex-1 gap-1">
-                          <Typography tone="inverse" variant="bodyLg">
-                            {exerciseSection.label} {exerciseSection.payloadExercise.exerciseName}
-                          </Typography>
-                          <Typography className="opacity-80" tone="inverse" variant="bodyMd">
-                            {exerciseSection.workoutExercise
-                              ? formatSignalWorkoutPrescriptionSummary(exerciseSection.workoutExercise.prescription) ??
-                                formatSignalExercisePrescription(exerciseSection.payloadExercise) ??
-                                "Log the prescribed sets below."
-                              : formatSignalExercisePrescription(exerciseSection.payloadExercise) ?? "Log the prescribed sets below."}
-                          </Typography>
-                          {exerciseSection.workoutExercise?.prescription.notes ? (
-                            <Typography className="opacity-72" tone="inverse" variant="bodyMd">
-                              {exerciseSection.workoutExercise.prescription.notes}
-                            </Typography>
-                          ) : null}
-                          {!exerciseSection.workoutExercise?.prescription.notes && exerciseSection.payloadExercise.notes?.trim() ? (
-                            <Typography className="opacity-72" tone="inverse" variant="bodyMd">
-                              {exerciseSection.payloadExercise.notes.trim()}
-                            </Typography>
-                          ) : null}
-                        </View>
-                      </View>
-
-                      {exerciseSection.demoVideoId ? (
-                        <Pressable
-                          accessibilityRole="button"
-                          className="overflow-hidden rounded-lg border border-white/12 bg-white/[0.04]"
-                          onPress={() => {
-                            if (exerciseSection.demoVideoId) {
-                              handleOpenCoachMedia({
-                                thumbnailUrl: exerciseSection.demoThumbnailUrl,
-                                title: exerciseSection.demoTitle,
-                                url: exerciseSection.demoUrl,
-                                videoId: exerciseSection.demoVideoId,
-                              });
-                              return;
-                            }
-
-                            Linking.openURL(exerciseSection.demoUrl).catch(() => {});
-                          }}
-                        >
-                          <View className="flex-row items-stretch gap-3">
-                            <View className="relative h-[84px] w-[132px] overflow-hidden bg-white/[0.06]">
-                              {exerciseSection.demoThumbnailUrl ? (
-                                <Image
-                                  source={{ uri: exerciseSection.demoThumbnailUrl }}
-                                  resizeMode="cover"
-                                  style={StyleSheet.absoluteFillObject}
-                                />
-                              ) : (
-                                <View className="flex-1 items-center justify-center">
-                                  <Ionicons color={colors.white} name="play-circle-outline" size={30} />
-                                </View>
-                              )}
-                              <View className="absolute inset-0 bg-black/20" />
-                              <View className="absolute inset-0 items-center justify-center">
-                                <View className="h-10 w-10 items-center justify-center rounded-full bg-black/55">
-                                  <Ionicons color={colors.white} name="play" size={18} />
-                                </View>
-                              </View>
-                            </View>
-                            <View className="flex-1 justify-center gap-1 pr-3">
-                              <Typography className="tracking-[1px] opacity-75" tone="inverse" variant="labelSm">
-                                COACH DEMO
-                              </Typography>
-                              <Typography numberOfLines={1} tone="inverse" variant="bodyMd">
-                                {exerciseSection.demoTitle}
-                              </Typography>
-                              <Typography className="opacity-72" tone="inverse" variant="labelSm">
-                                YouTube
-                              </Typography>
-                            </View>
-                            <View className="justify-center pr-3">
-                              <Ionicons color={colors.white} name="arrow-forward" size={16} />
-                            </View>
-                          </View>
-                        </Pressable>
-                      ) : (
-                        <Pressable
-                          accessibilityRole="button"
-                          className="flex-row items-center gap-3 overflow-hidden rounded-lg border border-white/12 bg-white/[0.04]"
-                          onPress={() => {
-                            Linking.openURL(exerciseSection.demoUrl).catch(() => {});
-                          }}
-                        >
-                          <View className="h-[72px] w-28 items-center justify-center bg-white/[0.06]">
-                            <Ionicons color={colors.white} name="play-circle-outline" size={28} />
-                          </View>
-                          <View className="flex-1 gap-1 pr-3">
-                            <Typography className="tracking-[1px] opacity-75" tone="inverse" variant="labelSm">
-                              DEMO
-                            </Typography>
-                            <Typography tone="inverse" variant="bodyMd">
-                              {exerciseSection.demoLabel}
-                            </Typography>
-                            <Typography className="opacity-72" tone="inverse" variant="labelSm">
-                              Search exercise form on YouTube
-                            </Typography>
-                          </View>
-                          <View className="pr-3">
-                            <Ionicons color={colors.white} name="arrow-forward" size={16} />
-                          </View>
-                        </Pressable>
-                      )}
-
-                      <View className="gap-2">
-                        <View className="flex-row items-center border-b border-white/10 pb-2">
-                          <Typography
-                            className="tracking-[1px] text-white/80"
-                            style={{ width: SIGNAL_SET_TABLE_COLUMNS.label }}
-                            tone="inverse"
-                            variant="labelSm"
-                          >
-                            SET
-                          </Typography>
-                          <Typography className="flex-1 text-center tracking-[1px] text-white/80" tone="inverse" variant="labelSm">
-                            REPS
-                          </Typography>
-                          <Typography className="flex-1 text-center tracking-[1px] text-white/80" tone="inverse" variant="labelSm">
-                            LBS
-                          </Typography>
-                          <Typography className="flex-1 text-center tracking-[1px] text-white/80" tone="inverse" variant="labelSm">
-                            RPE
-                          </Typography>
-                          <Typography
-                            className="text-center tracking-[1px] text-white/80"
-                            style={{ width: SIGNAL_SET_TABLE_COLUMNS.done }}
-                            tone="inverse"
-                            variant="labelSm"
-                          >
-                            DONE
-                          </Typography>
-                        </View>
-
-                        {Array.from({ length: exerciseSection.targetSets + exerciseSection.extraSets }).map((_, index) => {
-                          const setNo = index + 1;
-                          const draftKey = buildWorkoutLogKey(exerciseSection.exerciseId, setNo);
-                          const completed =
-                            exerciseSection.completedSetNumbers.has(setNo) ||
-                            pendingCompletedSetKeys.has(draftKey);
-                          const isActiveSet =
-                            hasStartedSession &&
-                            setNo === exerciseSection.nextSetNumber &&
-                            exerciseSection.completedSetNumbers.size < (exerciseSection.targetSets + exerciseSection.extraSets);
-                          const draft = setDrafts[draftKey] ?? { lbs: "", reps: "", rpe: "" };
-                          const displayedReps = draft.reps.length > 0 ? draft.reps : exerciseSection.prescribedReps;
-                          const displayedRpe = draft.rpe.length > 0 ? draft.rpe : exerciseSection.prescribedRpe;
-                          return (
-                            <WorkoutSetRow
-                              completed={completed}
-                              index={setNo}
-                              isActive={isActiveSet}
-                              isEditable={hasStartedSession && Boolean(exerciseSection.workoutExercise)}
-                              key={draftKey}
-                              lbsValue={draft.lbs}
-                              onChangeLbs={(next) => updateSetDraft(draftKey, "lbs", next)}
-                              onChangeReps={(next) => updateSetDraft(draftKey, "reps", next)}
-                              onChangeRpe={(next) => updateSetDraft(draftKey, "rpe", next)}
-                              onToggleComplete={() => {
-                                if (!exerciseSection.workoutExercise) return;
-                                handleCompleteSet(exerciseSection.workoutExercise, setNo);
-                              }}
-                              repsValue={displayedReps}
-                              rpeValue={displayedRpe}
-                              setLabel={`Set ${setNo}`}
-                              signalMode
-                              weightInputRef={(node) => {
-                                setInputRefs.current[draftKey] = node;
-                              }}
-                            />
-                          );
-                        })}
-
-                        {hasStartedSession ? (
-                          <View className="flex-row items-center justify-center gap-4 pt-2 pb-1">
-                            <Pressable
-                              accessibilityLabel="Remove set"
-                              accessibilityRole="button"
-                              disabled={exerciseSection.extraSets === 0}
-                              onPress={() => {
-                                const lastSetNo = exerciseSection.targetSets + exerciseSection.extraSets;
-                                const isLastSetCompleted = exerciseSection.completedSetNumbers.has(lastSetNo) || pendingCompletedSetKeys.has(buildWorkoutLogKey(exerciseSection.exerciseId, lastSetNo));
-                                if (isLastSetCompleted) return; // Prevent removing completed set
-                                removeExtraSet(exerciseSection.exerciseId);
-                              }}
-                              className={cn(
-                                "h-8 w-8 items-center justify-center rounded-full border",
-                                exerciseSection.extraSets > 0 && !exerciseSection.completedSetNumbers.has(exerciseSection.targetSets + exerciseSection.extraSets) && !pendingCompletedSetKeys.has(buildWorkoutLogKey(exerciseSection.exerciseId, exerciseSection.targetSets + exerciseSection.extraSets))
-                                  ? "border-white/20 bg-white/10"
-                                  : "border-white/5 bg-transparent opacity-40",
-                              )}
-                            >
-                              <Ionicons color={colors.white} name="remove" size={16} />
-                            </Pressable>
-                            <Typography className="tracking-[1px] opacity-75" tone="inverse" variant="labelSm">
-                              SET
-                            </Typography>
-                            <Pressable
-                              accessibilityLabel="Add set"
-                              accessibilityRole="button"
-                              onPress={() => addExtraSet(exerciseSection.exerciseId)}
-                              className="h-8 w-8 items-center justify-center rounded-full border border-emerald/50 bg-emerald/20"
-                            >
-                              <Ionicons color={colors.emerald} name="add" size={16} />
-                            </Pressable>
-                          </View>
-                        ) : null}
-                      </View>
-
-                      <View className="gap-1.5">
-                        <Typography className="tracking-[1px] opacity-90" tone="inverse" variant="labelSm">
-                          NOTE
-                        </Typography>
-                        <TextInput
-                          editable={hasStartedSession}
-                          onChangeText={(next) => updateExerciseNote(exerciseSection.exerciseId, next)}
-                          placeholder="Add a quick note"
-                          placeholderTextColor="rgba(255,255,255,0.42)"
-                          selectionColor={colors.emerald}
-                          style={[styles.noteInputCompact, styles.noteInputSignal]}
-                          value={exerciseSection.note}
-                        />
-                      </View>
-                    </View>
-                  ))}
-                </View>
-              ) : null}
-
-              {isDoneTrainingStep ? (
-                <View className="gap-2">
-                  <Typography tone="inverse" variant="headlineXl">
-                    Done Training
-                  </Typography>
-                  <Typography className="opacity-80" tone="inverse" variant="bodyMd">
-                    Great work. Review your session before finishing.
-                  </Typography>
-                </View>
-              ) : null}
-
-              {isReflectionStep ? (
-                <View className="gap-4">
-                  <View className="gap-2">
-                    <Typography className="opacity-75" tone="inverse" variant="labelSm">
-                      Session Reflection
-                    </Typography>
-                    <Typography tone="inverse" variant="headlineXl">
-                      How did this session feel?
-                    </Typography>
-                  </View>
-
-                  <View className="gap-2">
-                    <Typography className="opacity-75" tone="inverse" variant="labelSm">
-                      Intensity
-                    </Typography>
-                    <View className="flex-row flex-wrap gap-2">
-                      {Array.from({ length: 10 }).map((_, index) => {
-                        const value = index + 1;
-                        const selected = reflectionIntensity === value;
-                        return (
-                          <Pressable
-                            key={value}
-                            accessibilityRole="button"
-                            className={cn(
-                              "h-11 w-11 items-center justify-center rounded-full border",
-                              selected ? "border-emerald bg-emerald" : "border-white/12 bg-white/6",
-                            )}
-                            onPress={() => setReflectionIntensity(value)}
-                          >
-                            <Typography tone={selected ? "inverse" : "secondary"} variant="labelMd">
-                              {value}
-                            </Typography>
-                          </Pressable>
-                        );
-                      })}
-                    </View>
-                  </View>
-
-                  <View className="gap-2">
-                    <Typography className="opacity-75" tone="inverse" variant="labelSm">
-                      Duration (minutes)
-                    </Typography>
-                    <TextInput
-                      keyboardType="number-pad"
-                      onChangeText={setReflectionDurationMinutes}
-                      placeholder="Enter session duration"
-                      placeholderTextColor="rgba(255,255,255,0.42)"
-                      selectionColor={colors.emerald}
-                      style={[styles.noteInputCompact, styles.noteInputSignal]}
-                      value={reflectionDurationMinutes}
-                    />
-                  </View>
-
-                  <View className="gap-2">
-                    <Typography className="opacity-75" tone="inverse" variant="labelSm">
-                      Reflection
-                    </Typography>
-                    <TextInput
-                      multiline
-                      onChangeText={setReflectionNote}
-                      placeholder="Add a quick reflection"
-                      placeholderTextColor="rgba(255,255,255,0.42)"
-                      selectionColor={colors.emerald}
-                      style={[styles.noteInput, styles.noteInputSignal]}
-                      value={reflectionNote}
-                    />
-                  </View>
-
-                  <Pressable
-                    accessibilityRole="checkbox"
-                    className="flex-row items-center justify-between rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3"
-                    onPress={toggleShareWithCoachAndTeam}
-                  >
-                    <Typography tone="inverse" variant="bodyMd">
-                      Share with coach and team
-                    </Typography>
-                    <View
-                      className={cn(
-                        "h-6 w-6 items-center justify-center rounded-full border",
-                        shareWithCoachAndTeam ? "border-emerald bg-emerald" : "border-white/15 bg-white/8",
-                      )}
-                    >
-                      {shareWithCoachAndTeam ? (
-                        <Ionicons color={colors.white} name="checkmark" size={14} />
-                      ) : null}
-                    </View>
-                  </Pressable>
-
-                  {signalFinishError ? (
-                    <Typography tone="danger" variant="labelSm">
-                      {signalFinishError}
-                    </Typography>
-                  ) : null}
-                </View>
-              ) : null}
-
-              {null}
-            </View>
-
-          </View>
+          <SignalWorkoutStepPane
+            currentStepBody={currentStepBody}
+            currentStepLabel={currentStepLabel}
+            currentStepTitle={currentStepTitle}
+            exercises={currentSignalBlockExercises}
+            hasStartedSession={hasStartedSession}
+            isCoachInstructionsStep={isCoachInstructionsStep}
+            isDoneTrainingStep={isDoneTrainingStep}
+            isExerciseBlockStep={isExerciseBlockStep}
+            isInstructionBlockStep={isInstructionBlockStep}
+            isReflectionStep={isReflectionStep}
+            onAddExtraSet={addExtraSet}
+            onChangeExerciseNote={updateExerciseNote}
+            onChangeReflectionDurationMinutes={setReflectionDurationMinutes}
+            onChangeReflectionIntensity={setReflectionIntensity}
+            onChangeReflectionNote={setReflectionNote}
+            onChangeSetDraft={updateSetDraft}
+            onCompleteSet={handleCompleteSet}
+            onOpenCoachMedia={handleOpenCoachMedia}
+            onOpenDemoUrl={(url) => {
+              Linking.openURL(url).catch(() => {});
+            }}
+            onRemoveExtraSet={removeExtraSet}
+            onSetWeightInputRef={(draftKey, node) => {
+              setInputRefs.current[draftKey] = node;
+            }}
+            onToggleShareWithCoachAndTeam={toggleShareWithCoachAndTeam}
+            pendingCompletedSetKeys={pendingCompletedSetKeys}
+            progress={signalStepProgress}
+            progressIndex={signalProgressIndex}
+            progressSteps={signalProgressSteps}
+            reflectionDurationMinutes={reflectionDurationMinutes}
+            reflectionIntensity={reflectionIntensity}
+            reflectionNote={reflectionNote}
+            setDrafts={setDrafts}
+            shareWithCoachAndTeam={shareWithCoachAndTeam}
+            signalFinishError={signalFinishError}
+            stepLabel={currentStepLabel ?? "STEP"}
+            summaryLabel={workoutSummary ? formatSummaryLine(workoutSummary) : "Workout in progress"}
+          />
         ) : null}
 
         {!completionSummary &&
