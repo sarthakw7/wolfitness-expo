@@ -23,6 +23,7 @@ import { WorkoutExerciseHeader } from "@/src/features/workout/components/Workout
 import { SIGNAL_SET_TABLE_COLUMNS, WorkoutSetRow } from "@/src/features/workout/components/WorkoutSetRow";
 import { WorkoutCompletionSummary as WorkoutCompletionSummaryView } from "@/src/features/workout/components/WorkoutCompletionSummary";
 import { useSignalSaveAndExit } from "@/src/features/workout/hooks/useSignalSaveAndExit";
+import { useSignalWorkoutPlayerState } from "@/src/features/workout/hooks/useSignalWorkoutPlayerState";
 import { useSignalWorkoutDerivedState } from "@/src/features/workout/hooks/useSignalWorkoutDerivedState";
 import { useWorkoutDiscard } from "@/src/features/workout/hooks/useWorkoutDiscard";
 import { useWorkoutCompletion, type WorkoutCompletionSummary } from "@/src/features/workout/hooks/useWorkoutCompletion";
@@ -33,7 +34,6 @@ import {
   buildSignalDemoSearchUrl,
   getSignalCoachMediaPreview,
   isValidHttpUrl,
-  type SignalCoachMediaPreview,
 } from "@/src/features/workout/lib/coachMedia";
 import {
   buildWorkoutLogKey,
@@ -261,14 +261,7 @@ function WorkoutPlayerScreenComponent() {
   const discardWorkoutMutation = useDiscardWorkoutSession();
   const setInputRefs = useRef<Record<string, TextInput | null>>({});
   const [completionSummary, setCompletionSummary] = useState<WorkoutCompletionSummary | null>(null);
-  const [reflectionIntensity, setReflectionIntensity] = useState<number>(7);
-  const [reflectionDurationMinutes, setReflectionDurationMinutes] = useState<string>("");
-  const [reflectionNote, setReflectionNote] = useState<string>("");
-  const [shareWithCoachAndTeam, setShareWithCoachAndTeam] = useState<boolean>(false);
   const [signalFinishError, setSignalFinishError] = useState<string | null>(null);
-  const [showRestTimerOptions, setShowRestTimerOptions] = useState(false);
-  const [showCustomTimerInput, setShowCustomTimerInput] = useState(false);
-  const [customTimerInput, setCustomTimerInput] = useState("");
   const signalCompletionSummary = isSignalExecution ? completionSummary : null;
   const restTimer = useRestTimer();
   const resetRestTimer = restTimer.reset;
@@ -436,22 +429,44 @@ function WorkoutPlayerScreenComponent() {
     signalWeekId,
     workoutPlan,
   });
-
-  const [currentStepIndex, setCurrentStepIndex] = useState(signalInitialStepIndex);
+  const {
+    activeCoachMedia,
+    clearCustomTimerState,
+    closeCoachMedia: handleCloseCoachMedia,
+    closeCustomTimerInput,
+    closeTimerPanel,
+    coachMediaError,
+    currentStepIndex,
+    customTimerInput,
+    markCoachMediaPlaybackError,
+    openCoachMedia: handleOpenCoachMedia,
+    reflectionDurationMinutes,
+    reflectionIntensity,
+    reflectionNote,
+    resetSignalPlayerState,
+    setCurrentStepIndex,
+    setCustomTimerInput,
+    setReflectionDurationMinutes,
+    setReflectionIntensity,
+    setReflectionNote,
+    setShowCustomTimerInput,
+    setShowRestTimerOptions,
+    shareWithCoachAndTeam,
+    showCustomTimerInput,
+    showRestTimerOptions,
+    toggleShareWithCoachAndTeam,
+  } = useSignalWorkoutPlayerState({
+    signalDayId,
+    signalInitialStepIndex,
+    signalWeekId,
+  });
 
   useEffect(() => {
-    setCurrentStepIndex(signalInitialStepIndex);
+    resetSignalPlayerState();
     setCompletionSummary(null);
-    setReflectionIntensity(7);
-    setReflectionDurationMinutes("");
-    setReflectionNote("");
-    setShareWithCoachAndTeam(false);
     setSignalFinishError(null);
-    setShowRestTimerOptions(false);
-    setShowCustomTimerInput(false);
-    setCustomTimerInput("");
     resetRestTimer();
-  }, [resetRestTimer, signalDayId, signalInitialStepIndex, signalWeekId]);
+  }, [resetRestTimer, resetSignalPlayerState, signalDayId, signalInitialStepIndex, signalWeekId]);
 
   useEffect(() => {
     if (!isRestTimerCompleted) return;
@@ -484,8 +499,6 @@ function WorkoutPlayerScreenComponent() {
 
   const sessionComplete = Boolean(sessionQuery.data?.session.completed_at);
   const hasStartedSession = Boolean(sessionId && sessionQuery.data?.session.cancelled_at === null);
-  const [activeCoachMedia, setActiveCoachMedia] = useState<SignalCoachMediaPreview | null>(null);
-  const [coachMediaError, setCoachMediaError] = useState(false);
   const { isSavingAndExiting, saveAndExit: handleSaveAndExit } = useSignalSaveAndExit({
     completedSetNumbersByExercise,
     completeSetMutationIsPending: completeSetMutation.isPending,
@@ -565,11 +578,6 @@ function WorkoutPlayerScreenComponent() {
     signalSessionScope,
     userId: user?.id,
   });
-
-  useEffect(() => {
-    setActiveCoachMedia(null);
-    setCoachMediaError(false);
-  }, [signalDayId, signalWeekId]);
 
   const signalStepPrimaryLabel = isCoachInstructionsStep
     ? "Got It"
@@ -682,8 +690,7 @@ function WorkoutPlayerScreenComponent() {
 
   const handleSignalStepBack = () => {
     if (!isSignalExecution) return;
-    setShowRestTimerOptions(false);
-    setShowCustomTimerInput(false);
+    closeTimerPanel();
     if (safeStepIndex > 0) {
       setCurrentStepIndex((current) => Math.max(0, current - 1));
       Haptics.selectionAsync().catch(() => {});
@@ -696,8 +703,7 @@ function WorkoutPlayerScreenComponent() {
 
   const handleSignalHeaderNext = async () => {
     if (!isSignalExecution || !currentStep) return;
-    setShowRestTimerOptions(false);
-    setShowCustomTimerInput(false);
+    closeTimerPanel();
 
     if (isSummaryStep) {
       await handleSignalSummaryDone();
@@ -712,16 +718,6 @@ function WorkoutPlayerScreenComponent() {
     Haptics.selectionAsync().catch(() => {});
   };
 
-  const handleOpenCoachMedia = (preview: SignalCoachMediaPreview) => {
-    setCoachMediaError(false);
-    setActiveCoachMedia(preview);
-  };
-
-  const handleCloseCoachMedia = () => {
-    setActiveCoachMedia(null);
-    setCoachMediaError(false);
-  };
-
   const coachMediaModalNode = activeCoachMedia ? (
     <CoachMediaModal
       embedUrl={activeCoachMedia.videoId ? buildYouTubeEmbedUrl(activeCoachMedia.videoId) : null}
@@ -733,7 +729,7 @@ function WorkoutPlayerScreenComponent() {
           Linking.openURL(fallbackUrl).catch(() => {});
         }
       }}
-      onPlaybackError={() => setCoachMediaError(true)}
+      onPlaybackError={markCoachMediaPlaybackError}
       paddingTop={insets.top + spacing[4]}
       title={activeCoachMedia.title}
     />
@@ -816,8 +812,7 @@ function WorkoutPlayerScreenComponent() {
 
   const handleSignalStepPrimary = async () => {
     if (!isSignalExecution || !currentStep) return;
-    setShowRestTimerOptions(false);
-    setShowCustomTimerInput(false);
+    closeTimerPanel();
 
     if (isCoachInstructionsStep) {
       setCurrentStepIndex((current) => Math.min(signalOrderedSteps.length - 1, current + 1));
@@ -869,9 +864,7 @@ function WorkoutPlayerScreenComponent() {
 
   const handleSignalTimerSelect = (seconds: number) => {
     restTimer.start(seconds);
-    setShowRestTimerOptions(false);
-    setShowCustomTimerInput(false);
-    setCustomTimerInput("");
+    clearCustomTimerState();
   };
 
   const handleSignalSummaryDone = async () => {
@@ -891,9 +884,7 @@ function WorkoutPlayerScreenComponent() {
     if (!Number.isFinite(parsed) || parsed < 5 || parsed > 60 * 30) return;
     restTimer.setCustomDuration(parsed);
     restTimer.start(parsed);
-    setShowCustomTimerInput(false);
-    setShowRestTimerOptions(false);
-    setCustomTimerInput("");
+    clearCustomTimerState();
   };
 
   const handleStartWorkout = async () => {
@@ -927,14 +918,8 @@ function WorkoutPlayerScreenComponent() {
       isSummaryStep={isSummaryStep}
       isWorkoutProgressStep={isWorkoutProgressStep}
       onBack={handleSignalStepBack}
-      onCancelCustomTimer={() => {
-        setShowCustomTimerInput(false);
-        setCustomTimerInput("");
-      }}
-      onCancelTimerPanel={() => {
-        setShowCustomTimerInput(false);
-        setShowRestTimerOptions(false);
-      }}
+      onCancelCustomTimer={closeCustomTimerInput}
+      onCancelTimerPanel={closeTimerPanel}
       onCenterAction={handleSignalFooterCenterPress}
       onChangeCustomTimerInput={setCustomTimerInput}
       onFinishSession={handleFinishWorkout}
@@ -1525,7 +1510,7 @@ function WorkoutPlayerScreenComponent() {
                   <Pressable
                     accessibilityRole="checkbox"
                     className="flex-row items-center justify-between rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3"
-                    onPress={() => setShareWithCoachAndTeam((current) => !current)}
+                    onPress={toggleShareWithCoachAndTeam}
                   >
                     <Typography tone="inverse" variant="bodyMd">
                       Share with coach and team
